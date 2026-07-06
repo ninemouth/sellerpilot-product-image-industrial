@@ -5,6 +5,8 @@ inherits: ecommerce-product-image-generation
 goal: Apply Pinduoduo-specific constraints to the platform-agnostic ecommerce product image generation loop, typically 7-9 images, with Chinese conversion copy, visually distinct marketing roles, GPT built-in image generation prompts for true lifestyle scene images when requested, product-fact boundaries, QA, review surface, revision brief, and export package.
 steps:
   - resolve-skill-root
+  - production-mode-router
+  - production-efficiency-plan
   - input-normalizer
   - brief-intake-gate
   - create-run-skeleton
@@ -20,25 +22,23 @@ steps:
   - product-image-parser
   - product-identity-lock
   - product-physical-truth-lock-if-function-use-or-scale-sensitive
-  - product-url-reader
-  - product-fact-sheet
+  - product-url-reader-if-url-provided
+  - compact-product-fact-sheet-or-facts-section
   - platform-spec-profile
   - platform-context-planner
-  - platform-category-web-research
+  - platform-category-web-research-if-triggered-by-freshness-or-conversion-risk
   - platform-category-profile-overlay
   - bestseller-design-mining-if-marketing-enhancement
   - audience-persona
-  - market-research
+  - compact-market-research-if-triggered
   - product-feature-analysis
   - audience-positioning-analysis
   - product-positioning
-  - commerce-strategy-brief
-  - creative-direction-brief
+  - compact-commerce-creative-photo-brief
   - graphic-design-direction
-  - commercial-photography-treatment
   - image-set-architecture
-  - sketch-to-final-production
-  - layout-wireframes
+  - sketch-to-final-production-if-complete-set-or-scene-heavy
+  - compact-layout-wireframes-if-needed
   - prompt-readiness-gate
   - visual-template-library
   - visual-strategy
@@ -47,7 +47,7 @@ steps:
   - buyer-facing-copy-director
   - copy-localization
   - copy-strategy-gate
-  - image-set-blueprint
+  - compact-image-set-blueprint
   - blueprint-gate
   - gpt-built-in-image-generation-policy
   - prompt-layer-architect
@@ -76,47 +76,21 @@ steps:
   - revision
   - export-packaging
 default_outputs:
-  - product_fact_sheet
-  - goal_contract
-  - source_image_set_manifest
-  - product_identity_lock
-  - product_physical_truth_lock_if_applicable
-  - source_image_quality_report
-  - product_feature_analysis
-  - audience_positioning_analysis
-  - platform_category_research_brief
-  - platform_category_profile_overlay
-  - bestseller_design_mining_report
-  - commerce_strategy_brief
-  - creative_direction_brief
-  - graphic_design_direction
-  - photography_treatment
-  - layout_wireframes
-  - visual_direction_brief
-  - image_set_blueprint
-  - localized_copy_pack
-  - final_personalized_prompt_delivery
-  - prompt_layer_stack
-  - prompt_readiness_gate_report
-  - prompt_layer_gate_report
-  - generation_request_pack_if_fallback_or_audit_needed
-  - final_personalized_generation_prompts
-  - generation_execution_result_summary_if_runtime_generated
-  - generated_or_rendered_images
-  - identity_consistency_report
-  - identity_geometry_gate_report_if_applicable
-  - product_physics_fact_gate_report_if_applicable
-  - review_canvas
-  - tldraw_review_workspace_if_visual_review_needed
-  - parsed_generation_tasks_if_annotations_provided
-  - region_review_html
-  - marketing_quality_gate_report
-  - image_set_export_gate_report
-  - qa_loop_routing_decision
-  - final_delivery_gate_report
-  - qa_report
-  - revision_history
-  - final_asset_package
+  quality_production:
+    - production_efficiency_plan
+    - compact_source_understanding
+    - product_identity_lock
+    - triggered_physical_or_geometry_locks
+    - compact_quality_production_blueprint
+    - prompt_layer_gate_report
+    - anchor_batch_qa_decision
+    - generated_or_rendered_images
+    - marketing_quality_gate_report
+    - image_set_export_gate_report
+    - delivery_overview_contact_sheet
+    - post_generation_tldraw_ready_url_or_blocked_reason
+    - final_delivery_gate_report
+  industrial_audit: full_default_outputs_from_parent
 loop_policy:
   max_generation_attempts_per_scene_role: 2
   use_anchor_batch_before_full_set_generation: true

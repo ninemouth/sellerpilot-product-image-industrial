@@ -17,6 +17,7 @@
 - 从源图中提取商品身份、可见文字、尺寸线索、材料/结构/功能信息，并把这些事实传递到后续图像生成和 QA。
 - 针对时令、气候、节假日、区域趋势和营销热词创建平台上下文计划。
 - 对最终图片文案做策略 gate，避免无证据的夸张卖点、内部 QA 语言、平台水印或系统标记。
+- 强制保留商品套图总览图，但在日常高质量成品中收敛规划和报告产物，避免把完整工业审计包误跑成普通出图流程。
 - 用身份一致性、几何比例、物理功能、导出规范、总览图和 QA loop guard 降低“生造功能”“商品变形”“多任务图片串流”等风险。
 - 多图成品在生图导出和总览图完成后自动启动 tldraw 画布，让用户直接批注，然后把批注转换成修订任务。
 
@@ -174,7 +175,7 @@ test ! -e ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industria
 这个 skill 不是永远使用 fast generation mode。它会根据任务目标选择最轻但能保护图片质量的模式：
 
 - `fast_generation`：单张、低风险、草稿或用户明确要求快速时使用。
-- `quality_production`：高质量商品套图和最终成品的默认模式。它会保留源图理解、身份锁、视觉导演、prompt layer、anchor batch、关键 QA 和总览图，但不会默认生成完整工业审计包。
+- `quality_production`：高质量商品套图和最终成品的默认模式。它会保留源图理解、身份锁、紧凑套图规划、视觉导演、prompt layer、anchor batch、关键 QA 和总览图，但不会默认生成完整工业审计包。
 - `revision_repair`：用户给出批注、截图对比或要求修改已有图片时使用，只重跑受影响资产。
 - `industrial_audit`：用户要求完整 workflow、迁移 SellerPilot、gate report、审计证据或开发验证时使用。
 - `debug_development`：开发、自测、回归验证时使用。
@@ -196,6 +197,18 @@ npm run route:mode -- \
 ```text
 selected_mode: quality_production
 ```
+
+可以为一次生产创建效率计划：
+
+```bash
+npm run plan:efficiency -- \
+  --run-dir runs/demo-amazon-bag \
+  --mode-report runs/demo-amazon-bag/mode/production-mode-router-report.json \
+  --image-count 8 \
+  --has-source-image true
+```
+
+这个计划不会降低成图质量。它的作用是把完整工业工作流收敛为当次任务真正需要的质量路径：保留源图理解、身份锁、紧凑套图规划、prompt layer、anchor batch、关键 QA、总览图和最终画布；跳过未触发的 URL 读取、完整市场研究、完整爆品挖掘、预生成画布和多份长报告。
 
 ## 推荐输入
 
@@ -219,6 +232,8 @@ selected_mode: quality_production
 - 稳定 ID + 英文用途 slug 的文件名。
 - 多图套图的 `overview/SET-OVERVIEW-contact-sheet.png` 总览图。
 - 当前任务的 `export/final-images-manifest.json`，用于证明没有跨任务混图。
+- `planning/production-efficiency-plan.json`，用于说明本次哪些工作会触发、哪些会跳过、阶段预算和长耗时进度规则。
+- `blueprint/quality-production-blueprint.json` 紧凑套图规划，保留每张图的角色、买家问题、镜头、文案意图、prompt layer 和 QA 标准。
 - 商品身份锁和源图理解摘要，包括源图文字/OCR 提供的尺寸、型号、功能、标签等事实线索。
 - 必要时的物理功能锁、几何比例锁或微细节锁。
 - 镜头矩阵、场景策略、文案策略和 prompt layer 摘要。
@@ -258,6 +273,16 @@ npm run route:mode -- \
   --user-text "为拼多多女包生成8图高质量套图" \
   --image-count 8 \
   --quality-target high
+```
+
+生成效率计划：
+
+```bash
+npm run plan:efficiency -- \
+  --run-dir runs/demo-amazon-bag \
+  --mode-report runs/demo-amazon-bag/mode/production-mode-router-report.json \
+  --image-count 8 \
+  --has-source-image true
 ```
 
 生图完成后启动/复用 tldraw 画布：

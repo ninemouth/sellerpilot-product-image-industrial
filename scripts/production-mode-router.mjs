@@ -95,6 +95,7 @@ function selectMode(flags, ctx) {
 function modePolicy(mode, flags) {
   const common = {
     update_check: "cache-first non-blocking",
+    efficiency_plan: "write production-efficiency-plan before heavy planning or generation",
     tldraw: "for generated multi-image final sets, auto-start after export and overview; for single-image drafts, start only when review, gate failure, or revision feedback is next",
     generation_pacing: "use anchor batch before full multi-image generation",
     rerun_policy: "rerun only missing or failed assets",
@@ -114,6 +115,7 @@ function modePolicy(mode, flags) {
         "direction-options-if-rough",
         "source-understanding-ocr",
         "identity-lock",
+        "compact-image-set-planning",
         flags.physical_function_risk ? "physical-truth-lock-and-gate" : "physical-truth-check-if-triggered",
         flags.platform_research_needed ? "targeted-platform-research" : "cached-platform-profile",
         "feature-audience-analysis",
@@ -124,7 +126,14 @@ function modePolicy(mode, flags) {
         "identity-marketing-export-final-gates",
         "overview-contact-sheet",
       ],
-      skipped_by_default: ["verbose-industrial-reports", "pre-generation-always-on-tldraw", "full-bestseller-mining-unless-requested"],
+      skipped_by_default: [
+        "verbose-industrial-reports",
+        "pre-generation-always-on-tldraw",
+        "untriggered-product-url-reader",
+        "untriggered-live-web-research",
+        "full-bestseller-mining-unless-requested",
+        "separate-verbose-strategy-docs-when-compact-image-set-planning-covers-them",
+      ],
     };
   }
   if (mode === "revision_repair") {

@@ -5,6 +5,8 @@ inherits: ecommerce-product-image-generation
 goal: Generate an Amazon-ready 7-image listing set using GPT built-in image generation prompts plus QA/export gates; create request packs only as fallback or audit evidence.
 steps:
   - resolve-skill-root
+  - production-mode-router
+  - production-efficiency-plan
   - input-normalizer
   - brief-intake-gate
   - create-run-skeleton
@@ -16,24 +18,22 @@ steps:
   - product-image-parser
   - product-identity-lock
   - product-physical-truth-lock-if-function-use-or-scale-sensitive
-  - product-url-reader
-  - product-fact-sheet
+  - product-url-reader-if-url-provided
+  - compact-product-fact-sheet-or-facts-section
   - platform-spec-profile
   - platform-context-planner
-  - platform-category-web-research
+  - platform-category-web-research-if-triggered-by-freshness-or-conversion-risk
   - platform-category-profile-overlay
   - audience-persona
-  - market-research
+  - compact-market-research-if-triggered
   - product-positioning
   - product-feature-analysis
   - audience-positioning-analysis
-  - commerce-strategy-brief
-  - creative-direction-brief
+  - compact-commerce-creative-photo-brief
   - graphic-design-direction
-  - commercial-photography-treatment
   - image-set-architecture
-  - sketch-to-final-production
-  - layout-wireframes
+  - sketch-to-final-production-if-complete-set-or-scene-heavy
+  - compact-layout-wireframes-if-needed
   - prompt-readiness-gate
   - visual-template-library
   - visual-strategy
@@ -41,7 +41,7 @@ steps:
   - scene-asset-production-if-scene-roles
   - copy-localization
   - copy-strategy-gate
-  - image-set-blueprint
+  - compact-image-set-blueprint
   - gpt-built-in-image-generation-policy
   - prompt-layer-architect
   - prompt-layer-stack

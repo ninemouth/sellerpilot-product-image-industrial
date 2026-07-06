@@ -11,7 +11,7 @@ Product Image Orchestrator Agent
 
 本 Agent 不应直接把任务简化为“一次出图”。日常 Codex 对话应选择最轻但能保护成品质量的模式：单图草稿或明确速度优先才用 fast generation mode；高质量多图成品默认用 quality production mode；用户要求工业级审计、完整报告、迁移 SellerPilot 或开发验证时，才执行完整 Harness + Loop：
 
-Intent -> Normalize -> Brief Intake Gate -> Source Photo Preflight/Enhance -> Source Product Understanding/OCR -> Product Identity Lock -> Platform/Category Context -> Feature/Audience Analysis -> Commerce Strategy -> Creative Direction -> Graphic Design Direction -> Photography Treatment -> Sketch/Wireframe Self Review -> Visual Director Shot Matrix -> Buyer-Facing Copy -> Prompt Layer Brain -> Codex-Native GPT Built-In Image Generation Anchor Batch -> Identity/Marketing/Export QA -> Delivery Overview -> Continue Missing Assets Only -> Unified QA Loop Router -> Post-Generation tldraw Auto Start -> Final Delivery Gate -> Native Canvas Review -> Revision -> Export
+Intent -> Normalize -> Mode Router -> Efficiency Plan -> Brief Intake Gate -> Source Photo Preflight/Enhance -> Source Product Understanding/OCR -> Product Identity Lock -> Triggered Platform/Category Context -> Compact Image-Set Planning -> Visual Director Shot Matrix -> Buyer-Facing Copy -> Prompt Layer Brain -> Codex-Native GPT Built-In Image Generation Anchor Batch -> Identity/Marketing/Export QA -> Delivery Overview -> Continue Missing Assets Only -> Unified QA Loop Router -> Post-Generation tldraw Auto Start -> Final Delivery Gate -> Native Canvas Review -> Revision -> Export
 
 ## Non-negotiable Rules
 
@@ -41,12 +41,16 @@ Intent -> Normalize -> Brief Intake Gate -> Source Photo Preflight/Enhance -> So
 23. 原图中的文字、标签、包装、尺寸、警示、型号、规格、安装步骤等都是商品事实线索；必须先做 Source Product Understanding/OCR 并把确认事实传递到 identity/physical truth/geometry/prompt/copy，不能只增强图片或在后续生图中改变其含义。
 24. 多图套图交付必须包含独立成品图和一张交付总览图 `overview/SET-OVERVIEW-contact-sheet.png`；总览图用于核对/对话交付，不得替代 `final-images` 内的独立平台图片。
 25. 每个任务必须有独立 `run_id` 和 run 目录。总览图、tldraw 工作台、导出 gate、A-H review 等只允许读取当前任务的 `export/final-images-manifest.json` 或当前 `run-dir/final-images`；不得扫描日期级目录、共享 `outputs/`、父目录或其他任务目录。
+26. 高质量多图成品必须强制保留交付总览图 `overview/SET-OVERVIEW-contact-sheet.png`。日常 Codex quality production 中的套图规划应保持紧凑，不得默认生成完整工业审计包里的多份长报告。
+27. 任务开始后必须写 `planning/production-efficiency-plan.json`，明确触发/跳过的工作、预算、进度文件和长耗时汇报规则。无触发信号时不得默认跑完整 web 调研、市场研究、URL 读取或预生成画布。
 
 ## Default Workflow
 
 Fast generation mode uses this compact workflow unless the user requests a full audit package:
 
 - input-normalizer
+- production-mode-router
+- production-efficiency-plan
 - brief-intake-gate
 - strategy-direction-options/user-handoff-if-rough
 - source-photo-preflight/enhance-if-needed
@@ -57,11 +61,14 @@ Fast generation mode uses this compact workflow unless the user requests a full 
 - feature/audience/scene trigger summary
 - graphic-design-direction summary
 - visual-director shot matrix
+- compact image-set planning
 - prompt-layer mini plan
 - Codex-native imagegen/image_gen anchor batch execution
 - focused identity/physical-function/marketing/export QA
 - final-images-manifest
 - delivery-overview-contact-sheet
+- production-efficiency-plan
+- compact image-set planning
 - continue missing/failed assets only
 - shared tldraw review session URL for generated multi-image final sets, or blocked reason if auto-start failed
 
@@ -113,6 +120,7 @@ Fast generation mode 完成必须包含：
 - 当前任务的 final-images manifest，证明没有跨任务混图
 - 稳定 ID + 英文用途 slug 的文件名
 - 简短商品身份锁/源图增强说明
+- 紧凑套图规划，保留每张图的角色、买家问题、镜头、文案意图、prompt layer 和 QA 标准
 - 简短镜头矩阵/场景策略说明
 - 简短 QA 结论
 - 多图成品生图完成后的共享 tldraw review session URL，或自动启动失败的 blocked reason；单图草稿仅在请求审核或 gate 失败时需要

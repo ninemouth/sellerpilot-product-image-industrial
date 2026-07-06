@@ -11,11 +11,13 @@ overview/SET-OVERVIEW-contact-sheet.png  # required package overview for multi-i
 generation-summary.md  # concise product identity, visual strategy, prompt, and QA notes
 brief-intake/brief-intake-gate-report.json  # only when clarifications or assumptions are material
 generated-assets/generation-progress.json  # for multi-image sets and long-running generation
+planning/production-efficiency-plan.json  # triggered/skipped work and stage budgets
+blueprint/quality-production-blueprint.json  # compact image-set planning for quality production multi-image finals
 qa/qa-loop-state.json                     # persisted retry signatures and loop guard state
 review-workspace/  # required after generated multi-image final sets; otherwise only when review/revision is requested or needed
 ```
 
-Fast mode may keep compact internal notes for source quality, identity lock, shot matrix, and QA, but it should not create the full industrial artifact tree unless needed.
+Fast mode may keep compact internal notes for source quality, identity lock, shot matrix, and QA, but it should not create the full industrial artifact tree unless needed. Quality production should keep image-set planning compact by using `blueprint/quality-production-blueprint.json` as the executable combined artifact rather than separate verbose industrial reports.
 
 Industrial audit mode must include these artifacts:
 
@@ -91,6 +93,7 @@ Use package templates where useful:
 ```text
 templates/product-fact-sheet-template.yaml
 templates/image-set-blueprint-template.yaml
+templates/quality-production-blueprint-template.yaml
 templates/commerce-strategy-brief-template.yaml
 templates/creative-direction-brief-template.yaml
 templates/graphic-design-direction-template.yaml
@@ -227,6 +230,45 @@ commerce_strategy_brief:
       success_criteria:
       reject_if:
   unsupported_or_risky_claims: []
+```
+
+Minimum Quality Production Blueprint fields:
+
+```yaml
+quality_production_blueprint:
+  mode: quality_production
+  run_id:
+  product_truth:
+    confirmed_source_facts: []
+    ocr_or_visible_text_facts: []
+    uncertain_facts: []
+    prohibited_claims: []
+  identity_locks:
+    product_identity_lock_ref:
+    physical_truth_lock_ref:
+    geometry_lock_ref:
+    micro_detail_notes: []
+  platform_context:
+    baseline_profile:
+    live_research_status: skipped|targeted|required
+    season_climate_holiday_region_notes: []
+  image_set:
+    - image_index:
+      image_role:
+      buyer_question:
+      conversion_task:
+      shot_direction:
+      scene_or_background:
+      copy_intent:
+      prompt_layers: []
+      required_evidence: []
+      qa_acceptance_criteria: []
+      rerun_scope_if_failed:
+  anchor_batch:
+    selected_indexes: []
+    qa_decision: pending|continue|revise_prompt|ask_user|blocked
+  progress:
+    progress_file: generated-assets/generation-progress.json
 ```
 
 Minimum Creative Direction Brief fields:

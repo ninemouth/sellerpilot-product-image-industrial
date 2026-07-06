@@ -161,11 +161,13 @@ record("workflow loop guard ordering", () => {
     const steps = workflowSteps(file);
     for (const required of [
       "create-run-skeleton",
+      "production-efficiency-plan",
       "source-product-understanding-ocr",
       "source-product-understanding-gate-if-source-facts-or-visible-text",
       "product-identity-lock",
       "product-physical-truth-lock-if-function-use-or-scale-sensitive",
       "copy-strategy-gate",
+      "compact-image-set-blueprint",
       "image-set-export-gate",
       "qa-loop-router",
       "delivery-overview-contact-sheet-if-multi-image-set",
@@ -175,9 +177,12 @@ record("workflow loop guard ordering", () => {
       if (!steps.includes(required)) throw new Error(`${file} missing workflow step ${required}`);
     }
     assertStepBefore(file, steps, "create-run-skeleton", "image-set-export-gate");
+    assertStepBefore(file, steps, "production-mode-router", "production-efficiency-plan");
+    assertStepBefore(file, steps, "production-efficiency-plan", "compact-image-set-blueprint");
     assertStepBefore(file, steps, "source-product-understanding-ocr", "product-identity-lock");
     assertStepBefore(file, steps, "source-product-understanding-gate-if-source-facts-or-visible-text", "product-identity-lock");
-    assertStepBefore(file, steps, "product-identity-lock", "prompt-layer-stack");
+    assertStepBefore(file, steps, "product-identity-lock", "compact-image-set-blueprint");
+    assertStepBefore(file, steps, "compact-image-set-blueprint", "prompt-layer-stack");
     assertStepBefore(file, steps, "product-physical-truth-lock-if-function-use-or-scale-sensitive", "product-physics-fact-gate-if-function-use-or-scale-sensitive");
     assertStepBefore(file, steps, "copy-strategy-gate", "marketing-quality-gate");
     assertStepBefore(file, steps, "image-set-export-gate", "qa-loop-router");
@@ -340,6 +345,9 @@ record("production mode router smoke", () => {
   if (!quality.execution_policy.required_quality_path.includes("anchor-batch-imagegen")) {
     throw new Error("quality production should require anchor batch pacing.");
   }
+  if (!quality.execution_policy.required_quality_path.includes("compact-image-set-planning")) {
+    throw new Error("quality production should preserve compact image-set planning.");
+  }
 
   const fastDir = path.join(dir, "fast");
   run(process.execPath, [
@@ -363,6 +371,40 @@ record("production mode router smoke", () => {
   const audit = readJson(path.join(auditDir, "production-mode-router-report.json"));
   if (audit.selected_mode !== "industrial_audit") {
     throw new Error(`industrial evidence request should route to industrial_audit, got ${audit.selected_mode}`);
+  }
+});
+
+record("production efficiency plan smoke", () => {
+  const runDir = path.join(tmpDir("sp-verify-efficiency-plan-"), "run");
+  const modeDir = path.join(runDir, "mode");
+  run(process.execPath, [
+    "scripts/production-mode-router.mjs",
+    "--out-dir", modeDir,
+    "--user-text", "为拼多多女包生成8图高质量套图",
+    "--image-count", "8",
+    "--quality-target", "high",
+    "--has-source-image", "true",
+  ]);
+  run(process.execPath, [
+    "scripts/production-efficiency-plan.mjs",
+    "--run-dir", runDir,
+    "--mode-report", path.join(modeDir, "production-mode-router-report.json"),
+    "--image-count", "8",
+    "--has-source-image", "true",
+  ]);
+  const plan = readJson(path.join(runDir, "planning", "production-efficiency-plan.json"));
+  if (!plan.quality_contract?.compact_image_set_planning_required) {
+    throw new Error("quality efficiency plan should require compact image-set planning.");
+  }
+  if (plan.triggered_work.platform_web_research !== "skip_use_platform_yaml_baseline") {
+    throw new Error("quality efficiency plan should skip live research when no freshness trigger exists.");
+  }
+  if (!plan.skip_by_default.includes("full industrial report pack")) {
+    throw new Error("quality efficiency plan should skip verbose industrial artifacts by default.");
+  }
+  const progress = readJson(path.join(runDir, "generated-assets", "generation-progress.json"));
+  if (progress.next_action !== "build compact image-set planning before anchor batch") {
+    throw new Error("efficiency plan should initialize generation progress.");
   }
 });
 

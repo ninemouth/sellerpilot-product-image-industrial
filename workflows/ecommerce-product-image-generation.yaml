@@ -80,6 +80,7 @@ execution_modes:
 steps:
   - resolve-skill-root
   - production-mode-router
+  - production-efficiency-plan
   - input-normalizer
   - brief-intake-gate
   - create-run-skeleton
@@ -95,31 +96,29 @@ steps:
   - product-image-parser
   - product-identity-lock
   - product-physical-truth-lock-if-function-use-or-scale-sensitive
-  - product-url-reader
-  - product-fact-sheet
+  - product-url-reader-if-url-provided
+  - compact-product-fact-sheet-or-facts-section
   - platform-spec-profile
   - platform-context-planner
-  - platform-category-web-research
+  - platform-category-web-research-if-triggered-by-freshness-or-conversion-risk
   - platform-category-profile-overlay
   - bestseller-design-mining-if-marketing-enhancement
   - audience-persona
-  - market-research
+  - compact-market-research-if-triggered
   - product-feature-analysis
   - audience-positioning-analysis
   - product-positioning
-  - commerce-strategy-brief
-  - creative-direction-brief
+  - compact-commerce-creative-photo-brief
   - graphic-design-direction
-  - commercial-photography-treatment
   - image-set-architecture
-  - sketch-to-final-production
-  - layout-wireframes
+  - sketch-to-final-production-if-complete-set-or-scene-heavy
+  - compact-layout-wireframes-if-needed
   - prompt-readiness-gate
   - visual-director
   - scene-asset-production-if-scene-roles
   - buyer-facing-copy-director
   - copy-strategy-gate
-  - image-set-blueprint
+  - compact-image-set-blueprint
   - blueprint-gate
   - gpt-built-in-image-generation-policy
   - prompt-layer-architect
@@ -156,6 +155,21 @@ default_outputs:
     - compact_visual_direction_summary
     - focused_qa_summary
     - review_canvas_if_requested_or_needed
+  quality_production:
+    - production_efficiency_plan
+    - final_images
+    - final_images_manifest
+    - delivery_overview_contact_sheet
+    - compact_source_understanding
+    - product_identity_lock
+    - triggered_physical_or_geometry_locks
+    - compact_quality_production_blueprint
+    - visual_director_shot_matrix
+    - prompt_layer_gate_report
+    - anchor_batch_qa_decision
+    - relevant_qa_reports_only
+    - post_generation_tldraw_ready_url_or_blocked_reason
+    - final_delivery_gate_report
   industrial_audit:
     - task_context
     - strategy_direction_options

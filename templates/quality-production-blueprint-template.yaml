@@ -1,0 +1,39 @@
+quality_production_blueprint:
+  schema_version: sellerpilot.quality_production_blueprint.v1
+  mode: quality_production
+  run_id:
+  product_truth:
+    confirmed_source_facts: []
+    ocr_or_visible_text_facts: []
+    uncertain_facts: []
+    prohibited_claims: []
+  identity_locks:
+    product_identity_lock_ref:
+    physical_truth_lock_ref:
+    geometry_lock_ref:
+    micro_detail_notes: []
+  platform_context:
+    baseline_profile:
+    live_research_status: skipped
+    season_climate_holiday_region_notes: []
+    evidence_refs: []
+  image_set:
+    - image_index: 1
+      image_role:
+      buyer_question:
+      conversion_task:
+      shot_direction:
+      scene_or_background:
+      copy_intent:
+      prompt_layers: []
+      required_evidence: []
+      qa_acceptance_criteria: []
+      rerun_scope_if_failed:
+  anchor_batch:
+    selected_indexes: []
+    qa_decision: pending
+    approved_assets: []
+    failed_assets: []
+  progress:
+    progress_file: generated-assets/generation-progress.json
+    next_action:

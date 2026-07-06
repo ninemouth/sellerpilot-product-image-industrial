@@ -17,17 +17,18 @@ Quality production mode runs the full quality-critical path without generating t
 
 1. Resolve skill root and run the cache-first update awareness check.
 2. Select production mode with `production-mode-router.mjs`.
-3. Run Brief Intake Gate. Ask only high-value questions; otherwise record assumptions and continue.
-4. Build Source Product Understanding/OCR and Product Identity Lock before visual planning.
-5. Trigger physical truth, geometry, micro-detail, or platform research only when the product/request contains those risk signals.
-6. Create strategy direction options when the user request is rough/open, then continue with the harness-selected option if the user has no preference.
-7. Build a compact feature/audience/commerce strategy and Visual Director shot matrix.
-8. Run prompt-layer planning and copy strategy checks before image generation.
-9. Generate an anchor batch through Codex-native `imagegen` / `image_gen`: main identity/hero, highest-risk scene or scale shot, and one detail when identity risk is high.
-10. QA the anchor batch for identity, physical truth, scene realism, copy, and visual direction.
-11. Continue only missing/approved remaining assets after anchor QA passes.
-12. Run relevant final gates only: identity, geometry/physics when triggered, copy, marketing, export, overview, final delivery.
-13. For generated multi-image final sets, run `post-generation-tldraw-launcher.mjs` after export and overview so the final handoff includes a ready tldraw URL or a blocked startup reason.
+3. Write `planning/production-efficiency-plan.json` with triggered work, skipped work, time budgets, and the progress update policy.
+4. Run Brief Intake Gate. Ask only high-value questions; otherwise record assumptions and continue.
+5. Build Source Product Understanding/OCR and Product Identity Lock before visual planning.
+6. Trigger physical truth, geometry, micro-detail, product URL reading, live platform research, or market research only when the product/request contains those risk signals.
+7. Create strategy direction options when the user request is rough/open, then continue with the harness-selected option if the user has no preference.
+8. Build compact image-set planning: source facts, identity/physical locks, platform baseline/triggered research, buyer question per image, Visual Director shot matrix, copy intent, prompt layers, and QA criteria.
+9. Run prompt-layer planning and copy strategy checks before image generation.
+10. Generate an anchor batch through Codex-native `imagegen` / `image_gen`: main identity/hero, highest-risk scene or scale shot, and one detail when identity risk is high.
+11. QA the anchor batch for identity, physical truth, scene realism, copy, and visual direction.
+12. Continue only missing/approved remaining assets after anchor QA passes.
+13. Run relevant final gates only: identity, geometry/physics when triggered, copy, marketing, export, overview, final delivery.
+14. For generated multi-image final sets, run `post-generation-tldraw-launcher.mjs` after export and overview so the final handoff includes a ready tldraw URL or a blocked startup reason.
 
 ## Fast Loop
 
@@ -48,7 +49,7 @@ Quality production mode runs the full quality-critical path without generating t
    - camera angle and crop matrix
    - lighting, scene, prop/model context
    - buyer-facing copy policy
-8. Create a compact Image Set Blueprint.
+8. Create compact image-set planning. This planning is still required for multi-image final sets; the optimization is to merge strategy, shot matrix, copy intent, prompt layers, and QA criteria into one executable artifact instead of separate long reports.
 9. Run a focused blueprint/QA gate:
    - product facts only
    - platform fit
@@ -101,6 +102,8 @@ generated-assets/generation-progress.json
 ```
 
 Include completed images, pending images, failed images, next action, and whether user feedback can improve the next batch. This prevents an unfinished run from looking like a silent failure.
+
+If wall-clock time exceeds 15 minutes, do not continue silently. Report the current progress marker to the user, identify whether the delay is from network/image generation or local planning/gates, and continue only the smallest pending scope.
 
 If a user gives feedback on an anchor image, merge it directly into the remaining image prompts instead of restarting the whole plan.
 
