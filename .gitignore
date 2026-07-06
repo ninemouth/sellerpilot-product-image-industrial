@@ -4,5 +4,7 @@ assets/tldraw-review-workspace/node_modules/
 runs/
 outputs/
 *.log
+.cache/
+.sellerpilot-skill-release.json
 work/*
 !work/README.md

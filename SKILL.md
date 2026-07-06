@@ -25,6 +25,20 @@ When developing this skill outside the installed capability root, verify the dev
 
 Do not copy competitor visuals, invent product facts, auto-publish assets, or promise CTR, CVR, ROAS, ACOS, ranking, or sales lift.
 
+## Fast Start And Update Awareness
+
+At the start of a normal production request, run only a lightweight update awareness check if it can use cache or finish quickly:
+
+```bash
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/check-skill-update.mjs \
+  --cache-ttl-hours 24 \
+  --timeout-ms 1500
+```
+
+This check is non-blocking. If it reports `current`, continue silently. If it reports `update_available`, briefly tell the user the installed skill appears behind GitHub and offer to update before or after the current run. If it reports `unknown_*`, timed out, or uses stale cache, continue the image workflow and mention it only when the user asks about version freshness. Do not auto-install or overwrite a skill without explicit user authorization.
+
+For speed-sensitive chat generation, use fast generation mode and do not expand into the full industrial artifact set unless the user asks for it or a gate failure requires it. Avoid starting tldraw until visual review is requested, a gate fails and needs markup, or revision feedback is expected. Use cached platform/profile memory unless the platform/category/season/region/trend question is current or conversion-critical.
+
 ## User Request Contract
 
 Treat short natural user requests as the ideal entrypoint. The user should be able to say:
@@ -125,6 +139,14 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
 ```
 
 Use this after verification when a development copy must update the installed Codex skill. It backs up the installed skill, rsyncs the source with safe excludes, and verifies the installed copy matches the source.
+
+```bash
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/check-skill-update.mjs \
+  --cache-ttl-hours 24 \
+  --timeout-ms 1500
+```
+
+Use this as a lightweight, cache-first freshness check in Codex usage. It compares the installed release metadata or local git commit against the configured GitHub branch when the cache is stale. It must not block generation; report update availability as a concise note and continue unless the user chooses to update.
 
 ```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/brief-intake-gate.mjs \

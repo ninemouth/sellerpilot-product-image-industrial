@@ -96,14 +96,54 @@ run("diff", [
   "--exclude", "node_modules",
   "--exclude", "runs",
   "--exclude", "outputs",
+  "--exclude", ".cache",
+  "--exclude", ".sellerpilot-skill-release.json",
   "--exclude", ".DS_Store",
   source,
   dest,
 ], { cwd: source, stdio: "inherit" });
+
+const releaseMetadata = buildReleaseMetadata({ source, dest });
+fs.writeFileSync(path.join(dest, ".sellerpilot-skill-release.json"), JSON.stringify(releaseMetadata, null, 2));
 
 console.log(JSON.stringify({
   status: "synced",
   source,
   dest,
   backup: backupDir,
+  release: releaseMetadata,
 }, null, 2));
+
+function buildReleaseMetadata({ source: sourceDir, dest: destDir }) {
+  const packageJson = readJson(path.join(sourceDir, "package.json")) || {};
+  return {
+    schema_version: "sellerpilot.skill_release.v1",
+    skill_name: "sellerpilot-product-image-industrial",
+    package_version: packageJson.version || "",
+    source_path: sourceDir,
+    dest_path: destDir,
+    local_commit: gitValue(sourceDir, ["rev-parse", "HEAD"]),
+    local_branch: gitValue(sourceDir, ["rev-parse", "--abbrev-ref", "HEAD"]),
+    remote_url: gitValue(sourceDir, ["config", "--get", "remote.origin.url"]) || normalizeGitUrl(packageJson.repository?.url) || "",
+    remote_branch: "main",
+    synced_at: new Date().toISOString(),
+  };
+}
+
+function gitValue(cwd, gitArgs) {
+  const result = spawnSync("git", gitArgs, { cwd, encoding: "utf8" });
+  if (result.status !== 0) return "";
+  return result.stdout.trim();
+}
+
+function normalizeGitUrl(value) {
+  return String(value || "").replace(/^git\+/, "");
+}
+
+function readJson(filePath) {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, "utf8"));
+  } catch {
+    return null;
+  }
+}

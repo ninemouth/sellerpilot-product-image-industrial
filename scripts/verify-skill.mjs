@@ -278,6 +278,46 @@ record("tldraw shared service template sync dry run", () => {
   if (!parsed.templateSync?.changed) throw new Error("new shared root should report template sync changed=true.");
 });
 
+record("skill update checker smoke", () => {
+  const dir = tmpDir("sp-verify-update-check-");
+  const releasePath = path.join(dir, ".sellerpilot-skill-release.json");
+  const packagePath = path.join(dir, "package.json");
+  const cachePath = path.join(dir, ".cache", "skill-update-status.json");
+  fs.writeFileSync(packagePath, JSON.stringify({
+    version: "0.1.0",
+    repository: { type: "git", url: "https://github.com/ninemouth/sellerpilot-product-image-industrial.git" },
+  }, null, 2));
+  fs.writeFileSync(releasePath, JSON.stringify({
+    schema_version: "sellerpilot.skill_release.v1",
+    local_commit: "1111111111111111111111111111111111111111",
+    remote_url: "https://github.com/ninemouth/sellerpilot-product-image-industrial.git",
+    remote_branch: "main",
+    synced_at: "2026-07-06T00:00:00.000Z",
+  }, null, 2));
+  const out = run(process.execPath, [
+    "scripts/check-skill-update.mjs",
+    "--skill-root", dir,
+    "--cache-file", cachePath,
+    "--remote-commit", "2222222222222222222222222222222222222222",
+    "--cache-ttl-hours", "0",
+  ]);
+  const report = JSON.parse(out);
+  if (report.status !== "update_available" || !report.needs_update) {
+    throw new Error("update checker should report update_available when local and remote commits differ.");
+  }
+  const cachedOut = run(process.execPath, [
+    "scripts/check-skill-update.mjs",
+    "--skill-root", dir,
+    "--cache-file", cachePath,
+    "--remote-commit", "3333333333333333333333333333333333333333",
+    "--cache-ttl-hours", "24",
+  ]);
+  const cached = JSON.parse(cachedOut);
+  if (!cached.cache_hit || cached.remote.commit !== "2222222222222222222222222222222222222222") {
+    throw new Error("update checker should use fresh cache instead of rechecking remote.");
+  }
+});
+
 record("brief intake smoke", () => {
   const outDir = path.join(tmpDir("sp-verify-brief-"), "brief");
   run(process.execPath, [

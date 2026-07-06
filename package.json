@@ -11,7 +11,8 @@
   },
   "scripts": {
     "verify": "node scripts/verify-skill.mjs",
-    "sync": "node scripts/sync-to-codex-skill.mjs"
+    "sync": "node scripts/sync-to-codex-skill.mjs",
+    "check:update": "node scripts/check-skill-update.mjs"
   },
   "optionalDependencies": {
     "playwright": "^1.61.1",
