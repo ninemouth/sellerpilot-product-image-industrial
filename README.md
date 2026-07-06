@@ -197,6 +197,12 @@ Fast generation mode 默认输出：
 
 Industrial audit mode 会额外输出完整的 fact sheet、策略、prompt layer、gate report、QA loop routing、修订历史和导出包摘要。
 
+## 交付示例
+
+下面是一次商品套图交付在 Codex 对话中的展示样例：包含套图总览图、8 张独立成品图文件、final delivery QA 结果，以及部分图片预览。
+
+![SellerPilot 商品套图交付示例](docs/images/readme-delivery-example.png)
+
 ## 常用脚本
 
 验证整个 skill：
