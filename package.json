@@ -1,10 +1,20 @@
 {
   "name": "sellerpilot-product-image-industrial",
   "version": "0.1.0",
+  "description": "Codex skill package for industrial ecommerce product image set planning, generation QA, and review workflows.",
   "private": true,
   "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ninemouth/sellerpilot-product-image-industrial.git"
+  },
   "scripts": {
     "verify": "node scripts/verify-skill.mjs",
     "sync": "node scripts/sync-to-codex-skill.mjs"
+  },
+  "optionalDependencies": {
+    "playwright": "^1.61.1",
+    "sharp": "^0.34.5"
   }
 }

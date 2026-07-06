@@ -18,7 +18,7 @@ The final generation prompt is a personalized production brief, not a generic fi
 Installed capability root:
 
 ```text
-/Users/yang/.codex/skills/sellerpilot-product-image-industrial
+${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial
 ```
 
 When developing this skill outside the installed capability root, verify the development copy first, then sync it into the installed root with the bundled release script. Do not hand-copy partial files.
@@ -71,7 +71,7 @@ For normal chat, do not create every artifact listed in the full output contract
 
 ## Execution Flow
 
-1. Resolve the skill root to `/Users/yang/.codex/skills/sellerpilot-product-image-industrial`. Read `/Users/yang/.codex/skills/sellerpilot-product-image-industrial/AGENTS.md` before running a production image workflow. Do not search only the current workspace for `AGENTS.md`.
+1. Resolve the skill root to `${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial`. Read `${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/AGENTS.md` before running a production image workflow. Do not search only the current workspace for `AGENTS.md`.
 2. Run the Brief Intake Gate. If required information is missing, ask at most three high-value questions and record the assumptions. If no material gap exists, continue without interrupting the user.
 2a. When the user request is rough or commercially open-ended, load `references/strategy-direction-routing.md`, create 2-3 production direction options, and run `strategy-direction-handoff-gate.mjs` before formal production. The first visible response to the user must include the short direction choices plus the harness-selected fallback. Do not skip this just because enough facts exist to generate. If the user has no clear preference, continue with the harness-selected `selected_option_id`, record the reason in `strategy/direction-selection.yaml`, and keep the user-visible handoff in `strategy/direction-user-handoff.md`.
 3. Use `workflows/ecommerce-product-image-generation.yaml` as the default master workflow for complete product image generation. Then load the closest platform-specific workflow/profile only for extra constraints:
@@ -114,20 +114,20 @@ Use bundled scripts for deterministic support work. They do not replace Codex-na
 For skill development and release hygiene:
 
 ```bash
-node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/verify-skill.mjs
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/verify-skill.mjs
 ```
 
 Use this before shipping skill changes. It validates frontmatter, script syntax, JSON/YAML, legacy provider naming, tldraw dependency lock, gate behavior, renderer scene boundaries, export failures, marketing failures, and review workspace creation.
 
 ```bash
-node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/sync-to-codex-skill.mjs \
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/sync-to-codex-skill.mjs \
   --source /abs/development-copy
 ```
 
 Use this after verification when a development copy must update the installed Codex skill. It backs up the installed skill, rsyncs the source with safe excludes, and verifies the installed copy matches the source.
 
 ```bash
-node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/brief-intake-gate.mjs \
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/brief-intake-gate.mjs \
   --out-dir /abs/run/brief-intake \
   --platform "拼多多" \
   --category "女包" \
@@ -139,7 +139,7 @@ node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/brie
 Use the brief intake gate to decide whether to ask high-value user questions before planning/generation. It should not block low-risk requests.
 
 ```bash
-node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/strategy-direction-gate.mjs \
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/strategy-direction-gate.mjs \
   --run-dir /abs/run \
   --platform "拼多多" \
   --category "球衣" \
@@ -149,14 +149,14 @@ node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/stra
 Use the strategy direction gate when the user request is rough. It creates 2-3 production directions, records the selected direction, and allows the harness to continue autonomously when the user has no explicit preference.
 
 ```bash
-node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/strategy-direction-handoff-gate.mjs \
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/strategy-direction-handoff-gate.mjs \
   --run-dir /abs/run
 ```
 
 Use the strategy direction handoff gate immediately after `strategy-direction-gate.mjs`. It writes `strategy/direction-user-handoff.md` and `strategy/direction-user-handoff.json`; the Markdown contains the first user-visible message that must be sent before formal production for rough/open requests.
 
 ```bash
-node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/platform-context-planner.mjs \
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/platform-context-planner.mjs \
   --run-dir /abs/run \
   --platform "拼多多" \
   --category "球衣" \
@@ -168,14 +168,14 @@ node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/plat
 Use the platform context planner before conversion-oriented planning and copy. It reads the baseline platform YAML, reports whether it is sufficient as stable memory, creates a freshness/query plan, and writes dynamic platform/category/season/region context into the run overlay.
 
 ```bash
-node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/build-source-image-set.mjs \
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/build-source-image-set.mjs \
   --images "/abs/front.png,/abs/detail.png,/abs/side.png" \
   --out-dir /abs/run \
   --category "女包"
 ```
 
 ```bash
-node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/create-run-skeleton.mjs \
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/create-run-skeleton.mjs \
   --out-dir /abs/runs/run-id \
   --platform "拼多多" \
   --category "女包" \
@@ -184,13 +184,13 @@ node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/crea
 ```
 
 ```bash
-node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/enhance-source-image.mjs \
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/enhance-source-image.mjs \
   --input /abs/source.png \
   --out-dir /abs/run/source-enhanced
 ```
 
 ```bash
-node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/create-source-product-understanding.mjs \
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/create-source-product-understanding.mjs \
   --image /abs/run/source-enhanced/source-enhanced.png \
   --out-dir /abs/run/source-understanding \
   --category "线夹"
@@ -199,7 +199,7 @@ node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/crea
 Use this after source enhancement and before identity lock. It creates `source-product-understanding.json` with image metadata, local OCR text when available, text-derived fact candidates, and fields for Codex visual product recognition. Complete the visual/OCR read before generation whenever visible text, size, installation, function, compatibility, material, warnings, or labels affect the product.
 
 ```bash
-node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/source-product-understanding-gate.mjs \
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/source-product-understanding-gate.mjs \
   --understanding /abs/run/source-understanding/source-product-understanding.json \
   --identity-lock /abs/run/blueprint/02-identity-lock.yaml \
   --physical-truth /abs/run/blueprint/02b-product-physical-truth.json \
@@ -210,7 +210,7 @@ node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/sour
 Use this before prompt delivery and final delivery when a source image has product facts or visible text. It blocks missing product recognition, unstructured OCR text, and size/function/spec text facts that were not propagated into downstream locks.
 
 ```bash
-node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/render-commerce-image-set.mjs \
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/render-commerce-image-set.mjs \
   --source-image /abs/product.png \
   --out-dir /abs/output-dir \
   --product-name "商品名" \
@@ -221,7 +221,7 @@ node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/rend
 This renders independent `1200x1200` PNG layout assets. It does not create an HTML review canvas. It is a deterministic layout/composition tool, not a replacement for GPT built-in image generation scene imagery. When the user asks for 场景图, 上身图, 模特图, or lifestyle images, generate those scene assets through Codex-native `imagegen` / `image_gen` when available, then use this renderer only for final text/layout composition. For scene roles, pass a panel-specific `image`, `image_path`, `generated_asset_path`, or `scene_asset_path`; do not render a final scene from the source cutout alone.
 
 ```bash
-node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/marketing-gate-check.mjs \
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/marketing-gate-check.mjs \
   --copy-json /abs/run/blueprint/panels.json \
   --out-dir /abs/run/qa
 ```
@@ -229,7 +229,7 @@ node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/mark
 Use the marketing gate before final export to catch repeated camera angles, repeated source images, thin scene direction, and internal-facing copy such as `不虚标`, `以源图为准`, `QA`, or `风险` in final image text.
 
 ```bash
-node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/copy-strategy-gate.mjs \
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/copy-strategy-gate.mjs \
   --copy-json /abs/run/blueprint/panels.json \
   --platform-context /abs/run/research/platform-context-plan.json \
   --out-dir /abs/run/qa
@@ -238,7 +238,7 @@ node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/copy
 Use the copy strategy gate before marketing QA. It blocks thin buyer strategy, unsupported claims, unverified hot words, and copy that ignores required season/climate/holiday/regional context.
 
 ```bash
-node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/product-physics-fact-gate.mjs \
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/product-physics-fact-gate.mjs \
   --fact-lock /abs/run/blueprint/02b-product-physical-truth.json \
   --panels /abs/run/blueprint/panels.json \
   --out-dir /abs/run/qa
@@ -247,7 +247,7 @@ node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/prod
 Use the product physics fact gate before final delivery whenever images show physical function, installation, use steps, routing, scale, dimensions, fixtures, fasteners, or mechanisms. It blocks unsupported function claims, invented product actions, and product scale drift across the image set.
 
 ```bash
-node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/identity-geometry-gate.mjs \
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/identity-geometry-gate.mjs \
   --source-geometry /abs/run/geometry/source-geometry.json \
   --generated-geometry /abs/run/geometry/generated-geometry.json \
   --out-dir /abs/run/qa
@@ -256,14 +256,14 @@ node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/iden
 Use the identity geometry gate for apparel and other proportion-sensitive products. It catches product length, hem position, sleeve length, neckline, silhouette, and ratio drift such as turning a normal jersey into a crop top.
 
 ```bash
-node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/prompt-readiness-gate.mjs \
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/prompt-readiness-gate.mjs \
   --run-dir /abs/run
 ```
 
 Use the prompt readiness gate before final prompt/request delivery. It blocks generic or premature prompt handoff when strategy, sketches, photography treatment, layout intent, or personalization markers are missing.
 
 ```bash
-node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/prompt-layer-gate.mjs \
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/prompt-layer-gate.mjs \
   --stack /abs/run/prompt-pack/12-prompt-layer-stack.json \
   --out-dir /abs/run/qa
 ```
@@ -271,7 +271,7 @@ node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/prom
 Use the prompt layer gate before final prompt/request delivery. It checks the Prompt Layer Architect Brain decision, mandatory base layers, conditional layers, layer conflicts, and generic prompt risk.
 
 ```bash
-node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/image-set-export-gate.mjs \
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/image-set-export-gate.mjs \
   --run-dir /abs/run \
   --image-dir /abs/run/final-images \
   --out-dir /abs/run/qa \
@@ -282,7 +282,7 @@ node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/imag
 Use the export gate before final delivery to catch contact-sheet-only outputs, non-independent images, missing English purpose slugs in filenames, low resolution, wrong aspect ratios, and cross-task image scope risk. This writes `export/final-images-manifest.json`; use that manifest for overview and review surfaces.
 
 ```bash
-node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/create-delivery-overview.mjs \
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/create-delivery-overview.mjs \
   --run-dir /abs/run \
   --manifest /abs/run/export/final-images-manifest.json \
   --out-dir /abs/run/overview \
@@ -292,14 +292,14 @@ node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/crea
 For every multi-image set, create `overview/SET-OVERVIEW-contact-sheet.png` and `overview/delivery-overview-report.json` before final delivery. This 总览图 is for package review and conversation handoff only; it must not be placed in `final-images` or used as a substitute for independent ecommerce images. Do not create it from a shared `outputs/` directory.
 
 ```bash
-node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/final-delivery-gate.mjs \
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/final-delivery-gate.mjs \
   --run-dir /abs/run
 ```
 
 Use the final delivery gate after all QA gates and before telling the user a set is complete. It aggregates upstream gate reports, blocks delivery when required generation is unavailable, requires a delivery overview contact sheet for multi-image sets, and rejects draft/placeholder/wireframe assets in `final-images`. A technical export pass is not enough for ecommerce image acceptance.
 
 ```bash
-node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/qa-loop-router.mjs \
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/qa-loop-router.mjs \
   --run-dir /abs/run
 ```
 
@@ -308,7 +308,7 @@ Use the QA loop router after any gate failure or warning. It reads gate reports 
 The router is also the executable loop guard. It persists repeated failure signatures in `qa/qa-loop-state.json`, ignores `final-delivery-gate-report.json` as a root-cause input, and changes the decision to `blocked_retry_budget_exhausted` when the same failure exceeds its retry budget. When this happens, stop automatic regeneration and ask for better source evidence, user confirmation, or a changed production direction before any more image generation.
 
 ```bash
-node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/create-identity-consistency-review.mjs \
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/create-identity-consistency-review.mjs \
   --source /abs/source.png \
   --generated-dir /abs/run/generated-assets \
   --out-dir /abs/run/qa \
@@ -322,7 +322,7 @@ For existing images, create a local infinite-canvas style review board:
 Preferred rich local workspace:
 
 ```bash
-node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/create-tldraw-review-workspace.mjs \
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/create-tldraw-review-workspace.mjs \
   --out-dir /abs/run/review-workspace \
   --manifest /abs/run/export/final-images-manifest.json \
   --run-dir /abs/run \
@@ -336,7 +336,7 @@ The workspace and shared canvas service are started automatically when visual re
 When interactive review or revision markup is the next step, ensure the shared service is ready before final delivery with the one-step launcher. This is also the fallback command if automatic startup from workspace creation is blocked:
 
 ```bash
-node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/open-tldraw-review-session.mjs \
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/open-tldraw-review-session.mjs \
   --workspace-dir /abs/run/review-workspace \
   --session-id run-or-chat-id
 ```
@@ -346,13 +346,13 @@ This registers the workspace, starts or reuses the shared localhost service, wai
 Preferred shared service for multiple chats/runs:
 
 ```bash
-node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/register-tldraw-review-session.mjs \
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/register-tldraw-review-session.mjs \
   --workspace-dir /abs/run/review-workspace \
   --session-id run-or-chat-id
 ```
 
 ```bash
-node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/start-tldraw-shared-service.mjs \
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/start-tldraw-shared-service.mjs \
   --session-id run-or-chat-id
 ```
 
@@ -361,7 +361,7 @@ This starts or reuses one shared localhost canvas service and opens each chat/ru
 Isolated fallback server for one workspace:
 
 ```bash
-node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/start-tldraw-review-workspace.mjs \
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/start-tldraw-review-workspace.mjs \
   --workspace-dir /abs/run/review-workspace
 ```
 
@@ -370,7 +370,7 @@ This writes `data/server-state.json` with the selected localhost URL. It starts 
 After the user exports or saves annotations, convert them into generation tasks:
 
 ```bash
-node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/parse-canvas-annotations.mjs \
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/parse-canvas-annotations.mjs \
   --annotations /abs/run/review-workspace/data/annotations.json \
   --out /abs/run/review-workspace/data/generation-tasks.json \
   --run-dir /abs/run
@@ -379,7 +379,7 @@ node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/pars
 After the user clicks `Complete Review`, capture the current browser session when Codex needs screenshot evidence back in the conversation:
 
 ```bash
-node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/capture-review-session.mjs \
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/capture-review-session.mjs \
   --url http://127.0.0.1:5190/?session=run-or-chat-id \
   --out-dir /abs/run/review-workspace/captures
 ```
@@ -391,7 +391,7 @@ If a native Codex/Sites, Creative Production, Figma/FigJam, or app widget review
 For image sets that need precise revision feedback, also create a clickable A-H region review page:
 
 ```bash
-node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/create-region-review-html.mjs \
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/create-region-review-html.mjs \
   --run-dir /abs/run \
   --manifest /abs/run/export/final-images-manifest.json \
   --out /abs/run/review/review.html

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
@@ -121,7 +122,7 @@ let chromium;
 try {
   chromium = require("playwright").chromium;
 } catch (error) {
-  const bundled = "/Users/yang/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright";
+  const bundled = path.join(os.homedir(), ".cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright");
   try {
     chromium = require(bundled).chromium;
   } catch {

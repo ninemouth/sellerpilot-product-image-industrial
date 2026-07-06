@@ -15,7 +15,7 @@ blueprint/02b-product-physical-truth.json
 Run:
 
 ```bash
-node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/product-physics-fact-gate.mjs \
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/product-physics-fact-gate.mjs \
   --fact-lock /abs/run/blueprint/02b-product-physical-truth.json \
   --panels /abs/run/blueprint/panels.json \
   --out-dir /abs/run/qa

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { collectScopedImages, imageScopeUsage } from "./lib/image-scope.mjs";
@@ -39,7 +40,7 @@ let sharp;
 try {
   sharp = require("sharp");
 } catch {
-  sharp = require("/Users/yang/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/sharp");
+  sharp = require(path.join(os.homedir(), ".cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/sharp"));
 }
 
 const outDir = path.resolve(args["out-dir"]);

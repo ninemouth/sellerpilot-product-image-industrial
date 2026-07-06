@@ -49,7 +49,7 @@ Example:
 Run:
 
 ```bash
-node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/identity-geometry-gate.mjs \
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/identity-geometry-gate.mjs \
   --source-geometry /abs/run/geometry/source-geometry.json \
   --generated-geometry /abs/run/geometry/generated-geometry.json \
   --out-dir /abs/run/qa

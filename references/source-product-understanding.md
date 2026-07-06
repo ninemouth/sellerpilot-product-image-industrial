@@ -9,7 +9,7 @@ The source image is not only a photo to clean up. It is product evidence. Codex 
 Create a source understanding artifact:
 
 ```bash
-node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/create-source-product-understanding.mjs \
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/create-source-product-understanding.mjs \
   --image /abs/source-or-enhanced.png \
   --out-dir /abs/run/source-understanding \
   --category "商品类目"
@@ -58,7 +58,7 @@ After completing `source-product-understanding.json`, propagate facts into downs
 Run the gate:
 
 ```bash
-node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/source-product-understanding-gate.mjs \
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/source-product-understanding-gate.mjs \
   --understanding /abs/run/source-understanding/source-product-understanding.json \
   --identity-lock /abs/run/blueprint/02-identity-lock.yaml \
   --physical-truth /abs/run/blueprint/02b-product-physical-truth.json \

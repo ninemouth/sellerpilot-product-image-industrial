@@ -9,7 +9,7 @@ Generate 2-3 production directions before final prompt/image production. For rou
 Use:
 
 ```bash
-node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/strategy-direction-gate.mjs \
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/strategy-direction-gate.mjs \
   --run-dir /abs/run \
   --platform "拼多多" \
   --category "球衣"
@@ -18,7 +18,7 @@ node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/stra
 Then create the user-visible handoff:
 
 ```bash
-node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/strategy-direction-handoff-gate.mjs \
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/strategy-direction-handoff-gate.mjs \
   --run-dir /abs/run
 ```
 

@@ -9,7 +9,7 @@ Treat `platform-profiles/*.yaml` as stable platform memory, not complete live tr
 Run:
 
 ```bash
-node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/platform-context-planner.mjs \
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/platform-context-planner.mjs \
   --run-dir /abs/run \
   --platform "拼多多" \
   --category "球衣" \

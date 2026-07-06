@@ -37,7 +37,7 @@ npm run verify
 验证通过后同步到 Codex 已安装 skill：
 
 ```bash
-npm run sync -- --source /Users/yang/sellerpilot-product-image-industrial
+npm run sync -- --source /path/to/sellerpilot-product-image-industrial
 ```
 
 同步脚本会先备份已安装版本，再 `rsync --delete` 到 `${CODEX_HOME:-~/.codex}/skills/sellerpilot-product-image-industrial`，最后用 `diff -qr` 验证开发目录和安装目录一致。

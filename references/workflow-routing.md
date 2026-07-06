@@ -3,14 +3,14 @@
 Installed capability root:
 
 ```text
-/Users/yang/.codex/skills/sellerpilot-product-image-industrial
+${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial
 ```
 
 Always read:
 
 ```text
-/Users/yang/.codex/skills/sellerpilot-product-image-industrial/AGENTS.md
-/Users/yang/.codex/skills/sellerpilot-product-image-industrial/agents/product-image-orchestrator.yaml
+${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/AGENTS.md
+${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/agents/product-image-orchestrator.yaml
 ```
 
 Do not infer that `AGENTS.md` should exist in the current project or chat working directory.

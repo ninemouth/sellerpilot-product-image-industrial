@@ -9,7 +9,7 @@ Final ecommerce image copy is a sales mechanism, not decoration. It must come fr
 Run:
 
 ```bash
-node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/copy-strategy-gate.mjs \
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/copy-strategy-gate.mjs \
   --copy-json /abs/run/blueprint/panels.json \
   --platform-context /abs/run/research/platform-context-plan.json \
   --out-dir /abs/run/qa
