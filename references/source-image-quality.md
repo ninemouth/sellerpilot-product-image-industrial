@@ -54,7 +54,7 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
   --category "商品类目"
 ```
 
-Then complete the Codex visual/OCR read and run the gate:
+Then complete the Codex visual read, run OCR only if text is visible or uncertain, and run the gate:
 
 ```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/source-product-understanding-gate.mjs \

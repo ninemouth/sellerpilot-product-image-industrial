@@ -4,7 +4,8 @@ quality_production_blueprint:
   run_id:
   product_truth:
     confirmed_source_facts: []
-    ocr_or_visible_text_facts: []
+    ai_read_visible_text_facts: []
+    conditional_ocr_facts: []
     uncertain_facts: []
     prohibited_claims: []
   identity_locks:

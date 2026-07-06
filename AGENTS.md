@@ -11,7 +11,7 @@ Product Image Orchestrator Agent
 
 本 Agent 不应直接把任务简化为“一次出图”。日常 Codex 对话应选择最轻但能保护成品质量的模式：单图草稿或明确速度优先才用 fast generation mode；高质量多图成品默认用 quality production mode；用户要求工业级审计、完整报告、迁移 SellerPilot 或开发验证时，才执行完整 Harness + Loop：
 
-Intent -> Normalize -> Mode Router -> Efficiency Plan -> Brief Intake Gate -> Source Photo Preflight/Enhance -> Source Product Understanding/OCR -> Product Identity Lock -> Triggered Platform/Category Context -> Compact Image-Set Planning -> Visual Director Shot Matrix -> Buyer-Facing Copy -> Prompt Layer Brain -> Codex-Native GPT Built-In Image Generation Anchor Batch -> Identity/Marketing/Export QA -> Delivery Overview -> Continue Missing Assets Only -> Unified QA Loop Router -> Post-Generation tldraw Auto Start -> Final Delivery Gate -> Native Canvas Review -> Revision -> Export
+Intent -> Normalize -> Mode Router -> Efficiency Plan -> Brief Intake Gate -> Source Photo Preflight/Enhance -> Source Product Understanding with AI Text Read and Conditional OCR -> Product Identity Lock -> Triggered Platform/Category Context -> Compact Image-Set Planning -> Visual Director Shot Matrix -> Buyer-Facing Copy -> Prompt Layer Brain -> Codex-Native GPT Built-In Image Generation Anchor Batch -> Identity/Marketing/Export QA -> Delivery Overview -> Continue Missing Assets Only -> Unified QA Loop Router -> Post-Generation tldraw Auto Start -> Final Delivery Gate -> Native Canvas Review -> Revision -> Export
 
 ## Non-negotiable Rules
 
@@ -38,7 +38,7 @@ Intent -> Normalize -> Mode Router -> Efficiency Plan -> Brief Intake Gate -> So
 20. 微细节必须锁定：商标、吊牌、五金刻字、小字、纹理、走线、拉链齿、挂件表情等若源图不清晰，不得脑补成可读品牌或新图案；需要近拍时先问用户，否则按“保留位置/形状/不可读标记”生成。
 21. 当用户需求粗略或商业方向开放时，正式生产前必须先给用户可见的 2-3 个方向选择，并说明 harness 默认选择；用户不选时再按默认方向继续，不得跳过这个 first handoff。
 22. 物理商品必须锁定真实功能、使用/安装动作、禁用生造机制和尺度参考；不得生造按压锁定、磁吸、胶粘、防水、承重、额外活动部件、兼容性或不一致尺寸比例。
-23. 原图中的文字、标签、包装、尺寸、警示、型号、规格、安装步骤等都是商品事实线索；必须先做 Source Product Understanding/OCR 并把确认事实传递到 identity/physical truth/geometry/prompt/copy，不能只增强图片或在后续生图中改变其含义。
+23. 原图中的文字、标签、包装、尺寸、警示、型号、规格、安装步骤等都是商品事实线索；必须先做 Source Product Understanding。文字读取优先由 AI 视觉识别完成，只有 AI 不确定、文字太小/模糊、疑似包含尺寸/规格/风险声明，或用户明确要求时才触发本地 OCR；确认事实必须传递到 identity/physical truth/geometry/prompt/copy，不能只增强图片或在后续生图中改变其含义。
 24. 多图套图交付必须包含独立成品图和一张交付总览图 `overview/SET-OVERVIEW-contact-sheet.png`；总览图用于核对/对话交付，不得替代 `final-images` 内的独立平台图片。
 25. 每个任务必须有独立 `run_id` 和 run 目录。总览图、tldraw 工作台、导出 gate、A-H review 等只允许读取当前任务的 `export/final-images-manifest.json` 或当前 `run-dir/final-images`；不得扫描日期级目录、共享 `outputs/`、父目录或其他任务目录。
 26. 高质量多图成品必须强制保留交付总览图 `overview/SET-OVERVIEW-contact-sheet.png`。日常 Codex quality production 中的套图规划应保持紧凑，不得默认生成完整工业审计包里的多份长报告。
@@ -54,7 +54,7 @@ Fast generation mode uses this compact workflow unless the user requests a full 
 - brief-intake-gate
 - strategy-direction-options/user-handoff-if-rough
 - source-photo-preflight/enhance-if-needed
-- source-product-understanding/ocr
+- source-product-understanding/ai-text-first-ocr-if-needed
 - product-identity-lock
 - product-physical-truth-lock-if-function/use/scale-sensitive
 - platform/category baseline plus targeted research when useful
@@ -128,7 +128,7 @@ Fast generation mode 完成必须包含：
 Industrial audit mode 完成必须包含：
 
 - Product Fact Sheet
-- Source Product Understanding / OCR Facts
+- Source Product Understanding / AI-read text / conditional OCR facts
 - Product Feature Analysis
 - Product Physical Truth Lock
 - Audience Positioning Analysis

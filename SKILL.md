@@ -101,7 +101,7 @@ For normal chat, do not create every artifact listed in the full output contract
    - `xiaohongshu-image-pack.yaml` for Xiaohongshu cover and seed image packs.
    - Other supported platform profiles such as 京东/JD, 抖音/Douyin, SHEIN, Temu, Mercado Libre, Shopee LatAm/Brazil, Falabella, Ozon, Etsy, and Wildberries/WB use the master workflow plus their `platform-profiles/*.yaml` baseline and a run-level platform/category overlay.
 4. Run source image quality preflight. If the user provides multiple images, build a source image set manifest and enhance each user-owned source image before parsing/generation. If photos are low quality, cluttered, dark, small, or handheld, enhance them with the bundled scripts before parsing/generation.
-4a. Create Source Product Understanding from the original/enhanced source image before identity lock or prompt work. Use local OCR when available and Codex visual inspection to recognize product type, structure, components, material/color, physical size cues, scale references, visible text, labels, warnings, dimensions, specs, and function clues. If source text reveals size, model, compatibility, warning, certification, installation, material, quantity, or weight, record it as text-derived facts and propagate it into identity lock, physical truth lock, geometry lock, and prompt layers. Do not generate over these facts or silently drop them.
+4a. Create Source Product Understanding from the original/enhanced source image before identity lock or prompt work. Use Codex visual inspection first to recognize product type, structure, components, material/color, physical size cues, scale references, visible text, labels, warnings, dimensions, specs, and function clues. Run local OCR only when AI visual reading detects visible text, is uncertain, cannot confidently transcribe text, or the text may reveal size, model, compatibility, warning, certification, installation, material, quantity, or weight. Record verified text-derived facts and propagate them into identity lock, physical truth lock, geometry lock, and prompt layers. Do not generate over these facts or silently drop them.
 5. Create a Product Identity Lock from all source/enhanced images and Source Product Understanding before generation. Lock silhouette, proportions, color family, material appearance, hardware, closure, straps/handles, accessories, logo/markings, distinctive details, and text-derived facts that affect physical size/function. If no source image exists, do not call generated images identity-preserving.
 5a. For physical products, load `references/product-physical-truth.md`. Create `blueprint/02b-product-physical-truth.json` before shot matrix or prompt work whenever the set shows installation, use steps, scale, cable/strap routing, moving parts, fixtures, fasteners, load, waterproofing, or product function. Lock confirmed functions, confirmed user actions, forbidden generated functions, and scale reference. Do not show invented use mechanisms such as unsupported press locks, adhesive/magnetic mounting, waterproof electrical behavior, extra moving parts, or inconsistent product size across images. Run `product-physics-fact-gate.mjs` before final delivery when physical function or scale appears in the image set.
 6. Load only the relevant baseline platform profile from `platform-profiles/`.
@@ -242,10 +242,11 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/create-source-product-understanding.mjs \
   --image /abs/run/source-enhanced/source-enhanced.png \
   --out-dir /abs/run/source-understanding \
-  --category "线夹"
+  --category "线夹" \
+  --ocr-mode auto
 ```
 
-Use this after source enhancement and before identity lock. It creates `source-product-understanding.json` with image metadata, local OCR text when available, text-derived fact candidates, and fields for Codex visual product recognition. Complete the visual/OCR read before generation whenever visible text, size, installation, function, compatibility, material, warnings, or labels affect the product.
+Use this after source enhancement and before identity lock. It creates `source-product-understanding.json` with image metadata, AI-visual-text-first policy, conditional OCR status, text-derived fact candidates when OCR runs, and fields for Codex visual product recognition. Prefer Codex visual text recognition first. If `--text-visibility` is omitted, OCR is skipped until Codex completes the visual text precheck. Pass `--text-visibility no` when visual inspection confidently sees no text, `--text-visibility yes` when text is visible, and `--text-visibility uncertain` when text may exist or is too small/blurred. Complete the AI visual read plus conditional OCR fallback before generation whenever visible text, size, installation, function, compatibility, material, warnings, or labels affect the product.
 
 ```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/source-product-understanding-gate.mjs \
@@ -483,7 +484,7 @@ Fast generation mode should provide:
 - Selected strategy direction when the user request was rough, including whether the user chose it or the harness selected it
 - First user-visible direction handoff when the request was rough/open, before formal production begins
 - Concise product identity notes and source-image quality/enhancement note
-- Concise Source Product Understanding note, including visible text/OCR facts that were locked or marked uncertain
+- Concise Source Product Understanding note, including AI-read visible text and OCR fallback facts that were locked or marked uncertain
 - Concise product physical truth notes when function, installation, use steps, dimensions, or scale affected the image set
 - Concise visual strategy / shot matrix summary
 - Concise platform/category/season/region context summary when it affected strategy or copy
@@ -497,7 +498,7 @@ Quality production mode should provide:
 - Required delivery overview image at `overview/SET-OVERVIEW-contact-sheet.png` for multi-image sets
 - Run-scoped `export/final-images-manifest.json`
 - Selected strategy direction when the request was rough/open
-- Source Product Understanding/OCR facts that affect identity, scale, function, or copy
+- Source Product Understanding facts that affect identity, scale, function, or copy, with OCR fallback only when AI visual text reading is uncertain or insufficient
 - Product Identity Lock and physical/geometry locks when triggered
 - Compact feature/audience/commerce strategy sufficient to drive shot choices
 - Compact image-set planning at `blueprint/quality-production-blueprint.json`, preserving role planning without full industrial reports
@@ -510,7 +511,7 @@ Industrial audit mode should provide the complete workflow artifacts:
 
 - Product Fact Sheet
 - Source Image Set Manifest when multiple source images are provided
-- Source Product Understanding with visible text/OCR facts when a source image is provided
+- Source Product Understanding with AI-read visible text and conditional OCR facts when a source image is provided
 - Product Identity Lock
 - Product Physical Truth Lock for function/use/scale-sensitive products
 - Product Feature Analysis
@@ -590,7 +591,7 @@ Read these skill references as needed:
 - `references/multi-source-image-fusion.md` for multi-image source classification, complementary enhancement, and identity-lock fusion.
 - `references/visual-director.md` for photography, camera angle, lighting, scene, detail-crop, and buyer-facing-copy direction.
 - `references/source-image-quality.md` for source-photo preflight and enhancement.
-- `references/source-product-understanding.md` for source-image product recognition, OCR/text fact extraction, and propagation into locks.
+- `references/source-product-understanding.md` for source-image product recognition, AI-first text reading, conditional OCR fallback, text fact extraction, and propagation into locks.
 - `references/platform-category-research.md` for web-search backed platform/category tone research.
 - `references/loop-efficiency.md` for gated generation loops and retry budgets.
 - `references/brief-intake.md` for input completeness judgment, clarification policy, and how user replies enter task analysis.

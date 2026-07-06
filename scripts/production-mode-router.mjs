@@ -113,7 +113,7 @@ function modePolicy(mode, flags) {
       required_quality_path: [
         "brief-intake",
         "direction-options-if-rough",
-        "source-understanding-ocr",
+        "source-understanding-ai-text-first-ocr-if-needed",
         "identity-lock",
         "compact-image-set-planning",
         flags.physical_function_risk ? "physical-truth-lock-and-gate" : "physical-truth-check-if-triggered",

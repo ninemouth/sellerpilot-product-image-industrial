@@ -91,7 +91,7 @@ steps:
   - source-image-set-manifest-if-multiple-images
   - source-image-quality-gate
   - source-image-enhancement-if-needed
-  - source-product-understanding-ocr
+  - source-product-understanding-ai-text-first-ocr-if-needed
   - source-product-understanding-gate-if-source-facts-or-visible-text
   - product-image-parser
   - product-identity-lock

@@ -162,7 +162,7 @@ record("workflow loop guard ordering", () => {
     for (const required of [
       "create-run-skeleton",
       "production-efficiency-plan",
-      "source-product-understanding-ocr",
+      "source-product-understanding-ai-text-first-ocr-if-needed",
       "source-product-understanding-gate-if-source-facts-or-visible-text",
       "product-identity-lock",
       "product-physical-truth-lock-if-function-use-or-scale-sensitive",
@@ -179,7 +179,7 @@ record("workflow loop guard ordering", () => {
     assertStepBefore(file, steps, "create-run-skeleton", "image-set-export-gate");
     assertStepBefore(file, steps, "production-mode-router", "production-efficiency-plan");
     assertStepBefore(file, steps, "production-efficiency-plan", "compact-image-set-blueprint");
-    assertStepBefore(file, steps, "source-product-understanding-ocr", "product-identity-lock");
+    assertStepBefore(file, steps, "source-product-understanding-ai-text-first-ocr-if-needed", "product-identity-lock");
     assertStepBefore(file, steps, "source-product-understanding-gate-if-source-facts-or-visible-text", "product-identity-lock");
     assertStepBefore(file, steps, "product-identity-lock", "compact-image-set-blueprint");
     assertStepBefore(file, steps, "compact-image-set-blueprint", "prompt-layer-stack");
@@ -520,9 +520,39 @@ record("source product understanding gate smoke", () => {
   ], { cwd: skillRoot });
   const failed = readJson(path.join(dir, "qa-fail", "source-product-understanding-gate-report.json"));
   if (failed.status !== "fail") throw new Error("source understanding gate should fail pending/OCR-unstructured source read.");
+
+  const noTextPath = path.join(dir, "no-text-source-product-understanding.json");
+  fs.writeFileSync(noTextPath, JSON.stringify({
+    schema_version: "sellerpilot.source_product_understanding.v1",
+    status: "locked",
+    vision_ocr_pass: { status: "skipped_ai_visual_first", raw_text: "" },
+    codex_visual_product_read: {
+      status: "complete",
+      product_identity_summary: "Plain black cable clip with no visible label text.",
+      observed_product_type: "cable clip",
+      observed_components: ["curved cable channel", "mount base"],
+    },
+    text_understanding: {
+      ai_visual_text_read: {
+        status: "complete",
+        visible_text_detected: false,
+        transcribed_items: [],
+        uncertain_items: [],
+      },
+      visible_text_items: [],
+      text_derived_facts: [],
+    },
+  }, null, 2));
+  fs.writeFileSync(identityPath, "identity_lock:\n  product_type: cable clip\n  must_preserve:\n    components:\n      - curved cable channel\n      - mount base\n");
+  run(process.execPath, [
+    "scripts/source-product-understanding-gate.mjs",
+    "--understanding", noTextPath,
+    "--identity-lock", identityPath,
+    "--out-dir", path.join(dir, "qa-no-text-pass"),
+  ]);
 });
 
-record("source product understanding OCR starter smoke", () => {
+record("source product understanding conditional OCR smoke", () => {
   const tesseract = spawnSync("tesseract", ["--version"], { encoding: "utf8" });
   if (tesseract.status !== 0) return;
   const dir = tmpDir("sp-verify-source-ocr-");
@@ -539,14 +569,29 @@ record("source product understanding OCR starter smoke", () => {
     "--image", imagePath,
     "--out-dir", path.join(dir, "source-understanding"),
     "--category", "cable clip",
+    "--ocr-mode", "always",
   ]);
   const report = readJson(path.join(dir, "source-understanding", "source-product-understanding.json"));
   if (report.vision_ocr_pass.status !== "completed_needs_verification") {
-    throw new Error(`OCR starter should read text when tesseract is available, got ${report.vision_ocr_pass.status}`);
+    throw new Error(`Conditional OCR should read text when explicitly requested, got ${report.vision_ocr_pass.status}`);
   }
   const values = (report.text_understanding?.text_derived_facts || []).map((item) => item.value).join(" ");
   if (!/1\.08 in/.test(values) || !/0\.47 in/.test(values)) {
-    throw new Error("OCR starter should extract visible dimension facts.");
+    throw new Error("Conditional OCR should extract visible dimension facts.");
+  }
+
+  const skipDir = path.join(dir, "source-understanding-skip");
+  run(process.execPath, [
+    "scripts/create-source-product-understanding.mjs",
+    "--image", imagePath,
+    "--out-dir", skipDir,
+    "--category", "cable clip",
+    "--ocr-mode", "auto",
+    "--text-visibility", "no",
+  ]);
+  const skipped = readJson(path.join(skipDir, "source-product-understanding.json"));
+  if (skipped.vision_ocr_pass.status !== "skipped_ai_visual_first") {
+    throw new Error(`OCR should be skipped when AI visual precheck sees no text, got ${skipped.vision_ocr_pass.status}`);
   }
 });
 

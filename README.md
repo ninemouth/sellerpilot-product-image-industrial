@@ -37,7 +37,7 @@
 - Codex Desktop 或支持本地 skills 的 Codex 环境。
 - Node.js 20 或更新版本。
 - npm。
-- 可选：`tesseract`，用于本地 OCR 读取源图文字。
+- 可选：`tesseract`，用于 AI 视觉识别不确定时本地 OCR 兜底读取源图文字。
 - 可选：Google Chrome、Microsoft Edge 或 Playwright 浏览器，用于 HTML/画布渲染。
 
 Codex runtime 通常已经带有 `sharp` 和 `playwright`。普通 Node 环境可以运行：
@@ -234,7 +234,7 @@ npm run plan:efficiency -- \
 - 当前任务的 `export/final-images-manifest.json`，用于证明没有跨任务混图。
 - `planning/production-efficiency-plan.json`，用于说明本次哪些工作会触发、哪些会跳过、阶段预算和长耗时进度规则。
 - `blueprint/quality-production-blueprint.json` 紧凑套图规划，保留每张图的角色、买家问题、镜头、文案意图、prompt layer 和 QA 标准。
-- 商品身份锁和源图理解摘要，包括源图文字/OCR 提供的尺寸、型号、功能、标签等事实线索。
+- 商品身份锁和源图理解摘要，包括 AI 视觉读取文字和条件 OCR 兜底提供的尺寸、型号、功能、标签等事实线索。
 - 必要时的物理功能锁、几何比例锁或微细节锁。
 - 镜头矩阵、场景策略、文案策略和 prompt layer 摘要。
 - Anchor batch QA 结论，以及后续只补齐缺失/失败图片的说明。
@@ -423,8 +423,9 @@ npm run build
 
 OCR 没有结果：
 
-- 确认系统安装了 `tesseract`。
-- 源图文字太小、模糊或倾斜时，需要更清晰的近拍图。
+- 这是兜底工具，不是第一优先级；先用 AI 视觉识别原图文字。
+- 如果 AI 明确判断没有文字，可以跳过 OCR。
+- 如果 AI 不确定、文字太小/模糊/倾斜，或疑似包含尺寸、型号、警告、安装、认证等关键事实，再确认系统安装了 `tesseract` 或提供更清晰的近拍图。
 
 最终交付被 QA 阻塞：
 

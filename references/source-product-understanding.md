@@ -6,16 +6,26 @@ The source image is not only a photo to clean up. It is product evidence. Codex 
 
 ## Required Read
 
-Create a source understanding artifact:
+Create a source understanding artifact after Codex visually inspects whether text is present:
 
 ```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/create-source-product-understanding.mjs \
   --image /abs/source-or-enhanced.png \
   --out-dir /abs/run/source-understanding \
-  --category "商品类目"
+  --category "商品类目" \
+  --ocr-mode auto
 ```
 
-The script records image metadata, runs local OCR through `tesseract` when available, extracts candidate dimensions/spec/function facts from text, and creates fields for Codex visual review. OCR is a starter, not final truth.
+The script records image metadata, the AI-visual-text-first policy, conditional OCR status, candidate dimensions/spec/function facts when OCR runs, and fields for Codex visual review. OCR is a fallback, not the first reader and not final truth.
+
+Use this decision order:
+
+1. Codex visually inspects the source/enhanced image for visible text, labels, tags, packaging, warnings, dimensions, model names, specs, and size cues.
+2. If Codex can confidently read the text, write it into `text_understanding.ai_visual_text_read.transcribed_items` / `visible_text_items` and classify what it reveals.
+3. If the script is called before Codex has judged text visibility, OCR stays skipped and the gate will require the visual text precheck before final generation.
+4. If Codex confidently sees no text, call the script with `--text-visibility no` so local OCR is skipped.
+5. If Codex sees text but it is small, blurry, partially cropped, multilingual, numeric/spec-heavy, or commercially/risk significant, call the script with `--text-visibility yes` or `uncertain` so OCR can provide a fallback pass.
+6. Treat OCR output as a candidate requiring visual or user verification before it becomes a locked product fact.
 
 Codex must then visually inspect the original/enhanced image and complete:
 
@@ -25,7 +35,8 @@ Codex must then visually inspect the original/enhanced image and complete:
 - material/finish/color family
 - visible function/use mechanism
 - physical size cues and scale references
-- visible text items, including labels, packaging, tags, warnings, model names, dimensions, count, material, compatibility, installation, weight, certification, or other specs
+- AI-read visible text items, including labels, packaging, tags, warnings, model names, dimensions, count, material, compatibility, installation, weight, certification, or other specs
+- OCR fallback text only when visual reading is uncertain, insufficient, or text-derived facts are high-risk
 - uncertain text or micro-detail that needs a closeup
 
 If text is visible but unclear, preserve its placement/shape as unreadable unless a closeup or user facts make it reliable. Do not turn unclear marks into readable brands, model names, certifications, or decorative patterns.
@@ -74,6 +85,7 @@ Block or reroute when:
 
 - Codex did not record product type, structure, components, material/color, and function/use.
 - OCR/raw visible text exists but is not transcribed into visible text items.
+- AI visual text reading is marked uncertain but OCR is skipped without a reason.
 - visible text suggests dimensions, function, installation, compatibility, material, warning, certification, or weight but `text_derived_facts` is empty.
 - text-derived dimensions are missing from geometry lock.
 - text-derived function/use/install facts are missing from physical truth lock.

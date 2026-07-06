@@ -89,7 +89,7 @@ function buildPlan(ctx) {
   const fastMode = ctx.mode === "fast_generation";
   const auditMode = ctx.mode === "industrial_audit";
   const planningSections = [
-    "confirmed product facts and source/OCR facts",
+    "confirmed product facts, AI-read visible text, and conditional OCR facts",
     "identity, geometry, physical truth, and micro-detail locks",
     "platform/category baseline plus triggered current context",
     "buyer question and conversion task per image",
@@ -148,7 +148,7 @@ function buildPlan(ctx) {
     ],
     parallelizable_groups: [
       ["update awareness check", "mode routing", "run skeleton"],
-      ["source image preflight/OCR", "platform YAML baseline load", "brief intake assumptions"],
+      ["source image preflight and AI visual text read", "platform YAML baseline load", "brief intake assumptions"],
       ["compact feature/audience notes", "visual director shot matrix", "copy intent draft"],
       ["export gate", "delivery overview", "post-generation tldraw workspace file creation"],
     ],

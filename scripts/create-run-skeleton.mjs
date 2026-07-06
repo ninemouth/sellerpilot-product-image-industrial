@@ -77,7 +77,7 @@ writeIfMissing(path.join(outDir, "brief-intake", "brief-intake-gate-report.json"
 
 writeIfMissing(path.join(outDir, "source-understanding", "source-product-understanding.json"), JSON.stringify({
   schema_version: "sellerpilot.source_product_understanding.v1",
-  status: "pending_codex_visual_and_ocr_review",
+  status: "pending_codex_visual_text_read_and_conditional_ocr",
   created_at: now,
   source_image: null,
   category,

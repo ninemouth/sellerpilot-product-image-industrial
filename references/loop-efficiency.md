@@ -19,7 +19,7 @@ Quality production mode runs the full quality-critical path without generating t
 2. Select production mode with `production-mode-router.mjs`.
 3. Write `planning/production-efficiency-plan.json` with triggered work, skipped work, time budgets, and the progress update policy.
 4. Run Brief Intake Gate. Ask only high-value questions; otherwise record assumptions and continue.
-5. Build Source Product Understanding/OCR and Product Identity Lock before visual planning.
+5. Build Source Product Understanding with AI visual text reading first, run OCR only when visual text is visible/uncertain/important, then create Product Identity Lock before visual planning.
 6. Trigger physical truth, geometry, micro-detail, product URL reading, live platform research, or market research only when the product/request contains those risk signals.
 7. Create strategy direction options when the user request is rough/open, then continue with the harness-selected option if the user has no preference.
 8. Build compact image-set planning: source facts, identity/physical locks, platform baseline/triggered research, buyer question per image, Visual Director shot matrix, copy intent, prompt layers, and QA criteria.

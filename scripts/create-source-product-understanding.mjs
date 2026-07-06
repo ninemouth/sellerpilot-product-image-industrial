@@ -25,11 +25,14 @@ function parseArgs(argv) {
 
 function usage() {
   console.error(`Usage:
-node scripts/create-source-product-understanding.mjs --image /abs/source.png --out-dir /abs/run/source-understanding [--category "..."] [--langs eng+chi_sim]
+node scripts/create-source-product-understanding.mjs --image /abs/source.png --out-dir /abs/run/source-understanding [--category "..."] [--langs eng+chi_sim] [--ocr-mode auto|always|never] [--text-visibility yes|no|uncertain]
 
-Creates a starter source-product-understanding.json with image metadata, OCR text
-when local tesseract is available, text-derived fact candidates, and fields for
-Codex visual inspection to complete before generation.`);
+Creates a starter source-product-understanding.json with image metadata and
+fields for Codex visual inspection. OCR is conditional: Codex visual text
+recognition is preferred, and local tesseract is used only when text is
+visible/uncertain, explicitly requested, or needed for fallback. If
+--text-visibility is omitted, OCR is skipped until Codex completes the visual
+text precheck.`);
   process.exit(2);
 }
 
@@ -40,6 +43,9 @@ const image = path.resolve(args.image);
 const outDir = path.resolve(args["out-dir"]);
 const outPath = path.join(outDir, "source-product-understanding.json");
 const langs = args.langs || "eng+chi_sim";
+const ocrMode = String(args["ocr-mode"] || "auto").toLowerCase();
+const textVisibility = normalizeTextVisibility(args["text-visibility"]);
+if (!["auto", "always", "never"].includes(ocrMode)) usage();
 fs.mkdirSync(outDir, { recursive: true });
 
 let sharp = null;
@@ -54,7 +60,13 @@ try {
 }
 
 const metadata = sharp ? await imageMetadata(image) : {};
-const ocr = runOcr(image, langs);
+const ocrDecision = decideOcr({ ocrMode, textVisibility });
+const ocr = ocrDecision.should_run ? runOcr(image, langs) : {
+  status: "skipped_ai_visual_first",
+  engine: "tesseract",
+  text: "",
+  warning: ocrDecision.reason,
+};
 const visibleText = normalizeOcrText(ocr.text);
 const factCandidates = deriveFactsFromText(visibleText);
 
@@ -65,6 +77,13 @@ const report = {
   source_image: image,
   category: args.category || "",
   image_metadata: metadata,
+  ai_visual_text_first_policy: {
+    status: "pending_codex_visual_read",
+    ocr_mode: ocrMode,
+    text_visibility_hint: textVisibility,
+    rule: "Codex visual recognition should identify and transcribe visible product text first. Run OCR only when text is visible, uncertain, user-requested, or visual reading cannot confidently transcribe size/spec/function text.",
+    ocr_decision: ocrDecision,
+  },
   vision_ocr_pass: {
     status: ocr.status,
     engine: ocr.engine,
@@ -86,6 +105,13 @@ const report = {
     uncertainty_notes: [],
   },
   text_understanding: {
+    ai_visual_text_read: {
+      status: "pending",
+      visible_text_detected: textVisibility === "yes" ? true : textVisibility === "no" ? false : null,
+      transcribed_items: [],
+      uncertain_items: [],
+      ocr_needed_after_visual_read: ocrMode === "always" || textVisibility === "uncertain" || textVisibility === "pending",
+    },
     visible_text_items: visibleText
       ? visibleText.split(/\n+/).map((line, index) => ({
         index: index + 1,
@@ -113,7 +139,15 @@ const report = {
 };
 
 fs.writeFileSync(outPath, `${JSON.stringify(report, null, 2)}\n`);
-console.log(JSON.stringify({ status: report.status, outPath, ocrStatus: ocr.status, factCandidates: factCandidates.length }, null, 2));
+console.log(JSON.stringify({
+  status: report.status,
+  outPath,
+  ocrMode,
+  textVisibility,
+  ocrDecision: ocrDecision.action,
+  ocrStatus: ocr.status,
+  factCandidates: factCandidates.length,
+}, null, 2));
 
 async function imageMetadata(file) {
   const meta = await sharp(file, { failOn: "none" }).metadata();
@@ -132,7 +166,7 @@ function runOcr(file, languageList) {
       status: "unavailable",
       engine: "tesseract",
       text: "",
-      warning: "Local tesseract is not available; Codex visual/OCR pass must transcribe visible text manually.",
+      warning: "Local tesseract is not available; Codex visual text reading must transcribe visible text manually or request a clearer closeup.",
     };
   }
   const attempts = [...new Set([languageList, "eng"].filter(Boolean))];
@@ -159,6 +193,52 @@ function runOcr(file, languageList) {
     engine: "tesseract",
     text: "",
     warning: failures.join("\n"),
+  };
+}
+
+function normalizeTextVisibility(value) {
+  if (value === undefined || value === null || value === "") return "pending";
+  const text = String(value).toLowerCase();
+  if (/^(yes|true|visible|detected|has-text|text)$/i.test(text)) return "yes";
+  if (/^(no|false|none|not-visible|no-text|textless)$/i.test(text)) return "no";
+  return "uncertain";
+}
+
+function decideOcr({ ocrMode: mode, textVisibility: visibility }) {
+  if (mode === "always") {
+    return {
+      should_run: true,
+      action: "run",
+      reason: "OCR mode is always; run local OCR as an explicit fallback/evidence pass.",
+    };
+  }
+  if (mode === "never") {
+    return {
+      should_run: false,
+      action: "skip",
+      reason: "OCR mode is never; rely on Codex visual text recognition and user/source facts.",
+    };
+  }
+  if (visibility === "no") {
+    return {
+      should_run: false,
+      action: "skip",
+      reason: "AI visual precheck says no visible text; skip local OCR for speed.",
+    };
+  }
+  if (visibility === "pending") {
+    return {
+      should_run: false,
+      action: "skip",
+      reason: "Text visibility was not provided. Skip OCR until Codex performs AI visual text precheck and rerun with yes/uncertain only if needed.",
+    };
+  }
+  return {
+    should_run: true,
+    action: "run",
+    reason: visibility === "yes"
+      ? "AI visual precheck says visible text is present; run OCR only as a verification fallback."
+      : "Visible text is uncertain; run OCR as fallback because text may reveal size, model, warning, function, material, or compatibility facts.",
   };
 }
 

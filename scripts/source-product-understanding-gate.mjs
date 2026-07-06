@@ -22,7 +22,7 @@ function usage() {
   console.error(`Usage:
 node scripts/source-product-understanding-gate.mjs --understanding /abs/source-product-understanding.json --out-dir /abs/run/qa [--identity-lock /abs/run/blueprint/02-identity-lock.yaml] [--physical-truth /abs/run/blueprint/02b-product-physical-truth.json] [--source-geometry /abs/run/geometry/source-geometry.json]
 
-Blocks generation when source-image product recognition, visible text/OCR facts,
+Blocks generation when source-image product recognition, AI-read visible text/OCR facts,
 or text-derived size/function facts have not been propagated into downstream locks.`);
   process.exit(2);
 }
@@ -66,20 +66,40 @@ if (!Array.isArray(visualRead.observed_components) || visualRead.observed_compon
 }
 
 const visibleItems = understanding.text_understanding?.visible_text_items || [];
+const aiTextRead = understanding.text_understanding?.ai_visual_text_read || {};
 const textFacts = understanding.text_understanding?.text_derived_facts || [];
 const ocrRawText = understanding.vision_ocr_pass?.raw_text || "";
-const ocrHasText = String(ocrRawText).trim().length > 0 || visibleItems.length > 0;
+const ocrStatus = String(understanding.vision_ocr_pass?.status || "");
+const aiTranscribedItems = safeArray(aiTextRead.transcribed_items);
+const aiUncertainItems = safeArray(aiTextRead.uncertain_items);
+const visualTextDetected = aiTextRead.visible_text_detected;
+const ocrSkipped = /^skipped/i.test(ocrStatus);
+const ocrHasText = String(ocrRawText).trim().length > 0 || visibleItems.length > 0 || aiTranscribedItems.length > 0;
+if (aiTranscribedItems.length && !visibleItems.length) {
+  findings.push({
+    severity: "fail",
+    type: "ai-visible-text-not-structured",
+    message: "AI visual text read has transcribed_items but visible_text_items is empty. Normalize AI-read text into visible_text_items and classify what it reveals.",
+  });
+}
+if (ocrSkipped && (visualTextDetected === null || visualTextDetected === undefined || aiUncertainItems.length)) {
+  findings.push({
+    severity: "fail",
+    type: "ocr-skipped-while-visual-text-uncertain",
+    message: "AI visual text reading is uncertain but OCR was skipped. Run conditional OCR or record a clear reason why OCR is unavailable/unnecessary.",
+  });
+}
 if (ocrHasText && !visibleItems.length) {
   findings.push({
     severity: "fail",
-    type: "ocr-text-not-structured",
-    message: "OCR/raw visible text exists but visible_text_items is empty. Transcribe and classify the visible text.",
+    type: "visible-text-not-structured",
+    message: "OCR/raw/AI visible text exists but visible_text_items is empty. Transcribe and classify the visible text.",
   });
 }
 
 const dimensionFacts = textFacts.filter((item) => String(item.fact_type || "").toLowerCase() === "dimension");
 const functionFacts = textFacts.filter((item) => /(installation|function|compatibility|safety|material|weight)/i.test(String(item.fact_type || "")));
-if (ocrHasText && /(?:in|inch|cm|mm|length|width|height|diameter|weight|screw|mount|clip|route|press|install|compatible|warning|waterproof|certified)/i.test(String(ocrRawText) + JSON.stringify(visibleItems)) && !textFacts.length) {
+if (ocrHasText && /(?:in|inch|cm|mm|length|width|height|diameter|weight|screw|mount|clip|route|press|install|compatible|warning|waterproof|certified)/i.test(String(ocrRawText) + JSON.stringify(visibleItems) + JSON.stringify(aiTranscribedItems)) && !textFacts.length) {
   findings.push({
     severity: "fail",
     type: "missing-text-derived-facts",
