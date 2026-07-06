@@ -74,6 +74,17 @@ ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial
 
 同步脚本会先备份旧版本，再把当前仓库同步到 Codex skills 目录，并验证两边文件一致。
 
+也可以让 Codex 从 GitHub 链接安装。因为这个仓库的 skill 文件就在仓库根目录，安装器需要显式指定根路径和 skill 名：
+
+```bash
+python3 ${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/install-skill-from-github.py \
+  --repo ninemouth/sellerpilot-product-image-industrial \
+  --path . \
+  --name sellerpilot-product-image-industrial
+```
+
+安装完成后，重启 Codex 让新 skill 生效。
+
 ## 最快上手
 
 安装后，在 Codex 对话里可以这样说：
