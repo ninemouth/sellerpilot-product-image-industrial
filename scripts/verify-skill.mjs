@@ -440,17 +440,26 @@ record("blocked scaffold smoke", () => {
 });
 
 record("export gate pass and draft fail", () => {
-  const dir = tmpDir("sp-verify-export-");
+  const runDir = path.join(tmpDir("sp-verify-export-"), "run");
+  const dir = path.join(runDir, "final-images");
+  fs.mkdirSync(dir, { recursive: true });
+  run(process.execPath, [
+    "scripts/create-run-skeleton.mjs",
+    "--out-dir", runDir,
+    "--platform", "拼多多",
+    "--category", "女包",
+  ]);
   execFileSync(process.execPath, ["-e", `
     const sharp = require(${JSON.stringify(path.join(os.homedir(), ".cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/sharp"))});
     const dir = process.argv[1];
-    Promise.all([
+    (async () => { await Promise.all([
       sharp({create:{width:1200,height:1200,channels:4,background:'#fff'}}).png().toFile(dir + '/IMG-01-main-product.png'),
       sharp({create:{width:1200,height:1200,channels:4,background:'#eee'}}).png().toFile(dir + '/IMG-02-detail-strap.png')
-    ]).catch((e)=>{ console.error(e); process.exit(1); });
+    ]); })().catch((e)=>{ console.error(e); process.exit(1); });
   `, dir], { cwd: skillRoot, stdio: "inherit" });
   run(process.execPath, [
     "scripts/image-set-export-gate.mjs",
+    "--run-dir", runDir,
     "--image-dir", dir,
     "--out-dir", path.join(dir, "qa-pass"),
     "--expected-count", "2",
@@ -459,6 +468,7 @@ record("export gate pass and draft fail", () => {
   fs.renameSync(path.join(dir, "IMG-02-detail-strap.png"), path.join(dir, "IMG-02-layout-draft.png"));
   spawnSync(process.execPath, [
     "scripts/image-set-export-gate.mjs",
+    "--run-dir", runDir,
     "--image-dir", dir,
     "--out-dir", path.join(dir, "qa-fail"),
     "--expected-count", "2",
@@ -472,19 +482,30 @@ record("delivery overview and final gate smoke", () => {
   const runDir = path.join(tmpDir("sp-verify-overview-"), "run");
   const imageDir = path.join(runDir, "final-images");
   const qaDir = path.join(runDir, "qa");
-  fs.mkdirSync(imageDir, { recursive: true });
-  fs.mkdirSync(qaDir, { recursive: true });
+  run(process.execPath, [
+    "scripts/create-run-skeleton.mjs",
+    "--out-dir", runDir,
+    "--platform", "Amazon",
+    "--category", "cable clip",
+  ]);
   execFileSync(process.execPath, ["-e", `
     const sharp = require(${JSON.stringify(path.join(os.homedir(), ".cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/sharp"))});
     const dir = process.argv[1];
-    Promise.all([
+    (async () => { await Promise.all([
       sharp({create:{width:1200,height:1200,channels:4,background:'#fff'}}).png().toFile(dir + '/IMG-01-main-product.png'),
       sharp({create:{width:1200,height:1200,channels:4,background:'#eee'}}).png().toFile(dir + '/IMG-02-detail-structure.png')
-    ]).catch((e)=>{ console.error(e); process.exit(1); });
+    ]); })().catch((e)=>{ console.error(e); process.exit(1); });
   `, imageDir], { cwd: skillRoot, stdio: "inherit" });
   fs.writeFileSync(path.join(qaDir, "marketing-quality-gate-report.json"), JSON.stringify({ status: "pass", findings: [] }));
   fs.writeFileSync(path.join(qaDir, "copy-strategy-gate-report.json"), JSON.stringify({ status: "pass", findings: [] }));
-  fs.writeFileSync(path.join(qaDir, "image-set-export-gate-report.json"), JSON.stringify({ status: "pass", findings: [] }));
+  run(process.execPath, [
+    "scripts/image-set-export-gate.mjs",
+    "--run-dir", runDir,
+    "--image-dir", imageDir,
+    "--out-dir", qaDir,
+    "--expected-count", "2",
+    "--require-square",
+  ]);
   spawnSync(process.execPath, ["scripts/final-delivery-gate.mjs", "--run-dir", runDir], { cwd: skillRoot });
   const missingOverview = readJson(path.join(qaDir, "final-delivery-gate-report.json"));
   if (!missingOverview.findings.some((item) => item.type === "missing-delivery-overview")) {
@@ -492,13 +513,114 @@ record("delivery overview and final gate smoke", () => {
   }
   run(process.execPath, [
     "scripts/create-delivery-overview.mjs",
-    "--image-dir", imageDir,
+    "--run-dir", runDir,
+    "--manifest", path.join(runDir, "export", "final-images-manifest.json"),
     "--out-dir", path.join(runDir, "overview"),
     "--title", "Verify Overview",
   ]);
   run(process.execPath, ["scripts/final-delivery-gate.mjs", "--run-dir", runDir]);
   const finalGate = readJson(path.join(qaDir, "final-delivery-gate-report.json"));
   if (finalGate.status !== "pass") throw new Error("final gate should pass when overview and gates are present.");
+});
+
+record("cross-run image scope isolation smoke", () => {
+  const root = tmpDir("sp-verify-cross-run-");
+  const shared = path.join(root, "outputs");
+  fs.mkdirSync(shared, { recursive: true });
+  const runA = path.join(root, "runs", "task-a");
+  const runB = path.join(root, "runs", "task-b");
+  run(process.execPath, ["scripts/create-run-skeleton.mjs", "--out-dir", runA, "--platform", "Amazon", "--category", "clip", "--run-id", "task-a"]);
+  run(process.execPath, ["scripts/create-run-skeleton.mjs", "--out-dir", runB, "--platform", "Amazon", "--category", "shirt", "--run-id", "task-b"]);
+  execFileSync(process.execPath, ["-e", `
+    const sharp = require(${JSON.stringify(path.join(os.homedir(), ".cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/sharp"))});
+    const [shared, runA, runB] = process.argv.slice(1);
+    (async () => { await Promise.all([
+      sharp({create:{width:1200,height:1200,channels:4,background:'#fff'}}).png().toFile(runA + '/final-images/IMG-01-main-clip.png'),
+      sharp({create:{width:1200,height:1200,channels:4,background:'#eee'}}).png().toFile(runA + '/final-images/IMG-02-detail-clip.png'),
+      sharp({create:{width:1200,height:1200,channels:4,background:'#ddd'}}).png().toFile(runB + '/final-images/IMG-01-main-shirt.png'),
+      sharp({create:{width:1200,height:1200,channels:4,background:'#111'}}).png().toFile(shared + '/IMG-01-main-clip.png'),
+      sharp({create:{width:1200,height:1200,channels:4,background:'#777'}}).png().toFile(shared + '/IMG-02-main-shirt.png'),
+      sharp({create:{width:1200,height:1200,channels:4,background:'#333'}}).png().toFile(shared + '/IMG-03-main-sleeve.png')
+    ]); })().catch((e)=>{ console.error(e); process.exit(1); });
+  `, shared, runA, runB], { cwd: skillRoot, stdio: "inherit" });
+  const blocked = spawnSync(process.execPath, [
+    "scripts/create-delivery-overview.mjs",
+    "--run-dir", runA,
+    "--image-dir", shared,
+    "--out-dir", path.join(runA, "overview-blocked"),
+  ], { cwd: skillRoot, encoding: "utf8" });
+  if (blocked.status === 0) throw new Error("delivery overview should reject shared cross-run outputs directory.");
+  run(process.execPath, [
+    "scripts/image-set-export-gate.mjs",
+    "--run-dir", runA,
+    "--image-dir", path.join(runA, "final-images"),
+    "--out-dir", path.join(runA, "qa"),
+    "--expected-count", "2",
+    "--require-square",
+  ]);
+  run(process.execPath, [
+    "scripts/create-delivery-overview.mjs",
+    "--run-dir", runA,
+    "--manifest", path.join(runA, "export", "final-images-manifest.json"),
+    "--out-dir", path.join(runA, "overview"),
+  ]);
+  const overview = readJson(path.join(runA, "overview", "delivery-overview-report.json"));
+  if (overview.image_count !== 2) throw new Error("manifest-scoped overview should include only task-a images.");
+  if (overview.source_images.some((file) => /shirt|sleeve/i.test(file))) {
+    throw new Error("manifest-scoped overview leaked another task image.");
+  }
+});
+
+record("tldraw session collision isolation smoke", () => {
+  const root = tmpDir("sp-verify-session-isolation-");
+  const sharedRoot = path.join(root, "shared-canvas-service");
+  const runA = path.join(root, "runs", "task-a");
+  const runB = path.join(root, "runs", "task-b");
+  run(process.execPath, ["scripts/create-run-skeleton.mjs", "--out-dir", runA, "--platform", "Amazon", "--category", "clip", "--run-id", "task-a"]);
+  run(process.execPath, ["scripts/create-run-skeleton.mjs", "--out-dir", runB, "--platform", "Amazon", "--category", "shirt", "--run-id", "task-b"]);
+  execFileSync(process.execPath, ["-e", `
+    const sharp = require(${JSON.stringify(path.join(os.homedir(), ".cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/sharp"))});
+    const [runA, runB] = process.argv.slice(1);
+    (async () => { await Promise.all([
+      sharp({create:{width:1200,height:1200,channels:4,background:'#fff'}}).png().toFile(runA + '/final-images/IMG-01-main-clip.png'),
+      sharp({create:{width:1200,height:1200,channels:4,background:'#f4f4f4'}}).png().toFile(runA + '/final-images/IMG-02-detail-clip.png'),
+      sharp({create:{width:1200,height:1200,channels:4,background:'#eee'}}).png().toFile(runB + '/final-images/IMG-01-main-shirt.png'),
+      sharp({create:{width:1200,height:1200,channels:4,background:'#dedede'}}).png().toFile(runB + '/final-images/IMG-02-detail-shirt.png')
+    ]); })().catch((e)=>{ console.error(e); process.exit(1); });
+  `, runA, runB], { cwd: skillRoot, stdio: "inherit" });
+  for (const runDir of [runA, runB]) {
+    run(process.execPath, [
+      "scripts/image-set-export-gate.mjs",
+      "--run-dir", runDir,
+      "--image-dir", path.join(runDir, "final-images"),
+      "--out-dir", path.join(runDir, "qa"),
+      "--allow-drafts",
+    ]);
+    run(process.execPath, [
+      "scripts/create-tldraw-review-workspace.mjs",
+      "--out-dir", path.join(runDir, "review-workspace"),
+      "--run-dir", runDir,
+      "--manifest", path.join(runDir, "export", "final-images-manifest.json"),
+      "--session-id", "same-session",
+      "--no-auto-start",
+    ]);
+  }
+  run(process.execPath, [
+    "scripts/register-tldraw-review-session.mjs",
+    "--workspace-dir", path.join(runA, "review-workspace"),
+    "--session-id", "same-session",
+    "--shared-root", sharedRoot,
+  ]);
+  const second = spawnSync(process.execPath, [
+    "scripts/register-tldraw-review-session.mjs",
+    "--workspace-dir", path.join(runB, "review-workspace"),
+    "--session-id", "same-session",
+    "--shared-root", sharedRoot,
+  ], { cwd: skillRoot, encoding: "utf8" });
+  if (second.status === 0) throw new Error("register should reject reusing a session id across different runs.");
+  if (!/already registered/.test(`${second.stderr}\n${second.stdout}`)) {
+    throw new Error("session collision rejection should explain the existing registration.");
+  }
 });
 
 record("marketing gate watermark fail", () => {

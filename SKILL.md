@@ -104,6 +104,7 @@ For normal chat, do not create every artifact listed in the full output contract
    - `policies/qa-checklist.md`
 17. Use the workflow steps as a gated loop, not as decorative labels. Generate only missing assets, rerender only failed layouts, and stop early when product identity, geometry, or copy strategy drifts.
 18. Run export and output-failure gates before final delivery. Do not present contact sheets, collage previews, fake scene placeholders, or visually unreadable drafts as final ecommerce images. For multi-image sets, generate a separate delivery overview contact sheet under `overview/`; it is a package review artifact and does not replace independent final images.
+18a. Enforce task-level image isolation. Each run must have a unique `run_id` and a run-local `export/final-images-manifest.json`. Overview, tldraw, export gates, A-H review, and identity review must read the current run manifest or exactly `/abs/run/final-images`; do not point them at a date-level directory, shared `outputs/`, parent folder, or another task's folder. `outputs/` can receive copies for user-facing delivery, but it is not an internal production source.
 19. Produce the mode-appropriate Definition of Done. Fast mode should end with actual generated images and a concise QA summary; industrial audit mode should produce the full artifact package.
 
 ## Bundled Scripts
@@ -178,7 +179,8 @@ node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/crea
   --out-dir /abs/runs/run-id \
   --platform "拼多多" \
   --category "女包" \
-  --product-name "商品名"
+  --product-name "商品名" \
+  --run-id "run-unique-task-id"
 ```
 
 ```bash
@@ -270,22 +272,24 @@ Use the prompt layer gate before final prompt/request delivery. It checks the Pr
 
 ```bash
 node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/image-set-export-gate.mjs \
+  --run-dir /abs/run \
   --image-dir /abs/run/final-images \
   --out-dir /abs/run/qa \
   --expected-count 8 \
   --require-square
 ```
 
-Use the export gate before final delivery to catch contact-sheet-only outputs, non-independent images, missing English purpose slugs in filenames, low resolution, and wrong aspect ratios.
+Use the export gate before final delivery to catch contact-sheet-only outputs, non-independent images, missing English purpose slugs in filenames, low resolution, wrong aspect ratios, and cross-task image scope risk. This writes `export/final-images-manifest.json`; use that manifest for overview and review surfaces.
 
 ```bash
 node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/create-delivery-overview.mjs \
-  --image-dir /abs/run/final-images \
+  --run-dir /abs/run \
+  --manifest /abs/run/export/final-images-manifest.json \
   --out-dir /abs/run/overview \
   --title "商品套图总览"
 ```
 
-For every multi-image set, create `overview/SET-OVERVIEW-contact-sheet.png` and `overview/delivery-overview-report.json` before final delivery. This 总览图 is for package review and conversation handoff only; it must not be placed in `final-images` or used as a substitute for independent ecommerce images.
+For every multi-image set, create `overview/SET-OVERVIEW-contact-sheet.png` and `overview/delivery-overview-report.json` before final delivery. This 总览图 is for package review and conversation handoff only; it must not be placed in `final-images` or used as a substitute for independent ecommerce images. Do not create it from a shared `outputs/` directory.
 
 ```bash
 node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/final-delivery-gate.mjs \
@@ -318,12 +322,12 @@ Preferred rich local workspace:
 ```bash
 node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/create-tldraw-review-workspace.mjs \
   --out-dir /abs/run/review-workspace \
-  --image-dir /abs/run/final-images \
+  --manifest /abs/run/export/final-images-manifest.json \
   --run-dir /abs/run \
   --title "商品图审核工作台"
 ```
 
-This creates a React + Vite review workspace with copied image assets, `data/import-manifest.json`, `data/annotations.json`, `data/canvas-state.json`, `data/review-completion.json`, and `data/generation-tasks.json`. By default it also starts or reuses the shared tldraw service and returns a ready session URL. The review plane must render generated product images as the bottom floor layer, with A-H standards, issue markers, and revision annotations floating above the images. Do not use a left sidebar. Put the image file list in the top dropdown, keep the review board from zooming independently, and if any scaling is introduced it must scale images and standards together.
+This creates a React + Vite review workspace from the current run manifest with copied image assets, `data/import-manifest.json`, `data/annotations.json`, `data/canvas-state.json`, `data/review-completion.json`, and `data/generation-tasks.json`. By default it also starts or reuses the shared tldraw service and returns a ready session URL. The review plane must render generated product images as the bottom floor layer, with A-H standards, issue markers, and revision annotations floating above the images. Do not use a left sidebar. Put the image file list in the top dropdown, keep the review board from zooming independently, and if any scaling is introduced it must scale images and standards together. The session id should be the run id unless an explicit unique session id is provided.
 
 The workspace and shared canvas service are started automatically when visual review is needed. Use `--no-auto-start` only for selftests, file-only artifact generation, or explicitly non-interactive audit archives.
 
@@ -386,7 +390,8 @@ For image sets that need precise revision feedback, also create a clickable A-H 
 
 ```bash
 node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/create-region-review-html.mjs \
-  --image-dir /abs/run/final-images \
+  --run-dir /abs/run \
+  --manifest /abs/run/export/final-images-manifest.json \
   --out /abs/run/review/review.html
 ```
 
@@ -412,6 +417,7 @@ Fast generation mode should provide:
 - Independent final image files when image generation is requested
 - Exported image filenames with stable IDs and English purpose slugs, such as `IMG-01-main-product-cafe-commute.png`
 - Delivery overview image at `overview/SET-OVERVIEW-contact-sheet.png` for multi-image sets
+- Run-scoped `export/final-images-manifest.json` for multi-image sets
 - Selected strategy direction when the user request was rough, including whether the user chose it or the harness selected it
 - First user-visible direction handoff when the request was rough/open, before formal production begins
 - Concise product identity notes and source-image quality/enhancement note
@@ -449,6 +455,7 @@ Industrial audit mode should provide the complete workflow artifacts:
 - Independent image files when image rendering/generation is requested
 - Exported image filenames with stable IDs and English purpose slugs, such as `IMG-01-main-product.png`
 - Delivery Overview contact sheet for multi-image sets
+- Final Images Manifest proving task-scoped image membership
 - tldraw Review Workspace or annotation surface
 - tldraw Review Workspace and parsed Generation Tasks when visual review is needed
 - Source Image Quality Report

@@ -166,6 +166,20 @@ if (fs.existsSync(finalImageDir)) {
       });
     }
   }
+  const exportReport = reports.find((item) => item.name === "image-set-export-gate-report.json")?.report || null;
+  const manifestPath = exportReport?.image_manifest ? path.resolve(exportReport.image_manifest) : "";
+  if (finalImageNames.length > 1 && !manifestPath) {
+    findings.push({
+      severity: "fail",
+      type: "missing-final-images-manifest",
+      gate_id: "final-delivery-gate",
+      source_report: "image-set-export-gate-report.json",
+      message: "Multi-image delivery requires image-set-export-gate-report.json to point at export/final-images-manifest.json so images are scoped to one run.",
+    });
+  }
+  if (manifestPath) {
+    validateFinalImagesManifest({ manifestPath, runDir, finalImageDir, finalImageNames, findings });
+  }
   if (finalImageNames.length > 1 && !args["allow-missing-overview"]) {
     if (!fs.existsSync(overviewReportPath)) {
       findings.push({
@@ -194,6 +208,34 @@ if (fs.existsSync(finalImageDir)) {
             gate_id: "final-delivery-gate",
             source_report: "overview/delivery-overview-report.json",
             message: `Delivery overview covers ${overview.image_count || 0} images, but final-images contains ${finalImageNames.length}. Regenerate the overview.`,
+          });
+        }
+        const exportReport = reports.find((item) => item.name === "image-set-export-gate-report.json")?.report || null;
+        if (exportReport?.image_manifest && !overview.image_manifest) {
+          findings.push({
+            severity: "fail",
+            type: "delivery-overview-missing-manifest",
+            gate_id: "final-delivery-gate",
+            source_report: "overview/delivery-overview-report.json",
+            message: "Delivery overview must be created from the current run final-images manifest, not from an unscoped directory scan.",
+          });
+        }
+        if (exportReport?.image_manifest && overview.image_manifest && path.resolve(exportReport.image_manifest) !== path.resolve(overview.image_manifest)) {
+          findings.push({
+            severity: "fail",
+            type: "delivery-overview-manifest-mismatch",
+            gate_id: "final-delivery-gate",
+            source_report: "overview/delivery-overview-report.json",
+            message: `Delivery overview used ${overview.image_manifest}, but export gate used ${exportReport.image_manifest}. Regenerate the overview from the current run manifest.`,
+          });
+        }
+        if (exportReport?.run_id && overview.run_id && exportReport.run_id !== overview.run_id) {
+          findings.push({
+            severity: "fail",
+            type: "delivery-overview-run-mismatch",
+            gate_id: "final-delivery-gate",
+            source_report: "overview/delivery-overview-report.json",
+            message: `Delivery overview run_id ${overview.run_id} does not match export gate run_id ${exportReport.run_id}.`,
           });
         }
       } catch (error) {
@@ -279,6 +321,55 @@ function loadGateReports(dir) {
         };
       }
     });
+}
+
+function validateFinalImagesManifest({ manifestPath, runDir, finalImageDir, finalImageNames, findings }) {
+  try {
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+    if (manifest.run_dir && path.resolve(manifest.run_dir) !== runDir) {
+      findings.push({
+        severity: "fail",
+        type: "final-images-manifest-run-mismatch",
+        gate_id: "final-delivery-gate",
+        source_report: path.relative(runDir, manifestPath),
+        message: `Final image manifest belongs to ${manifest.run_dir}, not ${runDir}.`,
+      });
+    }
+    const manifestNames = new Set((manifest.images || []).map((item) => path.basename(item.path || item.file || "")));
+    for (const name of finalImageNames) {
+      if (!manifestNames.has(name)) {
+        findings.push({
+          severity: "fail",
+          type: "unmanifested-final-image",
+          gate_id: "final-delivery-gate",
+          source_report: path.relative(runDir, manifestPath),
+          file: path.join(finalImageDir, name),
+          message: `${name} is present in final-images but not in the run-scoped final-images manifest.`,
+        });
+      }
+    }
+    for (const item of manifest.images || []) {
+      const file = path.resolve(item.path || path.join(manifest.image_dir || finalImageDir, item.file || ""));
+      if (!file.startsWith(`${path.resolve(finalImageDir)}${path.sep}`)) {
+        findings.push({
+          severity: "fail",
+          type: "manifest-image-outside-final-dir",
+          gate_id: "final-delivery-gate",
+          source_report: path.relative(runDir, manifestPath),
+          file,
+          message: "Final image manifest points outside this run's final-images directory.",
+        });
+      }
+    }
+  } catch (error) {
+    findings.push({
+      severity: "fail",
+      type: "unreadable-final-images-manifest",
+      gate_id: "final-delivery-gate",
+      source_report: path.relative(runDir, manifestPath),
+      message: error.message,
+    });
+  }
 }
 
 function requiresGeometryGate(filePath) {

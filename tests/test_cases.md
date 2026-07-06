@@ -88,7 +88,7 @@ Expected: if 8 square PNG files exist but marketing gate fails for missing scene
 Expected: `image-set-export-gate.mjs` fails by default when files in `final-images` contain `layout-draft`, `draft`, `placeholder`, `wireframe`, or `blocked` in the filename. Draft assets belong in layout/review artifacts, not final ecommerce exports.
 
 ## Case 28: tldraw review workspace
-Expected: `create-tldraw-review-workspace.mjs` creates a React + Vite review workspace, copies image assets into `public/imported-images`, writes `data/import-manifest.json`, and provides `data/annotations.json`, `data/canvas-state.json`, `data/review-completion.json`, and `data/generation-tasks.json` for Codex-readable review handoff. Local file URLs should not be required for browser image rendering.
+Expected: `create-tldraw-review-workspace.mjs` reads the current run's `export/final-images-manifest.json`, creates a React + Vite review workspace, copies only those task images into `public/imported-images`, writes `data/import-manifest.json`, and provides `data/annotations.json`, `data/canvas-state.json`, `data/review-completion.json`, and `data/generation-tasks.json` for Codex-readable review handoff. Local file URLs should not be required for browser image rendering.
 
 ## Case 29: annotation JSON to generation tasks
 Expected: `parse-canvas-annotations.mjs` converts open annotations into generation tasks with `image_id`, `region`, `issue_type`, `return_node`, `action`, and `rerun_scope`. Scene feedback routes to `scene-asset-production`, copy feedback to `localized-copy-pack`, layout feedback to `layout-wireframes`, and identity feedback to `product-identity-lock`.
@@ -136,7 +136,10 @@ Expected: generated or planned closeups fail identity/marketing QA if they inven
 Expected: after `create-tldraw-review-workspace.mjs` creates a review workspace, `open-tldraw-review-session.mjs` registers the workspace, starts or reuses the shared tldraw service, waits until the session URL responds, and returns `status: ready` plus a clean URL like `http://127.0.0.1:5190/?session=<id>`. If npm install emits logs before JSON, the launcher must still parse the final JSON response. If an old PID is alive but the URL is unreachable, the launcher must restart instead of returning a dead canvas URL.
 
 ## Case 42: project-level default entrypoint
-Expected: a Codex Project that wants SellerPilot product image work can keep an `AGENTS.md` at the project root pointing to `/Users/yang/.codex/skills/sellerpilot-product-image-industrial`. Natural language requests inside that Project should use this skill by default, store run artifacts under `runs/<run-id>/`, final images under `outputs/`, and launch the tldraw review canvas with `open-tldraw-review-session.mjs` when visual revision is next.
+Expected: a Codex Project that wants SellerPilot product image work can keep an `AGENTS.md` at the project root pointing to `/Users/yang/.codex/skills/sellerpilot-product-image-industrial`. Natural language requests inside that Project should use this skill by default, store run artifacts under `runs/<run-id>/`, keep production/QA reads scoped to that run's `final-images` and `export/final-images-manifest.json`, copy final deliverables to `outputs/` only after QA, and launch the tldraw review canvas with `open-tldraw-review-session.mjs` when visual revision is next.
+
+## Case 42B: cross-task image isolation
+Expected: if three product-image tasks write or copy files into one shared `outputs/` directory, overview/review/export scripts must not scan that shared directory. They should fail unless given the exact current `run-dir/final-images` or `export/final-images-manifest.json`. The generated overview and tldraw manifest must include only the current task's images.
 
 ## Case 43: rough user request gets strategy options
 Expected: a broad request like `帮我把这件球衣做一套商品图` creates `strategy/direction-options.json`, `strategy/direction-options.md`, and `strategy/direction-selection.yaml` with 2-3 buyer-facing directions. If the user does not choose, the harness records `selected_option_id` and continues from that route.

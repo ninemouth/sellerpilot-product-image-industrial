@@ -96,6 +96,7 @@ run("diff", [
   "--exclude", "node_modules",
   "--exclude", "runs",
   "--exclude", "outputs",
+  "--exclude", ".DS_Store",
   source,
   dest,
 ], { cwd: source, stdio: "inherit" });

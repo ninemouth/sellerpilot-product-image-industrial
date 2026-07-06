@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { collectScopedImages, imageScopeUsage } from "./lib/image-scope.mjs";
 
 function parseArgs(argv) {
   const args = {};
@@ -20,25 +21,20 @@ function parseArgs(argv) {
 }
 
 function usage() {
-  console.error(`Usage:
-node scripts/create-region-review-html.mjs --image-dir /abs/final-images --out /abs/review/review.html
+  console.error(imageScopeUsage(`Usage:
+node scripts/create-region-review-html.mjs --run-dir /abs/run --manifest /abs/run/export/final-images-manifest.json --out /abs/review/review.html
+node scripts/create-region-review-html.mjs --run-dir /abs/run --image-dir /abs/run/final-images --out /abs/review/review.html
 node scripts/create-region-review-html.mjs --images "/abs/IMG-01.png,/abs/IMG-02.png" --out /abs/review/review.html
 
-Creates a review.html with A-H editable regions, click-position capture, quick issue types, and exportable revision feedback.`);
+Creates a review.html with A-H editable regions, click-position capture, quick issue types, and exportable revision feedback.`));
   process.exit(2);
 }
 
 const args = parseArgs(process.argv);
-if (!args.out || (!args.images && !args["image-dir"])) usage();
+if (!args.out || (!args.images && !args["image-dir"] && !args.manifest)) usage();
 
-let images = [];
-if (args.images) images = args.images.split(",").map((item) => item.trim()).filter(Boolean);
-if (args["image-dir"]) {
-  images = fs.readdirSync(args["image-dir"])
-    .filter((name) => /\.(png|jpe?g|webp)$/i.test(name))
-    .sort()
-    .map((name) => path.join(args["image-dir"], name));
-}
+const scope = collectScopedImages(args, { purpose: "region-review-html" });
+let images = scope.images;
 if (!images.length) usage();
 
 const out = path.resolve(args.out);

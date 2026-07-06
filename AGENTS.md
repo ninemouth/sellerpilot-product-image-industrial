@@ -39,6 +39,7 @@ Intent -> Normalize -> Brief Intake Gate -> Source Photo Preflight/Enhance -> So
 22. 物理商品必须锁定真实功能、使用/安装动作、禁用生造机制和尺度参考；不得生造按压锁定、磁吸、胶粘、防水、承重、额外活动部件、兼容性或不一致尺寸比例。
 23. 原图中的文字、标签、包装、尺寸、警示、型号、规格、安装步骤等都是商品事实线索；必须先做 Source Product Understanding/OCR 并把确认事实传递到 identity/physical truth/geometry/prompt/copy，不能只增强图片或在后续生图中改变其含义。
 24. 多图套图交付必须包含独立成品图和一张交付总览图 `overview/SET-OVERVIEW-contact-sheet.png`；总览图用于核对/对话交付，不得替代 `final-images` 内的独立平台图片。
+25. 每个任务必须有独立 `run_id` 和 run 目录。总览图、tldraw 工作台、导出 gate、A-H review 等只允许读取当前任务的 `export/final-images-manifest.json` 或当前 `run-dir/final-images`；不得扫描日期级目录、共享 `outputs/`、父目录或其他任务目录。
 
 ## Default Workflow
 
@@ -58,6 +59,7 @@ Fast generation mode uses this compact workflow unless the user requests a full 
 - prompt-layer mini plan
 - Codex-native imagegen/image_gen anchor batch execution
 - focused identity/physical-function/marketing/export QA
+- final-images-manifest
 - delivery-overview-contact-sheet
 - continue missing/failed assets only
 - optional shared tldraw review session
@@ -107,6 +109,7 @@ Fast generation mode 完成必须包含：
 
 - 真实生成的独立图片文件，或明确 blocked reason
 - 一张交付总览图
+- 当前任务的 final-images manifest，证明没有跨任务混图
 - 稳定 ID + 英文用途 slug 的文件名
 - 简短商品身份锁/源图增强说明
 - 简短镜头矩阵/场景策略说明

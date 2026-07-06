@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
+import { collectScopedImages, createFinalImagesManifest, imageScopeUsage } from "./lib/image-scope.mjs";
 
 const require = createRequire(import.meta.url);
 
@@ -22,16 +23,17 @@ function parseArgs(argv) {
 }
 
 function usage() {
-  console.error(`Usage:
-node scripts/image-set-export-gate.mjs --image-dir /abs/final-images --out-dir /abs/run/qa [--expected-count 8] [--require-square] [--allow-drafts]
+  console.error(imageScopeUsage(`Usage:
+node scripts/image-set-export-gate.mjs --run-dir /abs/run --image-dir /abs/run/final-images --out-dir /abs/run/qa [--expected-count 8] [--require-square] [--allow-drafts]
+node scripts/image-set-export-gate.mjs --manifest /abs/run/export/final-images-manifest.json --out-dir /abs/run/qa [--expected-count 8]
 
 Checks exported image files for independent-file delivery, stable English filenames,
-minimum resolution, and contact-sheet-like aspect ratios.`);
+minimum resolution, and contact-sheet-like aspect ratios.`));
   process.exit(2);
 }
 
 const args = parseArgs(process.argv);
-if (!args["image-dir"] || !args["out-dir"]) usage();
+if (!args["out-dir"] || (!args["image-dir"] && !args.images && !args.manifest)) usage();
 
 let sharp;
 try {
@@ -40,17 +42,24 @@ try {
   sharp = require("/Users/yang/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/sharp");
 }
 
-const imageDir = path.resolve(args["image-dir"]);
 const outDir = path.resolve(args["out-dir"]);
 const expectedCount = args["expected-count"] ? Number(args["expected-count"]) : null;
 const requireSquare = Boolean(args["require-square"]);
 const allowDrafts = Boolean(args["allow-drafts"]);
 fs.mkdirSync(outDir, { recursive: true });
 
-const files = fs.readdirSync(imageDir)
-  .filter((name) => /\.(png|jpe?g|webp)$/i.test(name))
-  .sort()
-  .map((name) => path.join(imageDir, name));
+const scope = collectScopedImages(args, { purpose: "image-set-export-gate" });
+const files = scope.images;
+const imageDir = scope.imageDir || path.dirname(files[0] || "");
+const manifestResult = scope.runDir
+  ? createFinalImagesManifest({
+    runDir: scope.runDir,
+    imageDir,
+    images: files,
+    purpose: "image_set_export_gate",
+    existingManifest: scope.manifest ? { manifest_path: scope.manifestPath } : null,
+  })
+  : null;
 
 const findings = [];
 if (expectedCount && files.length !== expectedCount) {
@@ -130,6 +139,10 @@ const report = {
   status,
   checked_at: new Date().toISOString(),
   image_dir: imageDir,
+  run_id: scope.runId || null,
+  run_dir: scope.runDir || null,
+  source: scope.source,
+  image_manifest: manifestResult?.manifestPath || scope.manifestPath || null,
   expected_count: expectedCount,
   exported_count: files.length,
   files: fileReports,

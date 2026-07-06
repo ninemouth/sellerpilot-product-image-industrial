@@ -13,12 +13,12 @@ Create the workspace:
 ```bash
 node scripts/create-tldraw-review-workspace.mjs \
   --out-dir /abs/run/review-workspace \
-  --image-dir /abs/run/final-images \
+  --manifest /abs/run/export/final-images-manifest.json \
   --run-dir /abs/run \
   --title "商品图审核工作台"
 ```
 
-For normal Codex App use, workspace creation automatically starts or reuses the shared tldraw service. Do not start a separate dev server per chat.
+For normal Codex App use, workspace creation automatically starts or reuses the shared tldraw service. Do not start a separate dev server per chat. Use the run-scoped final-images manifest, not a shared `outputs/` directory.
 
 Preferred one-step launcher when interactive review is the next step or when automatic startup from workspace creation is blocked:
 
@@ -99,6 +99,7 @@ The capture JSON records whether a completion payload was present in browser sto
 - Prefer one shared dev server for the whole local Codex user environment. Different chats/runs should be different sessions under `/?session=<session-id>`, not separate servers.
 - Use one workspace directory per run for artifacts: `/abs/run/review-workspace`.
 - Register each run workspace into the shared service with `register-tldraw-review-session.mjs`.
+- Use unique `run_id`/`session_id` values. The register script rejects accidental reuse of a session id that already belongs to another workspace/run unless reuse is explicitly allowed.
 - `start-tldraw-shared-service.mjs` reads shared `data/shared-server-state.json` and reuses a live PID instead of starting a duplicate.
 - Parallel product-image tasks can share the same canvas service while staying isolated by session ID and session data directory.
 - Use `start-tldraw-review-workspace.mjs` only as an isolated fallback. It still starts at most one server per workspace by reading `data/server-state.json`.

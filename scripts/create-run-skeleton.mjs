@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
+import { safeRunId, writeRunContext } from "./lib/image-scope.mjs";
 
 function parseArgs(argv) {
   const args = {};
@@ -35,6 +36,13 @@ const platform = args.platform;
 const category = args.category;
 const productName = args["product-name"] || "";
 const now = new Date().toISOString();
+const runId = safeRunId(args["run-id"] || [
+  "run",
+  platform,
+  category,
+  productName,
+  Date.now().toString(36),
+].filter(Boolean).join("-"));
 
 for (const dir of [
   "source-original",
@@ -106,8 +114,17 @@ writeIfMissing(path.join(outDir, "source-understanding", "source-product-underst
   },
 }, null, 2) + "\n");
 
+writeRunContext(outDir, {
+  run_id: runId,
+  created_at: now,
+  platform,
+  category,
+  product_name: productName,
+});
+
 writeIfMissing(path.join(outDir, "00-task-context.yaml"), [
   `created_at: ${JSON.stringify(now)}`,
+  `run_id: ${JSON.stringify(runId)}`,
   `platform: ${JSON.stringify(platform)}`,
   `category: ${JSON.stringify(category)}`,
   `product_name: ${JSON.stringify(productName)}`,

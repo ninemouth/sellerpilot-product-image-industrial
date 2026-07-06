@@ -52,6 +52,23 @@ if (!fs.existsSync(path.join(sharedRoot, "package.json"))) {
   fs.cpSync(templateDir, sharedRoot, { recursive: true });
 }
 
+const manifest = JSON.parse(fs.readFileSync(path.join(workspaceDir, "data", "import-manifest.json"), "utf8"));
+const existingSessionManifestPath = path.join(sessionDir, "data", "import-manifest.json");
+if (fs.existsSync(existingSessionManifestPath) && !args["allow-session-reuse"]) {
+  const existing = readJson(existingSessionManifestPath);
+  const existingWorkspace = existing?.workspace || {};
+  const incomingWorkspace = manifest.workspace || {};
+  const sameWorkspace = existingWorkspace.workspace_dir
+    ? path.resolve(existingWorkspace.workspace_dir) === workspaceDir
+    : false;
+  const sameRun = existingWorkspace.run_id && incomingWorkspace.run_id
+    ? existingWorkspace.run_id === incomingWorkspace.run_id
+    : false;
+  if (!sameWorkspace && !sameRun) {
+    throw new Error(`Session id ${sessionId} is already registered for another workspace/run. Use a unique run_id/session_id or pass --allow-session-reuse intentionally.`);
+  }
+}
+
 fs.rmSync(sessionDir, { recursive: true, force: true });
 fs.mkdirSync(path.join(sessionDir, "data"), { recursive: true });
 fs.cpSync(path.join(workspaceDir, "public", "imported-images"), path.join(sessionDir, "imported-images"), { recursive: true });
@@ -60,7 +77,6 @@ for (const name of ["annotations.json", "canvas-state.json", "generation-tasks.j
   if (fs.existsSync(source)) fs.copyFileSync(source, path.join(sessionDir, "data", name));
 }
 
-const manifest = JSON.parse(fs.readFileSync(path.join(workspaceDir, "data", "import-manifest.json"), "utf8"));
 const rewritten = {
   ...manifest,
   workspace: {

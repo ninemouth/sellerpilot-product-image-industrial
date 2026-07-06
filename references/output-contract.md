@@ -6,6 +6,7 @@ Fast generation mode must include:
 
 ```text
 final-images/  # independent generated image files
+export/final-images-manifest.json  # required run-scoped membership list for final images
 overview/SET-OVERVIEW-contact-sheet.png  # required package overview for multi-image sets
 generation-summary.md  # concise product identity, visual strategy, prompt, and QA notes
 brief-intake/brief-intake-gate-report.json  # only when clarifications or assumptions are material
@@ -73,6 +74,7 @@ review/review.html
 review-workspace/  # React + Vite + tldraw workspace when visual review is needed
 qa/image-set-export-gate-report.json
 qa/image-set-export-gate-report.md
+export/final-images-manifest.json
 qa/prompt-readiness-gate-report.md
 qa/prompt-layer-gate-report.json
 qa/product-physics-fact-gate-report.json

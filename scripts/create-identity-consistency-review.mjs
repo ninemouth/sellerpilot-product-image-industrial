@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { collectScopedImages, imageScopeUsage, IMAGE_EXT_RE } from "./lib/image-scope.mjs";
 
 function parseArgs(argv) {
   const args = {};
@@ -20,14 +21,16 @@ function parseArgs(argv) {
 }
 
 function usage() {
-  console.error(`Usage:
+  console.error(imageScopeUsage(`Usage:
 node scripts/create-identity-consistency-review.mjs \\
   --source /abs/source.png \\
-  --generated-dir /abs/generated-images \\
+  --run-dir /abs/run \\
+  --generated-dir /abs/run/generated-assets \\
   --out-dir /abs/run/qa \\
   [--identity-lock /abs/identity-lock.yaml]
 
 Alternative:
+  --manifest /abs/run/export/final-images-manifest.json
   --images "/abs/01.png,/abs/02.png"
 
 Creates:
@@ -35,26 +38,36 @@ Creates:
   identity-consistency-report.json
 
 This tool creates a side-by-side product identity review surface. It does not
-replace visual inspection.`);
+replace visual inspection.`));
   process.exit(2);
 }
 
 const args = parseArgs(process.argv);
-if (!args.source || !args["out-dir"] || (!args["generated-dir"] && !args.images)) usage();
+if (!args.source || !args["out-dir"] || (!args["generated-dir"] && !args.images && !args.manifest)) usage();
 
 const source = path.resolve(args.source);
 const outDir = path.resolve(args["out-dir"]);
 fs.mkdirSync(outDir, { recursive: true });
 
 let images = [];
-if (args.images) {
-  images = args.images.split(",").map((item) => item.trim()).filter(Boolean).map((item) => path.resolve(item));
+if (args.images || args.manifest) {
+  images = collectScopedImages(args, { purpose: "identity-consistency-review" }).images;
 }
 if (args["generated-dir"]) {
-  images = fs.readdirSync(args["generated-dir"])
-    .filter((name) => /\.(png|jpe?g|webp)$/i.test(name))
+  const generatedDir = path.resolve(args["generated-dir"]);
+  if (!args["allow-unscoped-image-dir"]) {
+    if (!args["run-dir"]) {
+      throw new Error(`Refusing unscoped generated-dir: ${generatedDir}. Pass --run-dir or use --manifest/--images.`);
+    }
+    const runDir = path.resolve(args["run-dir"]);
+    if (!generatedDir.startsWith(`${runDir}${path.sep}`)) {
+      throw new Error(`Refusing generated-dir outside run-dir: ${generatedDir}. Expected a directory under ${runDir}.`);
+    }
+  }
+  images = fs.readdirSync(generatedDir)
+    .filter((name) => IMAGE_EXT_RE.test(name))
     .sort()
-    .map((name) => path.join(path.resolve(args["generated-dir"]), name));
+    .map((name) => path.join(generatedDir, name));
 }
 if (!images.length) usage();
 

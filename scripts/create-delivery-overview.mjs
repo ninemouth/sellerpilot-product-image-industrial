@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
+import { collectScopedImages, imageScopeUsage } from "./lib/image-scope.mjs";
 
 const require = createRequire(import.meta.url);
 
@@ -22,16 +23,17 @@ function parseArgs(argv) {
 }
 
 function usage() {
-  console.error(`Usage:
-node scripts/create-delivery-overview.mjs --image-dir /abs/run/final-images --out-dir /abs/run/overview [--title "Product image set overview"]
+  console.error(imageScopeUsage(`Usage:
+node scripts/create-delivery-overview.mjs --run-dir /abs/run --manifest /abs/run/export/final-images-manifest.json --out-dir /abs/run/overview [--title "Product image set overview"]
+node scripts/create-delivery-overview.mjs --run-dir /abs/run --image-dir /abs/run/final-images --out-dir /abs/run/overview [--title "..."]
 
 Creates SET-OVERVIEW-contact-sheet.png as a delivery/package overview image.
-This overview is for review and handoff; it must not replace independent final images.`);
+This overview is for review and handoff; it must not replace independent final images.`));
   process.exit(2);
 }
 
 const args = parseArgs(process.argv);
-if (!args["image-dir"] || !args["out-dir"]) usage();
+if ((!args["image-dir"] && !args.images && !args.manifest) || !args["out-dir"]) usage();
 
 let sharp;
 try {
@@ -40,15 +42,13 @@ try {
   sharp = require("/Users/yang/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/sharp");
 }
 
-const imageDir = path.resolve(args["image-dir"]);
 const outDir = path.resolve(args["out-dir"]);
 const title = args.title || "Product Image Set Overview";
 fs.mkdirSync(outDir, { recursive: true });
 
-const images = fs.readdirSync(imageDir)
-  .filter((name) => /\.(png|jpe?g|webp)$/i.test(name))
-  .sort()
-  .map((name) => path.join(imageDir, name));
+const scope = collectScopedImages(args, { purpose: "delivery-overview" });
+const images = scope.images;
+const imageDir = scope.imageDir || path.dirname(images[0] || "");
 if (!images.length) usage();
 
 const columns = Math.min(Number(args.columns || 4), Math.max(1, images.length));
@@ -114,6 +114,10 @@ const report = {
   status: "pass",
   checked_at: new Date().toISOString(),
   image_dir: imageDir,
+  run_id: scope.runId || null,
+  run_dir: scope.runDir || null,
+  source: scope.source,
+  image_manifest: scope.manifestPath || null,
   overview_image: overviewPath,
   image_count: images.length,
   columns,

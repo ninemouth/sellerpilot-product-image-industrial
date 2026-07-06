@@ -29,7 +29,8 @@ For an 8-image Pinduoduo set, require these distinct roles:
 
 Fail the image set if:
 
-- The final delivery is a contact sheet, collage preview, or multi-panel overview instead of independent image files. A separate `overview/SET-OVERVIEW-contact-sheet.png` is required for package review, but it must not replace or sit inside `final-images`.
+- The final delivery is a contact sheet, collage preview, or multi-panel overview instead of independent image files. A separate `overview/SET-OVERVIEW-contact-sheet.png` is required for package review, but it must be created from the current run's `export/final-images-manifest.json` and must not replace or sit inside `final-images`.
+- Overview, tldraw, or review surfaces include images from another task, another run id, shared `outputs/`, or a parent/date directory.
 - More than three images use the same white-background product cutout as the primary visual.
 - Product subject is too small to inspect in main, scene, or decision images.
 - Scene images only show the same product cutout with a scene-related title.

@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { collectScopedImages, imageScopeUsage } from "./lib/image-scope.mjs";
 
 function parseArgs(argv) {
   const args = {};
@@ -20,41 +21,31 @@ function parseArgs(argv) {
 }
 
 function usage() {
-  console.error(`Usage:
-node scripts/create-tldraw-review-workspace.mjs --out-dir /abs/review-workspace --image-dir /abs/final-images [--run-dir /abs/run] [--title "..."] [--session-id "..."]
+  console.error(imageScopeUsage(`Usage:
+node scripts/create-tldraw-review-workspace.mjs --out-dir /abs/review-workspace --manifest /abs/run/export/final-images-manifest.json --run-dir /abs/run [--title "..."] [--session-id "..."]
+node scripts/create-tldraw-review-workspace.mjs --out-dir /abs/review-workspace --image-dir /abs/run/final-images --run-dir /abs/run [--title "..."] [--session-id "..."]
 node scripts/create-tldraw-review-workspace.mjs --out-dir /abs/review-workspace --images "/abs/a.png,/abs/b.png" [--run-dir /abs/run] [--title "..."] [--session-id "..."]
 
 Creates a React + Vite + tldraw review workspace with copied image assets and
 data/import-manifest.json for Codex-readable annotation handoff. By default it
 also starts or reuses the shared tldraw service and returns a ready URL. Pass
---no-auto-start for selftests or file-only artifact generation.`);
+--no-auto-start for selftests or file-only artifact generation.`));
   process.exit(2);
 }
 
 const args = parseArgs(process.argv);
-if (!args["out-dir"] || (!args["image-dir"] && !args.images)) usage();
+if (!args["out-dir"] || (!args["image-dir"] && !args.images && !args.manifest)) usage();
 
 const skillRoot = path.resolve(new URL("..", import.meta.url).pathname);
 const templateDir = path.join(skillRoot, "assets", "tldraw-review-workspace");
 const outDir = path.resolve(args["out-dir"]);
-const runDir = args["run-dir"] ? path.resolve(args["run-dir"]) : "";
 const title = args.title || "SellerPilot Product Image Review";
 const now = new Date().toISOString();
-const sessionId = safeSessionId(args["session-id"] || inferSessionId(outDir));
 const autoStart = !args["no-auto-start"];
-
-let sourceImages = [];
-if (args.images) {
-  sourceImages = args.images.split(",").map((item) => item.trim()).filter(Boolean);
-}
-if (args["image-dir"]) {
-  const imageDir = path.resolve(args["image-dir"]);
-  sourceImages.push(...fs.readdirSync(imageDir)
-    .filter((name) => /\.(png|jpe?g|webp)$/i.test(name))
-    .sort()
-    .map((name) => path.join(imageDir, name)));
-}
-sourceImages = [...new Set(sourceImages.map((item) => path.resolve(item)))];
+const scope = collectScopedImages(args, { purpose: "tldraw-review-workspace" });
+const runDir = scope.runDir || (args["run-dir"] ? path.resolve(args["run-dir"]) : "");
+const sessionId = safeSessionId(args["session-id"] || scope.runId || inferSessionId(outDir));
+const sourceImages = [...new Set(scope.images.map((item) => path.resolve(item)))];
 if (!sourceImages.length) usage();
 
 if (!fs.existsSync(templateDir)) {
@@ -68,6 +59,7 @@ fs.cpSync(templateDir, outDir, { recursive: true });
 const publicImageDir = path.join(outDir, "public", "imported-images");
 fs.mkdirSync(publicImageDir, { recursive: true });
 
+const usedCopiedFiles = new Set();
 const images = sourceImages.map((sourcePath, index) => {
   const ext = path.extname(sourcePath).toLowerCase() || ".png";
   const base = path.basename(sourcePath, ext)
@@ -75,7 +67,8 @@ const images = sourceImages.map((sourcePath, index) => {
     .replace(/^-+|-+$/g, "")
     .slice(0, 80) || `image-${index + 1}`;
   const id = idFromName(base, index);
-  const file = base.toUpperCase().startsWith(id) ? `${base}${ext}` : `${id}-${base}${ext}`;
+  const candidate = base.toUpperCase().startsWith(id) ? `${base}${ext}` : `${id}-${base}${ext}`;
+  const file = uniqueFilename(candidate, usedCopiedFiles, index);
   const dest = path.join(publicImageDir, file);
   fs.copyFileSync(sourcePath, dest);
   return {
@@ -93,9 +86,12 @@ const manifest = {
   workspace: {
     title,
     run_dir: runDir,
+    run_id: scope.runId || "",
     session_id: sessionId,
     created_at: now,
     source: "sellerpilot-product-image-industrial",
+    image_source: scope.source,
+    image_manifest: scope.manifestPath || "",
   },
   images,
   protocol: {
@@ -243,6 +239,23 @@ function safeSessionId(value) {
     .replace(/[^a-zA-Z0-9._-]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 96) || "session";
+}
+
+function uniqueFilename(candidate, used, index) {
+  if (!used.has(candidate)) {
+    used.add(candidate);
+    return candidate;
+  }
+  const ext = path.extname(candidate);
+  const stem = path.basename(candidate, ext);
+  let next = `${stem}-${String(index + 1).padStart(2, "0")}${ext}`;
+  let counter = 2;
+  while (used.has(next)) {
+    next = `${stem}-${String(index + 1).padStart(2, "0")}-${counter}${ext}`;
+    counter += 1;
+  }
+  used.add(next);
+  return next;
 }
 
 function inferSessionId(dir) {
