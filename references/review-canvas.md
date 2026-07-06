@@ -62,10 +62,10 @@ Capabilities:
 
 - Real browser review workspace served through the shared tldraw service session URL.
 - Generated image assets are copied into the workspace so browser rendering does not depend on unsafe local file URLs.
-- Generated product images render as the bottom floor layer. A-H standards, issue markers, and revision annotations float above the images.
-- The review board does not zoom independently. If a future zoom control is added, it must scale the image floor layer and all standard overlays together.
+- Generated product images are imported into native tldraw as locked bottom-floor image shapes. Tldraw pen, arrow, shape, note, text, A-H standards, issue markers, and revision annotations live above the images.
+- Tldraw zoom and pan are allowed because images and annotations live inside the same canvas and scale together.
 - The image file list lives in the top dropdown. Do not restore a left sidebar.
-- Deterministic direct image-standard form fields tied to image IDs, A-H regions, issue type, priority, and revision instruction.
+- Optional deterministic image-standard form fields can still be used for structured metadata tied to image IDs, A-H regions, issue type, priority, and revision instruction, but free visual markup should use native tldraw tools.
 - Exportable `annotations.json`, `canvas-state.json`, `review-completion.json`, and Codex-readable `generation-tasks.json`.
 - `Complete Review` action creates a screenshot-oriented browser handoff payload so Codex can capture the session and continue revisions from annotations.
 

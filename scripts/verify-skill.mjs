@@ -215,12 +215,13 @@ record("review workspace UI contract", () => {
   const main = fs.readFileSync(mainPath, "utf8");
   const css = fs.readFileSync(cssPath, "utf8");
   const requiredMain = [
-    "image-floor-layer",
-    "standard-overlay-layer",
+    "Tldraw",
+    "AssetRecordType",
+    "createShapeId",
+    "locked image-floor shapes",
     "action-complete-review",
-    "captureReviewPng",
-    "review_completion.v1",
-    "locked-no-independent-canvas-zoom",
+    "review_completion.v2",
+    "native-tldraw",
     "compact-field",
   ];
   for (const token of requiredMain) {
@@ -228,16 +229,18 @@ record("review workspace UI contract", () => {
   }
   const requiredCss = [
     ".topbar",
-    ".image-floor-layer",
-    ".standard-overlay-layer",
+    ".tldraw-shell",
     ".review-toolbar",
-    ".annotation-dock",
+    ".selected-summary",
   ];
   for (const token of requiredCss) {
     if (!css.includes(token)) throw new Error(`review workspace styles.css missing ${token}`);
   }
   if (/className=["']sidebar["']|\.sidebar\b|image-card-layer/.test(`${main}\n${css}`)) {
-    throw new Error("review workspace should not restore left sidebar or image-card overlay layer.");
+    throw new Error("review workspace should not restore left sidebar or HTML image-card overlay layer.");
+  }
+  if (!/isLocked:\s*true/.test(main) || !/sendToBack/.test(main)) {
+    throw new Error("review workspace must lock imported image shapes and send them behind tldraw annotations.");
   }
 });
 
