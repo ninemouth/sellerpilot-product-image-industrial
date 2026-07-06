@@ -414,6 +414,7 @@ record("tldraw workspace smoke", () => {
     "--run-dir", dir,
     "--title", "测试审核工作台",
     "--session-id", "verify",
+    "--no-auto-start",
   ]);
   for (const file of [
     "data/import-manifest.json",

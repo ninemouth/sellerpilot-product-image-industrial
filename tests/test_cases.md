@@ -103,7 +103,7 @@ Expected: short generation requests default to fast generation mode. The skill o
 Expected: when the user asks for 工业级完整 workflow, audit package, gate reports, or SellerPilot migration evidence, the skill creates the full run skeleton, research artifacts, prompt packs, gate reports, QA routing decision, review workspace, and export package.
 
 ## Case 31: tldraw server launch policy
-Expected: creating a tldraw workspace does not automatically start a dev server. Normal Codex App use should register each run as a shared service session with `register-tldraw-review-session.mjs`, then open it through one shared service URL like `http://127.0.0.1:5190/?session=<session-id>`. `start-tldraw-shared-service.mjs` starts or reuses one shared server and records `data/shared-server-state.json`. `start-tldraw-review-workspace.mjs` remains an isolated fallback that starts at most one server per workspace.
+Expected: creating a tldraw workspace for visual review automatically starts or reuses the shared service and returns one ready URL like `http://127.0.0.1:5190/?session=<session-id>`. Selftests and file-only archives may pass `--no-auto-start`. `start-tldraw-review-workspace.mjs` remains an isolated fallback that starts at most one server per workspace.
 
 ## Case 32: brief intake asks only high-value questions
 Expected: after user text and images arrive, the skill runs Brief Intake Gate. If target platform, category, source image, count, and safe scene defaults are enough, it continues without interrupting. If source identity is weak, claims are unsupported, scenes are commercially ambiguous, or sources conflict, it asks at most three concise questions and records assumptions.

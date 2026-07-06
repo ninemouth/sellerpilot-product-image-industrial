@@ -18,9 +18,9 @@ node scripts/create-tldraw-review-workspace.mjs \
   --title "商品图审核工作台"
 ```
 
-For normal Codex App use, do not start a separate dev server per chat.
+For normal Codex App use, workspace creation automatically starts or reuses the shared tldraw service. Do not start a separate dev server per chat.
 
-Preferred one-step launcher when interactive review is the next step:
+Preferred one-step launcher when interactive review is the next step or when automatic startup from workspace creation is blocked:
 
 ```bash
 node scripts/open-tldraw-review-session.mjs \
@@ -28,7 +28,7 @@ node scripts/open-tldraw-review-session.mjs \
   --session-id run-or-chat-id
 ```
 
-This command registers the workspace, starts or reuses the shared service, waits for the session URL to respond, and returns the URL only when ready. Use it at the end of a generation/review workflow before telling the user to open the canvas.
+This command registers the workspace, starts or reuses the shared service, waits for the session URL to respond, and returns the URL only when ready. Use it before telling the user the canvas is available.
 
 Manual two-step equivalent:
 
@@ -81,15 +81,16 @@ Use `generation-tasks.json` as structured input to the revision loop. It should 
 ## Launch Policy
 
 - Generate the tldraw workspace automatically when visual review is expected.
-- Do not automatically start a dev server for every run. Start it only when the user asks to open/start the review canvas, when interactive review is the next required step, or when the Codex app needs a localhost URL to show the workspace.
-- When starting is required, use `open-tldraw-review-session.mjs` so the final response only presents a verified ready URL.
+- Start or reuse the shared tldraw service automatically for review workspaces so the user receives a ready localhost URL without another prompt.
+- Use `--no-auto-start` only for selftests, file-only artifact generation, or explicitly non-interactive audit archives.
+- Use `open-tldraw-review-session.mjs` so the final response only presents a verified ready URL.
 - Prefer one shared dev server for the whole local Codex user environment. Different chats/runs should be different sessions under `/?session=<session-id>`, not separate servers.
 - Use one workspace directory per run for artifacts: `/abs/run/review-workspace`.
 - Register each run workspace into the shared service with `register-tldraw-review-session.mjs`.
 - `start-tldraw-shared-service.mjs` reads shared `data/shared-server-state.json` and reuses a live PID instead of starting a duplicate.
 - Parallel product-image tasks can share the same canvas service while staying isolated by session ID and session data directory.
 - Use `start-tldraw-review-workspace.mjs` only as an isolated fallback. It still starts at most one server per workspace by reading `data/server-state.json`.
-- If a task only needs file artifacts or QA reports, create the workspace files but do not start the server.
+- If a task only needs file artifacts or QA reports, pass `--no-auto-start` and create the workspace files without starting the server.
 
 ## HTML Fallback
 

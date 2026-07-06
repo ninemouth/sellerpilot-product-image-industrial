@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 
 function parseArgs(argv) {
   const args = {};
@@ -24,7 +25,9 @@ node scripts/create-tldraw-review-workspace.mjs --out-dir /abs/review-workspace 
 node scripts/create-tldraw-review-workspace.mjs --out-dir /abs/review-workspace --images "/abs/a.png,/abs/b.png" [--run-dir /abs/run] [--title "..."] [--session-id "..."]
 
 Creates a React + Vite + tldraw review workspace with copied image assets and
-data/import-manifest.json for Codex-readable annotation handoff.`);
+data/import-manifest.json for Codex-readable annotation handoff. By default it
+also starts or reuses the shared tldraw service and returns a ready URL. Pass
+--no-auto-start for selftests or file-only artifact generation.`);
   process.exit(2);
 }
 
@@ -38,6 +41,7 @@ const runDir = args["run-dir"] ? path.resolve(args["run-dir"]) : "";
 const title = args.title || "SellerPilot Product Image Review";
 const now = new Date().toISOString();
 const sessionId = safeSessionId(args["session-id"] || inferSessionId(outDir));
+const autoStart = !args["no-auto-start"];
 
 let sourceImages = [];
 if (args.images) {
@@ -130,6 +134,8 @@ fs.writeFileSync(path.join(outDir, "data", "generation-tasks.json"), JSON.string
 fs.writeFileSync(path.join(outDir, "HOW_TO_USE_WITH_CODEX.md"), [
   "# SellerPilot tldraw Review Workspace",
   "",
+  autoStart ? "This workspace was created with automatic shared-service startup enabled." : "This workspace was created with automatic startup disabled.",
+  "",
   "Preferred shared-service flow:",
   "",
   "```bash",
@@ -163,16 +169,32 @@ fs.writeFileSync(path.join(outDir, "HOW_TO_USE_WITH_CODEX.md"), [
   "",
 ].join("\n"));
 
+const next = [
+  `node ${path.join(skillRoot, "scripts", "register-tldraw-review-session.mjs")} --workspace-dir ${outDir} --session-id ${sessionId}`,
+  `node ${path.join(skillRoot, "scripts", "start-tldraw-shared-service.mjs")} --session-id ${sessionId}`,
+];
+
+let autoStartResult = null;
+if (autoStart) {
+  autoStartResult = openReviewSession({ skillRoot, outDir, sessionId, args });
+}
+
+const status = autoStart
+  ? autoStartResult?.status === "ready" ? "created_and_started" : "created_auto_start_blocked"
+  : "created";
+
 console.log(JSON.stringify({
-  status: "created",
+  status,
+  workspaceStatus: "created",
   outDir,
   sessionId,
   images: images.length,
-  next: [
-    `node ${path.join(skillRoot, "scripts", "register-tldraw-review-session.mjs")} --workspace-dir ${outDir} --session-id ${sessionId}`,
-    `node ${path.join(skillRoot, "scripts", "start-tldraw-shared-service.mjs")} --session-id ${sessionId}`,
-  ],
+  autoStart,
+  url: autoStartResult?.url || null,
+  autoStartResult,
+  next,
 }, null, 2));
+if (autoStart && autoStartResult?.status !== "ready") process.exitCode = 1;
 
 function idFromName(name, index) {
   const match = name.match(/^(IMG|POSTER|DETAIL)-\d{2}/i);
@@ -201,4 +223,42 @@ function inferSessionId(dir) {
   const parent = path.basename(path.dirname(dir));
   const self = path.basename(dir);
   return parent && parent !== "." ? parent : self;
+}
+
+function openReviewSession({ skillRoot, outDir, sessionId, args }) {
+  const argv = [
+    path.join(skillRoot, "scripts", "open-tldraw-review-session.mjs"),
+    "--workspace-dir",
+    outDir,
+    "--session-id",
+    sessionId,
+  ];
+  if (args["shared-root"]) argv.push("--shared-root", args["shared-root"]);
+  if (args["wait-ms"]) argv.push("--wait-ms", String(args["wait-ms"]));
+  if (args["no-install"]) argv.push("--no-install");
+  const result = spawnSync(process.execPath, argv, {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (result.status !== 0) {
+    return {
+      status: "blocked",
+      error: result.stderr || result.stdout || `open-tldraw-review-session exited ${result.status}`,
+    };
+  }
+  try {
+    return JSON.parse(lastJsonObject(result.stdout));
+  } catch (error) {
+    return {
+      status: "blocked",
+      error: `open-tldraw-review-session did not return JSON: ${error.message}`,
+      stdout: result.stdout,
+    };
+  }
+}
+
+function lastJsonObject(output) {
+  const text = String(output || "").trim();
+  const start = text.lastIndexOf("\n{");
+  return start >= 0 ? text.slice(start + 1) : text;
 }

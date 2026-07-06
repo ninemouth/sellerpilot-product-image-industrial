@@ -276,11 +276,11 @@ node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/crea
   --title "商品图审核工作台"
 ```
 
-This creates a React + Vite + tldraw workspace with copied image assets, `data/import-manifest.json`, `data/annotations.json`, `data/canvas-state.json`, and `data/generation-tasks.json`. Use it when the user needs a true infinite-canvas review workflow with arrows, drawings, spatial notes, image cards, and exportable JSON feedback.
+This creates a React + Vite + tldraw workspace with copied image assets, `data/import-manifest.json`, `data/annotations.json`, `data/canvas-state.json`, and `data/generation-tasks.json`. By default it also starts or reuses the shared tldraw service and returns a ready session URL. Use it when the user needs a true infinite-canvas review workflow with arrows, drawings, spatial notes, image cards, and exportable JSON feedback.
 
-The workspace is generated automatically when visual review is needed, but the dev server is not started unless the user asks to open/start the canvas or the current workflow explicitly requires interactive review.
+The workspace and shared canvas service are started automatically when visual review is needed. Use `--no-auto-start` only for selftests, file-only artifact generation, or explicitly non-interactive audit archives.
 
-When interactive review or revision markup is the next step, start the shared service before final delivery with the one-step launcher:
+When interactive review or revision markup is the next step, ensure the shared service is ready before final delivery with the one-step launcher. This is also the fallback command if automatic startup from workspace creation is blocked:
 
 ```bash
 node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/open-tldraw-review-session.mjs \
@@ -288,7 +288,7 @@ node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/open
   --session-id run-or-chat-id
 ```
 
-This registers the workspace, starts or reuses the shared localhost service, waits until the URL responds, and returns the ready session URL. If this launcher fails, report the blocked reason and create the single-file HTML review canvas fallback instead of claiming the tldraw canvas is available.
+This registers the workspace, starts or reuses the shared localhost service, waits until the URL responds, and returns the ready session URL. If automatic startup or this launcher fails, report the blocked reason and create the single-file HTML review canvas fallback instead of claiming the tldraw canvas is available.
 
 Preferred shared service for multiple chats/runs:
 

@@ -100,7 +100,7 @@ steps:
   - qa-loop-router
   - final-delivery-gate
   - qa-compliance
-  - tldraw-review-workspace-if-visual-review-needed
+  - tldraw-review-workspace-and-auto-start-if-visual-review-needed
   - review-surface
   - region-review-html
   - parse-canvas-annotations-if-feedback-provided
@@ -149,7 +149,7 @@ default_outputs:
     - identity_consistency_report
     - identity_geometry_gate_report_if_applicable
     - review_canvas
-    - tldraw_review_workspace_if_visual_review_needed
+    - tldraw_review_workspace_ready_url_if_visual_review_needed
     - parsed_generation_tasks_if_annotations_provided
     - region_review_html
     - copy_strategy_gate_report
