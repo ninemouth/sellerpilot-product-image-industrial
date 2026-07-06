@@ -124,7 +124,7 @@ loop_policy:
   reuse_approved_assets: true
   rerender_layout_only_when_text_or_spacing_fails: true
   stop_if_product_identity_drift_is_high: true
-  fail_fast_on_repeated_camera_or_internal_copy: true
+  fail_fast_on_unjustified_repeated_camera_or_internal_copy: true
   regenerate_only_failed_identity_assets: true
 scene_policy:
   when_user_requests_scene_images: true_scene_assets_required

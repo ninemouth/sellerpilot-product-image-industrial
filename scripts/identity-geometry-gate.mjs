@@ -136,9 +136,14 @@ function compareForbidden(sourceGeometry, imageGeometry, imageIndex) {
   const expectedHem = normalize(sourceGeometry.hem_position);
   const actualHem = normalize(imageGeometry.hem_position);
   const actualNotes = normalize(textify([imageGeometry.notes, imageGeometry.visual_description, imageGeometry.detected_changes]));
+  const apparelContext = isApparelGeometry(sourceGeometry) || isApparelGeometry(imageGeometry);
 
-  if (!/(crop|cropped|short|短款|露腰|上腰|above waist)/.test(expectedLength + " " + expectedHem)
-    && /(crop|cropped|short|短款|露腰|上腰|above waist|crop top)/.test(actualLength + " " + actualHem + " " + actualNotes)) {
+  if (apparelContext
+    && !/(crop|cropped|短款|露腰|上腰|above waist)/.test(expectedLength + " " + expectedHem)
+    && (
+      /(crop|cropped|短款|露腰|上腰|above waist|crop top)/.test(actualLength + " " + actualHem)
+      || /\b(crop top|cropped top|above waist|露腰|短款上衣)\b/i.test(actualNotes)
+    )) {
     findings.push({
       severity: "fail",
       type: "apparel-length-shortened",
@@ -159,6 +164,21 @@ function compareForbidden(sourceGeometry, imageGeometry, imageIndex) {
       });
     }
   }
+}
+
+function isApparelGeometry(geometry) {
+  const text = normalize(textify([
+    geometry.product_type,
+    geometry.category,
+    geometry.apparel_type,
+    geometry.garment_type,
+    geometry.garment_length_class,
+    geometry.hem_position,
+    geometry.sleeve_length_class,
+    geometry.neckline_shape,
+    geometry.fit_class,
+  ]));
+  return /(apparel|clothing|garment|shirt|jersey|dress|top|hoodie|jacket|pants|skirt|服装|衣|球衣|衬衫|上衣|裙|裤|外套|下摆|领口|袖)/i.test(text);
 }
 
 function normalize(value) {

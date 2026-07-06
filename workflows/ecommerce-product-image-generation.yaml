@@ -183,7 +183,7 @@ loop_policy:
   generate_only_missing_or_failed_assets: true
   rerender_layout_only_when_text_or_spacing_fails: true
   stop_if_product_identity_drift_is_high: true
-  fail_fast_on_repeated_camera_or_internal_copy: true
+  fail_fast_on_unjustified_repeated_camera_or_internal_copy: true
 identity_preservation_policy:
   require_source_image_for_final_identity_preserving_output: true
   require_identity_lock_before_generation: true

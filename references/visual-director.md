@@ -52,7 +52,7 @@ generation_notes:
 
 - Every image needs a distinct buyer question, such as "What does it look like?", "How big is it?", "How does it match outfits?", "Can it hold my daily items?", or "What detail makes it feel worth buying?".
 - Every detail shot should map to a product feature analysis item, and every scene shot should map to an audience positioning scene trigger or purchase objection.
-- Do not use the same camera angle for most of the set. Mix front 3/4, side profile, top-down, macro closeup, on-body, hand-held, tabletop, and environmental views as appropriate for the category.
+- Do not repeat the same camera angle for most of the set without a commercial reason. Same-angle product photography is acceptable when each image changes environment, surface, prop/model context, lighting, placement, occasion, buyer question, or commercial task, such as a consistent front 3/4 bag angle across white studio, warm tabletop, hand-held commute, and evening outfit scenes.
 - Detail grids must not reuse the same crop four times. Each detail tile needs a different focal subject and crop: zipper pull, hardware connection, stitching edge, strap attachment, interior opening, texture, bottom/side profile, accessory, etc.
 - Scene images need actual scene logic: setting, surface, outfit or model context, lighting, and product placement. A white-background cutout with a scene title is not a scene image.
 - Scene images need a final scene asset plan. Use `final_asset_type: generated_scene_asset` or another real photo/generated scene asset type; do not mark a layout-only panel as a final scene.
@@ -101,7 +101,7 @@ Buyer-facing: 日常小物轻松收纳
 
 Fail the blueprint before generation when:
 
-- The shot matrix has repeated camera angles without a reason.
+- The shot matrix has repeated camera angles without a reason, environment/prop/light variation, or distinct commercial task.
 - Several detail tiles name different details but use the same crop or image.
 - Scene roles have no environment, lighting, outfit/model, tabletop, or prop plan.
 - Scene roles have no `scene_asset_requirement`, `scene_asset_status`, or executable scene-generation prompt.

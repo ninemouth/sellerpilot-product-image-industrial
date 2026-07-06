@@ -823,6 +823,34 @@ record("copy strategy gate smoke", () => {
   if (report.status !== "fail") throw new Error("copy strategy gate should reject unsupported/unresearched copy.");
 });
 
+record("copy strategy gate allows structured textless panels", () => {
+  const dir = tmpDir("sp-verify-copy-textless-");
+  const panelsPath = path.join(dir, "panels.json");
+  fs.writeFileSync(panelsPath, JSON.stringify([
+    {
+      id: "IMG-02",
+      image_role: "warm tabletop visual",
+      visible_text_policy: "no visible text",
+      textless_ok: true,
+      buyer_question: "Can this small bag feel suitable for a wedding or evening dinner?",
+      commercial_task: "Show occasion fit through styling instead of overlay copy.",
+      buyer_benefit: "A compact portable bag keeps small daily items organized without visual clutter.",
+      usage_context: "wedding, evening dinner, date night",
+      copy_strategy: "Use a textless visual so the product and setting carry the buyer benefit.",
+    },
+  ], null, 2));
+  spawnSync(process.execPath, [
+    "scripts/copy-strategy-gate.mjs",
+    "--copy-json", panelsPath,
+    "--out-dir", path.join(dir, "qa"),
+  ], { cwd: skillRoot });
+  const report = readJson(path.join(dir, "qa", "copy-strategy-gate-report.json"));
+  if (report.status === "fail") throw new Error("copy strategy gate should not fail structured textless panels.");
+  if (report.findings.some((item) => item.type === "missing-buyer-facing-copy")) {
+    throw new Error("structured textless panels should not be reported as missing buyer-facing copy.");
+  }
+});
+
 record("identity geometry gate smoke", () => {
   const dir = tmpDir("sp-verify-geometry-");
   const sourcePath = path.join(dir, "source-geometry.json");
@@ -861,6 +889,82 @@ record("identity geometry gate smoke", () => {
   if (report.status !== "fail") throw new Error("identity geometry gate should reject shortened jersey.");
   if (!report.findings.some((item) => item.type === "apparel-length-shortened")) {
     throw new Error("identity geometry gate should report apparel-length-shortened.");
+  }
+});
+
+record("identity geometry gate ignores non-apparel crop wording", () => {
+  const dir = tmpDir("sp-verify-geometry-nonapparel-");
+  const sourcePath = path.join(dir, "source-geometry.json");
+  const generatedPath = path.join(dir, "generated-geometry.json");
+  fs.writeFileSync(sourcePath, JSON.stringify({
+    geometry_lock: {
+      product_type: "cosmetic vanity bag",
+      product_length_class: "compact vanity bag",
+      product_height_to_width_ratio: 0.72,
+    },
+  }, null, 2));
+  fs.writeFileSync(generatedPath, JSON.stringify({
+    images: [{
+      index: 1,
+      geometry: {
+        product_type: "cosmetic vanity bag",
+        product_length_class: "compact vanity bag",
+        product_height_to_width_ratio: 0.73,
+        visual_description: "cropped cover image composition with short handles visible on top",
+        detected_changes: "crop adjusted for square frame; short handles preserved",
+      },
+    }],
+  }, null, 2));
+  spawnSync(process.execPath, [
+    "scripts/identity-geometry-gate.mjs",
+    "--source-geometry", sourcePath,
+    "--generated-geometry", generatedPath,
+    "--out-dir", path.join(dir, "qa"),
+  ], { cwd: skillRoot });
+  const report = readJson(path.join(dir, "qa", "identity-geometry-gate-report.json"));
+  if (report.status === "fail") throw new Error("non-apparel crop/short wording should not fail apparel length checks.");
+  if (report.findings.some((item) => item.type === "apparel-length-shortened")) {
+    throw new Error("non-apparel crop/short wording should not report apparel-length-shortened.");
+  }
+});
+
+record("marketing gate allows same angle with environment variation", () => {
+  const dir = tmpDir("sp-verify-marketing-angle-");
+  const panelsPath = path.join(dir, "panels.json");
+  const panels = [
+    ["IMG-01", "white seamless paper", "clean marketplace studio, 70mm lens, softbox lighting, product centered for marketplace inspection, audience fit: fast thumbnail recognition", "main product", "Show shape clearly", "centered front 3/4 composition"],
+    ["IMG-02", "warm oak tabletop", "soft luxury leather still life, 70mm lens, warm side light, product placed beside small neutral props for daily carry scale, audience fit: gift/date styling", "tabletop occasion", "Show portable evening use", "front 3/4 tabletop composition"],
+    ["IMG-03", "soft window shelf", "boutique window natural light, 70mm lens, daylight from left, product placed upright with shadow depth, audience fit: premium texture inspection", "texture mood", "Show material and detail feel", "front 3/4 window-light composition"],
+    ["IMG-04", "neutral dressing table", "korean/japanese minimal fashion ecommerce, 70mm lens, soft indoor vanity lighting, product placed with clean outfit-adjacent surface, audience fit: compact organized carry", "organized carry", "Show small-item organization context", "front 3/4 vanity composition"],
+  ].map(([id, background, photography, role, task, composition], index) => ({
+    id,
+    title: `Useful product image ${index + 1}`,
+    image_role: role,
+    commercial_task: task,
+    camera_angle: "front three-quarter",
+    image: path.join(dir, `${id}.png`),
+    background_or_scene: background,
+    props_or_model_context: `${background} prop context`,
+    lighting: photography,
+    photography_style_archetype: photography,
+    product_placement: `${role} placement`,
+    visual_composition: composition,
+    graphic_design_intent: `Role-specific layout for ${role}`,
+    design_quality_bar: "Clear hierarchy, safe spacing, mobile thumbnail readable, role-specific variation recorded.",
+    typography_hierarchy: "Title/subtitle scale is reserved and does not cover the product.",
+    safe_zone_notes: "Keep product and text inside platform-safe center region.",
+    mobile_thumbnail_rule: "Recognizable product shape at mobile thumbnail size.",
+    visual_difference_from_previous: `Distinct environment and task: ${task}.`,
+  }));
+  fs.writeFileSync(panelsPath, JSON.stringify(panels, null, 2));
+  spawnSync(process.execPath, [
+    "scripts/marketing-gate-check.mjs",
+    "--copy-json", panelsPath,
+    "--out-dir", path.join(dir, "qa"),
+  ], { cwd: skillRoot });
+  const report = readJson(path.join(dir, "qa", "marketing-quality-gate-report.json"));
+  if (report.findings.some((item) => item.type === "repeated-camera-angle" && item.severity === "fail")) {
+    throw new Error("same angle with meaningful environment variation should not fail repeated-camera-angle.");
   }
 });
 

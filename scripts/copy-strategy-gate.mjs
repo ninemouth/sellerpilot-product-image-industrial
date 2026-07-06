@@ -60,7 +60,7 @@ if (context.web_research_required && !args["allow-unresearched-hotwords"]) {
 
 const riskyCopyPattern = /(全网最低|销量第一|爆卖|必买|神器|永久|100%|防水|速干|真皮|官方授权|正品保证|冠军同款|医疗|认证|无敌|最强|零风险)/i;
 const hotwordPattern = /(热词|hotword|搜索词|关键词|爆款词|trend keyword|search term)/i;
-const buyerBenefitPattern = /(适合|解决|轻松|舒适|清晰|透气|显瘦|百搭|通勤|训练|比赛|夏季|冬季|节日|礼物|耐看|质感|细节|版型|容量|收纳|防晒|保暖|cool|comfort|fit|gift|summer|winter|training|match|commute)/i;
+const buyerBenefitPattern = /(适合|解决|轻松|舒适|清晰|透气|显瘦|百搭|通勤|训练|比赛|夏季|冬季|节日|礼物|耐看|质感|细节|版型|容量|收纳|随身|小物|婚礼|晚宴|约会|便携|整理|防晒|保暖|cool|comfort|fit|gift|summer|winter|training|match|commute|wedding|evening|portable|organized|texture|detail)/i;
 
 panels.forEach((panel, index) => {
   const copy = textify([
@@ -74,23 +74,40 @@ panels.forEach((panel, index) => {
     panel.overlay_text,
     panel.copy_lines,
   ]);
-  if (!copy.trim()) {
-    findings.push({
-      severity: "fail",
-      type: "missing-buyer-facing-copy",
-      image_index: index + 1,
-      message: "Panel has no buyer-facing copy or message.",
-    });
-  }
   const strategyText = textify([
     panel.buyer_question,
     panel.conversion_intent,
     panel.purchase_objection,
+    panel.image_job,
+    panel.commercial_task,
+    panel.buyer_benefit,
+    panel.buyer_benefits,
+    panel.buyer_decision_reason,
+    panel.visual_decision_reason,
+    panel.usage_context,
+    panel.occasion,
     panel.copy_strategy,
     panel.copy_source_strategy,
     panel.research_basis,
     panel.platform_context_ref,
   ]);
+  if (!copy.trim()) {
+    if (allowsTextlessPanel(panel) || strategyText.length >= 24) {
+      findings.push({
+        severity: "warn",
+        type: "textless-panel-with-structured-copy-strategy",
+        image_index: index + 1,
+        message: "Panel has no visible copy, but records a structured buyer-facing strategy for a textless visual.",
+      });
+    } else {
+      findings.push({
+        severity: "fail",
+        type: "missing-buyer-facing-copy",
+        image_index: index + 1,
+        message: "Panel has no buyer-facing copy or structured textless strategy.",
+      });
+    }
+  }
   if (!strategyText || strategyText.length < 24) {
     findings.push({
       severity: "fail",
@@ -175,6 +192,26 @@ function hasResearchBasis(panel) {
     panel.platform_category_research_ref,
     panel.sources,
   ]).trim());
+}
+
+function allowsTextlessPanel(panel) {
+  const policyText = normalize(textify([
+    panel.visible_text_policy,
+    panel.text_policy,
+    panel.copy_visibility,
+    panel.overlay_text_policy,
+    panel.textless_reason,
+  ]));
+  return Boolean(
+    panel.textless_ok
+    || panel.no_visible_text
+    || panel.copyless_ok
+    || /(no visible text|textless|copyless|无字|不加字|无需文字|纯图|仅图片)/i.test(policyText)
+  );
+}
+
+function normalize(value) {
+  return String(value || "").trim().toLowerCase();
 }
 
 function textify(value) {

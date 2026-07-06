@@ -99,18 +99,22 @@ const masterStyleTerms = [
 ];
 
 const findings = [];
-const angleCounts = countBy(panels.map((panel) => normalize(panel.camera_angle || panel.product_view || panel.view || "")));
+const angleGroups = groupBy(panels, (panel) => normalize(panel.camera_angle || panel.product_view || panel.view || ""));
 const cropCounts = countBy(panels.map((panel) => normalize(panel.crop_type || panel.focal_subject || panel.visual_composition || "")));
 const imageCounts = countBy(panels.map((panel) => normalize(panel.image || panel.image_path || panel.source_image || "")));
 const layoutIntentCounts = countBy(panels.map((panel) => normalize(panel.graphic_design_intent || panel.layout_intent || panel.layout_style || panel.overlay_style || "")));
 
-for (const [value, count] of Object.entries(angleCounts)) {
+for (const [value, group] of Object.entries(angleGroups)) {
+  const count = group.length;
   if (value && count > Math.max(2, Math.ceil(panels.length * 0.35))) {
-    findings.push({
-      severity: "fail",
-      type: "repeated-camera-angle",
-      message: `Camera/product view "${value}" appears ${count} times.`,
-    });
+    const variation = sameAngleVariation(value, group);
+    if (!variation.allowed) {
+      findings.push({
+        severity: "fail",
+        type: "repeated-camera-angle",
+        message: `Camera/product view "${value}" appears ${count} times without enough scene, lighting, prop, role, or commercial-task variation. ${variation.reason}`,
+      });
+    }
   }
 }
 
@@ -418,6 +422,65 @@ function countBy(values) {
     counts[value] = (counts[value] || 0) + 1;
   }
   return counts;
+}
+
+function groupBy(values, keyFn) {
+  const groups = {};
+  for (const value of values) {
+    const key = keyFn(value);
+    groups[key] = groups[key] || [];
+    groups[key].push(value);
+  }
+  return groups;
+}
+
+function sameAngleVariation(angle, group) {
+  const explicitReason = textify(group.map((panel) => [
+    panel.same_angle_series_reason,
+    panel.consistent_catalog_angle_reason,
+    panel.camera_angle_rationale,
+    panel.set_variation_rationale,
+  ]));
+  if (/(consistent catalog|same angle series|同角度系列|统一角度|连续棚拍|catalog consistency|环境变化|scene variation|role-specific|商业理由|commercial reason)/i.test(explicitReason)) {
+    return { allowed: true, reason: "Explicit same-angle series rationale is recorded." };
+  }
+
+  const axes = [
+    ["role", group.map((panel) => textify([panel.image_role, panel.role, panel.asset_id, panel.slug]))],
+    ["commercial task", group.map((panel) => textify([panel.image_job, panel.commercial_task, panel.buyer_question, panel.conversion_intent]))],
+    ["environment", group.map((panel) => textify([panel.background_or_scene, panel.scene, panel.environment, panel.location, panel.usage_context, panel.occasion]))],
+    ["props/model", group.map((panel) => textify([panel.props_or_model_context, panel.props, panel.model_context, panel.handheld_context]))],
+    ["surface", group.map((panel) => textify([panel.surface, panel.tabletop_surface, panel.floor_surface, panel.background_surface]))],
+    ["lighting", group.map((panel) => textify([panel.lighting, panel.lighting_direction, panel.color_temperature]))],
+    ["placement", group.map((panel) => textify([panel.product_placement, panel.product_scale, panel.focal_subject]))],
+    ["composition", group.map((panel) => textify([panel.crop_type, panel.visual_composition, panel.graphic_design_intent, panel.layout_intent]))],
+  ];
+  const variedAxes = axes
+    .map(([name, values]) => [name, distinctMeaningfulValues(values)])
+    .filter(([, values]) => values.length >= 2);
+  const hasImageReuse = distinctMeaningfulValues(group.map((panel) => panel.image || panel.image_path || panel.source_image)).length <= 1;
+  const hasCommercialOrSceneVariation = variedAxes.some(([name]) => ["role", "commercial task", "environment", "props/model", "surface", "lighting", "placement"].includes(name));
+
+  if (hasCommercialOrSceneVariation) {
+    return {
+      allowed: true,
+      reason: `Same angle has meaningful variation in ${variedAxes.map(([name]) => name).join(", ")}.`,
+    };
+  }
+  if (variedAxes.length >= 2 && !hasImageReuse) {
+    return {
+      allowed: true,
+      reason: `Same angle has composition/layout variation in ${variedAxes.map(([name]) => name).join(", ")}.`,
+    };
+  }
+  return {
+    allowed: false,
+    reason: `Variation axes found: ${variedAxes.map(([name]) => name).join(", ") || "none"}.`,
+  };
+}
+
+function distinctMeaningfulValues(values) {
+  return [...new Set(values.map((value) => normalize(textify(value))).filter((value) => value.length >= 3))];
 }
 
 function normalize(value) {

@@ -226,7 +226,7 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
   --out-dir /abs/run/qa
 ```
 
-Use the marketing gate before final export to catch repeated camera angles, repeated source images, thin scene direction, and internal-facing copy such as `不虚标`, `以源图为准`, `QA`, or `风险` in final image text.
+Use the marketing gate before final export to catch unjustified repeated camera angles, repeated source images, thin scene direction, and internal-facing copy such as `不虚标`, `以源图为准`, `QA`, or `风险` in final image text.
 
 ```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/copy-strategy-gate.mjs \
