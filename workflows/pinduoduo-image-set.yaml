@@ -15,12 +15,15 @@ steps:
   - source-image-set-manifest-if-multiple-images
   - source-image-quality-gate
   - source-image-enhancement-if-needed
+  - source-product-understanding-ocr
+  - source-product-understanding-gate-if-source-facts-or-visible-text
   - product-image-parser
   - product-identity-lock
   - product-physical-truth-lock-if-function-use-or-scale-sensitive
   - product-url-reader
   - product-fact-sheet
   - platform-spec-profile
+  - platform-context-planner
   - platform-category-web-research
   - platform-category-profile-overlay
   - bestseller-design-mining-if-marketing-enhancement
@@ -43,6 +46,8 @@ steps:
   - scene-asset-production-if-scene-roles
   - buyer-facing-copy-director
   - copy-localization
+  - copy-strategy-gate
+  - image-set-blueprint
   - blueprint-gate
   - gpt-built-in-image-generation-policy
   - prompt-layer-architect
@@ -61,6 +66,7 @@ steps:
   - marketing-quality-gate
   - image-set-export-gate
   - qa-loop-router
+  - delivery-overview-contact-sheet-if-multi-image-set
   - final-delivery-gate
   - qa-compliance
   - tldraw-review-workspace-if-visual-review-needed

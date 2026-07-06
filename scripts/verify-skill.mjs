@@ -79,6 +79,26 @@ function readJson(file) {
   return JSON.parse(fs.readFileSync(file, "utf8"));
 }
 
+function workflowSteps(file) {
+  const text = fs.readFileSync(path.join(skillRoot, file), "utf8");
+  const stepsMatch = text.match(/^steps:\n([\s\S]*?)(?:\n[a-zA-Z0-9_]+:|\n$)/m);
+  if (!stepsMatch) throw new Error(`${file} is missing steps.`);
+  return stepsMatch[1]
+    .split("\n")
+    .map((line) => line.match(/^\s*-\s+(.+?)\s*$/)?.[1])
+    .filter(Boolean);
+}
+
+function assertStepBefore(file, steps, before, after) {
+  const beforeIndex = steps.indexOf(before);
+  const afterIndex = steps.indexOf(after);
+  if (beforeIndex < 0) throw new Error(`${file} missing workflow step ${before}`);
+  if (afterIndex < 0) throw new Error(`${file} missing workflow step ${after}`);
+  if (beforeIndex >= afterIndex) {
+    throw new Error(`${file} must run ${before} before ${after}.`);
+  }
+}
+
 record("frontmatter", () => {
   const skillMd = fs.readFileSync(path.join(skillRoot, "SKILL.md"), "utf8");
   if (!skillMd.startsWith("---\n")) throw new Error("SKILL.md must start with YAML frontmatter.");
@@ -125,6 +145,44 @@ record("yaml parse", () => {
     return;
   }
   throw new Error("Neither python3 PyYAML nor Ruby YAML is available for YAML validation.");
+});
+
+record("workflow loop guard ordering", () => {
+  const workflows = [
+    "workflows/ecommerce-product-image-generation.yaml",
+    "workflows/pinduoduo-image-set.yaml",
+    "workflows/amazon-image-set.yaml",
+    "workflows/competitive-redesign.yaml",
+    "workflows/multi-platform-image-pack.yaml",
+    "workflows/tiktok-shop-image-set.yaml",
+    "workflows/xiaohongshu-image-pack.yaml",
+  ];
+  for (const file of workflows) {
+    const steps = workflowSteps(file);
+    for (const required of [
+      "create-run-skeleton",
+      "source-product-understanding-ocr",
+      "source-product-understanding-gate-if-source-facts-or-visible-text",
+      "product-identity-lock",
+      "product-physical-truth-lock-if-function-use-or-scale-sensitive",
+      "copy-strategy-gate",
+      "image-set-export-gate",
+      "qa-loop-router",
+      "delivery-overview-contact-sheet-if-multi-image-set",
+      "final-delivery-gate",
+    ]) {
+      if (!steps.includes(required)) throw new Error(`${file} missing workflow step ${required}`);
+    }
+    assertStepBefore(file, steps, "create-run-skeleton", "image-set-export-gate");
+    assertStepBefore(file, steps, "source-product-understanding-ocr", "product-identity-lock");
+    assertStepBefore(file, steps, "source-product-understanding-gate-if-source-facts-or-visible-text", "product-identity-lock");
+    assertStepBefore(file, steps, "product-identity-lock", "prompt-layer-stack");
+    assertStepBefore(file, steps, "product-physical-truth-lock-if-function-use-or-scale-sensitive", "product-physics-fact-gate-if-function-use-or-scale-sensitive");
+    assertStepBefore(file, steps, "copy-strategy-gate", "marketing-quality-gate");
+    assertStepBefore(file, steps, "image-set-export-gate", "qa-loop-router");
+    assertStepBefore(file, steps, "qa-loop-router", "delivery-overview-contact-sheet-if-multi-image-set");
+    assertStepBefore(file, steps, "delivery-overview-contact-sheet-if-multi-image-set", "final-delivery-gate");
+  }
 });
 
 record("no legacy provider naming", () => {
@@ -449,15 +507,21 @@ record("qa loop retry budget guard smoke", () => {
     "--platform", "拼多多",
     "--category", "女包",
   ]);
-  fs.writeFileSync(path.join(qaDir, "marketing-quality-gate-report.json"), JSON.stringify({
-    status: "fail",
-    findings: [{
-      severity: "fail",
-      type: "source-cutout-used-as-scene",
-      image_index: 2,
-      message: "Scene role used the source cutout instead of a real generated/photo scene asset.",
-    }],
-  }, null, 2));
+  const reportPath = path.join(qaDir, "marketing-quality-gate-report.json");
+  const writeFailingReport = (attemptLabel) => {
+    fs.writeFileSync(reportPath, JSON.stringify({
+      status: "fail",
+      checked_at: new Date().toISOString(),
+      attempt_label: attemptLabel,
+      findings: [{
+        severity: "fail",
+        type: "source-cutout-used-as-scene",
+        image_index: 2,
+        message: `Scene role used the source cutout instead of a real generated/photo scene asset (${attemptLabel}).`,
+      }],
+    }, null, 2));
+  };
+  writeFailingReport("initial-anchor-qa");
   run(process.execPath, ["scripts/qa-loop-router.mjs", "--run-dir", runDir]);
   let decision = readJson(path.join(qaDir, "qa-loop-routing-decision.json"));
   if (decision.loop_decision.status !== "regenerate_failed_assets_only") {
@@ -466,9 +530,17 @@ record("qa loop retry budget guard smoke", () => {
   if (decision.loop_decision.retry_attempts_used !== 1) throw new Error("first QA route should record retry attempt 1.");
   run(process.execPath, ["scripts/qa-loop-router.mjs", "--run-dir", runDir]);
   decision = readJson(path.join(qaDir, "qa-loop-routing-decision.json"));
-  if (decision.loop_decision.retry_attempts_used !== 2) throw new Error("second QA route should record retry attempt 2.");
+  if (decision.loop_decision.retry_attempts_used !== 1) throw new Error("rerunning router with unchanged gate evidence must not consume retry budget.");
+  if (decision.loop_guard.status !== "same_evidence_not_counted") throw new Error("unchanged gate evidence should be marked same_evidence_not_counted.");
+
+  writeFailingReport("failed-retry-1");
+  run(process.execPath, ["scripts/qa-loop-router.mjs", "--run-dir", runDir]);
+  decision = readJson(path.join(qaDir, "qa-loop-routing-decision.json"));
+  if (decision.loop_decision.retry_attempts_used !== 2) throw new Error("changed gate evidence should record retry attempt 2.");
+
+  writeFailingReport("failed-retry-2");
   const exhausted = spawnSync(process.execPath, ["scripts/qa-loop-router.mjs", "--run-dir", runDir], { cwd: skillRoot });
-  if (exhausted.status === 0) throw new Error("third identical QA route should exhaust retry budget and exit non-zero.");
+  if (exhausted.status === 0) throw new Error("third changed failing QA evidence should exhaust retry budget and exit non-zero.");
   decision = readJson(path.join(qaDir, "qa-loop-routing-decision.json"));
   if (decision.loop_decision.status !== "blocked_retry_budget_exhausted") {
     throw new Error(`expected blocked_retry_budget_exhausted, got ${decision.loop_decision.status}`);
@@ -476,8 +548,8 @@ record("qa loop retry budget guard smoke", () => {
   if (!decision.loop_decision.user_input_required) throw new Error("retry budget exhaustion should require user input or direction change.");
   const state = readJson(path.join(qaDir, "qa-loop-state.json"));
   const entries = Object.values(state.signatures || {});
-  if (!entries.some((item) => item.status === "exhausted" && item.attempt_count === 3 && item.max_attempts === 2)) {
-    throw new Error("qa-loop-state should persist exhausted attempt count.");
+  if (!entries.some((item) => item.status === "exhausted" && item.attempt_count === 3 && item.max_attempts === 2 && item.evidence_fingerprints?.length === 3)) {
+    throw new Error("qa-loop-state should persist exhausted attempt count from changed gate evidence only.");
   }
 });
 

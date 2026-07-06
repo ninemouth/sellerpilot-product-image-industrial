@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -41,7 +42,7 @@ const findings = collectFindings(reports);
 const actionable = findings.filter((item) => ["critical", "fail", "warn"].includes(item.severity));
 const ranked = actionable.sort(compareFindings);
 const primary = ranked[0] || null;
-const decision = applyRetryGuard(buildDecision({ runDir, reports, findings, primary }), qaDir);
+const decision = applyRetryGuard(buildDecision({ runDir, reports, findings, primary }), qaDir, reports);
 
 fs.writeFileSync(path.join(qaDir, "qa-loop-routing-decision.json"), JSON.stringify(decision, null, 2));
 fs.writeFileSync(path.join(qaDir, "qa-loop-routing-decision.yaml"), toYaml(decision));
@@ -77,7 +78,7 @@ function loadReports(dir) {
     });
 }
 
-function applyRetryGuard(decision, qaDirPath) {
+function applyRetryGuard(decision, qaDirPath, reports) {
   const loop = decision.loop_decision || {};
   const retryableStatuses = new Set(["return_to_node", "regenerate_failed_assets_only", "rerender_layout_only"]);
   const statePath = path.join(qaDirPath, "qa-loop-state.json");
@@ -121,6 +122,7 @@ function applyRetryGuard(decision, qaDirPath) {
   }
 
   const signature = retrySignature(loop);
+  const evidenceFingerprint = retryEvidenceFingerprint(loop, decision, reports);
   const maxAttempts = Number.isFinite(Number(loop.retry_budget)) ? Number(loop.retry_budget) : retryBudget(loop.return_node);
   const existing = state.signatures[signature] || {
     signature,
@@ -133,11 +135,25 @@ function applyRetryGuard(decision, qaDirPath) {
     attempt_count: 0,
     max_attempts: maxAttempts,
     status: "retryable",
+    evidence_fingerprints: [],
   };
 
-  existing.attempt_count = Number(existing.attempt_count || 0) + 1;
+  const evidenceChanged = existing.last_evidence_fingerprint !== evidenceFingerprint;
+  if (evidenceChanged) {
+    existing.attempt_count = Number(existing.attempt_count || 0) + 1;
+    existing.evidence_fingerprints = [
+      ...(existing.evidence_fingerprints || []),
+      {
+        fingerprint: evidenceFingerprint,
+        seen_at: state.updated_at,
+        attempt_count: existing.attempt_count,
+      },
+    ].slice(-20);
+  }
   existing.max_attempts = maxAttempts;
   existing.last_seen_at = state.updated_at;
+  existing.last_evidence_fingerprint = evidenceFingerprint;
+  existing.last_evidence_changed = evidenceChanged;
   existing.last_status = loop.status;
   existing.failed_images = loop.failed_images || [];
   existing.failed_gate = loop.failed_gate || existing.failed_gate || null;
@@ -151,12 +167,16 @@ function applyRetryGuard(decision, qaDirPath) {
     signature,
     attempt_count: existing.attempt_count,
     max_attempts: maxAttempts,
+    evidence_changed: evidenceChanged,
+    evidence_fingerprint: evidenceFingerprint,
     updated_at: state.updated_at,
   };
   state.history.push({
     checked_at: state.updated_at,
     signature,
     status: existing.status,
+    evidence_changed: evidenceChanged,
+    evidence_fingerprint: evidenceFingerprint,
     primary_failure_type: loop.primary_failure_type,
     return_node: loop.return_node,
     failed_images: loop.failed_images || [],
@@ -168,12 +188,15 @@ function applyRetryGuard(decision, qaDirPath) {
   loop.retry_attempts_used = existing.attempt_count;
   loop.retry_attempts_remaining = existing.remaining_attempts;
   loop.retry_signature = signature;
+  loop.retry_evidence_fingerprint = evidenceFingerprint;
   decision.loop_guard = {
-    status: existing.status,
+    status: evidenceChanged ? existing.status : "same_evidence_not_counted",
     signature,
     attempt_count: existing.attempt_count,
     max_attempts: maxAttempts,
     remaining_attempts: existing.remaining_attempts,
+    evidence_changed: evidenceChanged,
+    evidence_fingerprint: evidenceFingerprint,
     state_path: statePath,
   };
 
@@ -197,6 +220,44 @@ function applyRetryGuard(decision, qaDirPath) {
 
   writeRetryState(statePath, state);
   return decision;
+}
+
+function retryEvidenceFingerprint(loop, decision, reports) {
+  const relevantNames = new Set(
+    (decision.findings || [])
+      .filter((item) => item.type === loop.primary_failure_type || item.return_node === loop.return_node)
+      .map((item) => item.source_report)
+      .filter(Boolean),
+  );
+  const relevantReports = reports.filter((item) => !relevantNames.size || relevantNames.has(item.name));
+  const payload = relevantReports.map((item) => {
+    let stat = null;
+    try {
+      const fileStat = fs.statSync(item.file);
+      stat = {
+        size: fileStat.size,
+        mtime_ms: Math.round(fileStat.mtimeMs),
+      };
+    } catch {
+      stat = { size: null, mtime_ms: null };
+    }
+    return {
+      name: item.name,
+      stat,
+      status: item.report?.status || null,
+      findings: Array.isArray(item.report?.findings) ? item.report.findings : [],
+    };
+  });
+  return crypto
+    .createHash("sha256")
+    .update(JSON.stringify({
+      primary_failure_type: loop.primary_failure_type,
+      return_node: loop.return_node,
+      failed_gate: loop.failed_gate,
+      failed_images: loop.failed_images || [],
+      reports: payload,
+    }))
+    .digest("hex");
 }
 
 function retrySignature(loop) {
@@ -703,6 +764,7 @@ function toMarkdown(decision) {
       `- Status: ${decision.loop_guard.status}`,
       `- Signature: ${decision.loop_guard.signature || "n/a"}`,
       `- Attempts: ${decision.loop_guard.attempt_count ?? "n/a"} / ${decision.loop_guard.max_attempts ?? "n/a"}`,
+      `- Evidence changed: ${decision.loop_guard.evidence_changed ?? "n/a"}`,
       `- State path: ${decision.loop_guard.state_path || "n/a"}`,
     );
   }

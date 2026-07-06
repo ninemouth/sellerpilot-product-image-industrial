@@ -1,23 +1,73 @@
 workflow_id: amazon-image-set
 name: Amazon Image Set
-version: 1.3.0
+version: 1.4.0
+inherits: ecommerce-product-image-generation
 goal: Generate an Amazon-ready 7-image listing set using GPT built-in image generation prompts plus QA/export gates; create request packs only as fallback or audit evidence.
 steps:
+  - resolve-skill-root
   - input-normalizer
+  - brief-intake-gate
+  - create-run-skeleton
+  - source-image-set-manifest-if-multiple-images
+  - source-image-quality-gate
+  - source-image-enhancement-if-needed
+  - source-product-understanding-ocr
+  - source-product-understanding-gate-if-source-facts-or-visible-text
   - product-image-parser
+  - product-identity-lock
+  - product-physical-truth-lock-if-function-use-or-scale-sensitive
   - product-url-reader
   - product-fact-sheet
   - platform-spec-profile
+  - platform-context-planner
+  - platform-category-web-research
+  - platform-category-profile-overlay
   - audience-persona
   - market-research
   - product-positioning
+  - product-feature-analysis
+  - audience-positioning-analysis
+  - commerce-strategy-brief
+  - creative-direction-brief
+  - graphic-design-direction
+  - commercial-photography-treatment
+  - image-set-architecture
+  - sketch-to-final-production
+  - layout-wireframes
+  - prompt-readiness-gate
   - visual-template-library
   - visual-strategy
+  - visual-director
+  - scene-asset-production-if-scene-roles
   - copy-localization
+  - copy-strategy-gate
+  - image-set-blueprint
   - gpt-built-in-image-generation-policy
+  - prompt-layer-architect
+  - prompt-layer-stack
+  - prompt-layer-gate
+  - personalized-prompt-delivery
   - generation-request-pack-if-fallback-or-audit-needed
+  - scene-asset-generation-if-scene-roles
   - generation-runtime-execution-boundary
+  - anchor-batch-generation-loop-if-runtime-available
+  - continue-missing-assets-only
+  - identity-consistency-gate
+  - identity-geometry-gate-if-proportion-sensitive
+  - product-physics-fact-gate-if-function-use-or-scale-sensitive
+  - layout-composition
+  - marketing-quality-gate
+  - image-set-export-gate
+  - qa-loop-router
+  - delivery-overview-contact-sheet-if-multi-image-set
+  - final-delivery-gate
   - qa-compliance
+  - tldraw-review-workspace-if-visual-review-needed
   - infinite-canvas-interaction
+  - parse-canvas-annotations-if-feedback-provided
   - revision
   - export-packaging
+qa_loop_policy:
+  use_unified_router_after_gate_failure: true
+  rerun_smallest_downstream_scope: true
+  stop_on_retry_budget_exhaustion: true

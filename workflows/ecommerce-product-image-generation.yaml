@@ -55,6 +55,8 @@ steps:
   - source-image-set-manifest-if-multiple-images
   - source-image-quality-gate
   - source-image-enhancement-if-needed
+  - source-product-understanding-ocr
+  - source-product-understanding-gate-if-source-facts-or-visible-text
   - product-image-parser
   - product-identity-lock
   - product-physical-truth-lock-if-function-use-or-scale-sensitive
@@ -101,6 +103,7 @@ steps:
   - marketing-quality-gate
   - image-set-export-gate
   - qa-loop-router
+  - delivery-overview-contact-sheet-if-multi-image-set
   - final-delivery-gate
   - qa-compliance
   - tldraw-review-workspace-and-auto-start-if-visual-review-needed

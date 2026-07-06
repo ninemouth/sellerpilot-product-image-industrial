@@ -257,13 +257,36 @@ if (fs.existsSync(qaLoopPath)) {
     const routing = JSON.parse(fs.readFileSync(qaLoopPath, "utf8"));
     const decision = routing.loop_decision || {};
     if (decision.status && decision.status !== "continue") {
-      findings.push({
-        severity: "fail",
-        type: "qa-loop-not-closed",
-        gate_id: "qa-loop-router",
-        source_report: "qa-loop-routing-decision.json",
-        message: `QA loop decision is ${decision.status}; return node ${decision.return_node || "unknown"} must be resolved before final delivery.`,
-      });
+      const qaLoopMtime = fs.statSync(qaLoopPath).mtimeMs;
+      const newerReports = reports
+        .filter((item) => {
+          try {
+            return fs.statSync(item.file).mtimeMs > qaLoopMtime + 1;
+          } catch {
+            return false;
+          }
+        })
+        .map((item) => item.name);
+      const currentFailingReports = reports
+        .filter((item) => ["fail", "blocked", "needs_visual_review"].includes(normalizeStatus(item.report.status)))
+        .map((item) => item.name);
+      if (newerReports.length && !currentFailingReports.length) {
+        findings.push({
+          severity: "fail",
+          type: "stale-qa-loop-routing-decision",
+          gate_id: "qa-loop-router",
+          source_report: "qa-loop-routing-decision.json",
+          message: `QA loop decision is ${decision.status}, but upstream gate reports were updated after it (${newerReports.join(", ")}). Rerun qa-loop-router once so it can close to continue before final delivery.`,
+        });
+      } else {
+        findings.push({
+          severity: "fail",
+          type: "qa-loop-not-closed",
+          gate_id: "qa-loop-router",
+          source_report: "qa-loop-routing-decision.json",
+          message: `QA loop decision is ${decision.status}; return node ${decision.return_node || "unknown"} must be resolved before final delivery.`,
+        });
+      }
     }
   } catch (error) {
     findings.push({
