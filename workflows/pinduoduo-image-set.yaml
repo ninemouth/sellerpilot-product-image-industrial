@@ -1,0 +1,169 @@
+workflow_id: pinduoduo-image-set
+name: Pinduoduo Image Set
+version: 1.8.0
+inherits: ecommerce-product-image-generation
+goal: Apply Pinduoduo-specific constraints to the platform-agnostic ecommerce product image generation loop, typically 7-9 images, with Chinese conversion copy, visually distinct marketing roles, GPT built-in image generation prompts for true lifestyle scene images when requested, product-fact boundaries, QA, review surface, revision brief, and export package.
+steps:
+  - resolve-skill-root
+  - input-normalizer
+  - brief-intake-gate
+  - create-run-skeleton
+  - goal-contract
+  - source-image-set-manifest-if-multiple-images
+  - source-image-quality-gate
+  - source-image-enhancement-if-needed
+  - product-image-parser
+  - product-identity-lock
+  - product-url-reader
+  - product-fact-sheet
+  - platform-spec-profile
+  - platform-category-web-research
+  - platform-category-profile-overlay
+  - bestseller-design-mining-if-marketing-enhancement
+  - audience-persona
+  - market-research
+  - product-feature-analysis
+  - audience-positioning-analysis
+  - product-positioning
+  - commerce-strategy-brief
+  - creative-direction-brief
+  - graphic-design-direction
+  - commercial-photography-treatment
+  - image-set-architecture
+  - sketch-to-final-production
+  - layout-wireframes
+  - prompt-readiness-gate
+  - visual-template-library
+  - visual-strategy
+  - visual-director
+  - scene-asset-production-if-scene-roles
+  - buyer-facing-copy-director
+  - copy-localization
+  - blueprint-gate
+  - gpt-built-in-image-generation-policy
+  - prompt-layer-architect
+  - prompt-layer-stack
+  - prompt-layer-gate
+  - personalized-prompt-delivery
+  - generation-request-pack-if-fallback-or-audit-needed
+  - scene-asset-generation-if-scene-roles
+  - generation-runtime-execution-boundary
+  - anchor-batch-generation-loop-if-runtime-available
+  - continue-missing-assets-only
+  - identity-consistency-gate
+  - marketing-diversity-gate
+  - marketing-quality-gate
+  - image-set-export-gate
+  - qa-loop-router
+  - final-delivery-gate
+  - qa-compliance
+  - tldraw-review-workspace-if-visual-review-needed
+  - infinite-canvas-interaction
+  - parse-canvas-annotations-if-feedback-provided
+  - region-review-html
+  - revision
+  - export-packaging
+default_outputs:
+  - product_fact_sheet
+  - goal_contract
+  - source_image_set_manifest
+  - product_identity_lock
+  - source_image_quality_report
+  - product_feature_analysis
+  - audience_positioning_analysis
+  - platform_category_research_brief
+  - platform_category_profile_overlay
+  - bestseller_design_mining_report
+  - commerce_strategy_brief
+  - creative_direction_brief
+  - graphic_design_direction
+  - photography_treatment
+  - layout_wireframes
+  - visual_direction_brief
+  - image_set_blueprint
+  - localized_copy_pack
+  - final_personalized_prompt_delivery
+  - prompt_layer_stack
+  - prompt_readiness_gate_report
+  - prompt_layer_gate_report
+  - generation_request_pack_if_fallback_or_audit_needed
+  - final_personalized_generation_prompts
+  - generation_execution_result_summary_if_runtime_generated
+  - generated_or_rendered_images
+  - identity_consistency_report
+  - review_canvas
+  - tldraw_review_workspace_if_visual_review_needed
+  - parsed_generation_tasks_if_annotations_provided
+  - region_review_html
+  - marketing_quality_gate_report
+  - image_set_export_gate_report
+  - qa_loop_routing_decision
+  - final_delivery_gate_report
+  - qa_report
+  - revision_history
+  - final_asset_package
+loop_policy:
+  max_generation_attempts_per_scene_role: 2
+  use_anchor_batch_before_full_set_generation: true
+  anchor_batch_max_assets: 3
+  reuse_approved_assets: true
+  rerender_layout_only_when_text_or_spacing_fails: true
+  stop_if_product_identity_drift_is_high: true
+  fail_fast_on_repeated_camera_or_internal_copy: true
+  regenerate_only_failed_identity_assets: true
+scene_policy:
+  when_user_requests_scene_images: true_scene_assets_required
+  minimum_true_scene_roles_for_8_image_set: 2
+  recommended_women_bag_scenes:
+    - wearing_or_outfit_scene
+    - cafe_date_or_weekend_scene
+    - commute_street_or_shop_window_scene
+  deterministic_renderer_scene_cutout_only_is_final_failure: true
+design_policy:
+  forbid_platform_pack_watermark: true
+  watermark_default_decision: prohibited_unless_user_explicitly_requests_exact_mark
+  require_watermark_authorization_before_design: true
+  visible_mark_authorization_required_fields:
+    - source_user_request
+    - exact_visible_text
+    - placement
+    - purpose
+    - allowed_images
+  forbidden_visible_marks:
+    - 拼多多女包套图
+    - 拼多多套图
+    - 女包套图
+    - PDD
+    - SellerPilot
+    - Codex
+    - AI生成
+    - 样图
+    - 示例图
+    - 仅供参考
+  require_role_specific_layout_variation: true
+  forbid_repeated_translucent_card_layout: true
+photography_policy:
+  require_master_style_archetype_per_image: true
+  require_camera_lens_light_scene_notes: true
+micro_detail_policy:
+  ask_for_closeup_when_commercially_important_and_unclear: true
+  preserve_unclear_marks_as_unreadable_shape: true
+  forbid_invented_readable_logo_or_tag_text: true
+industrial_prompt_policy:
+  final_prompt_is_personalized_production_handoff: true
+  require_strategy_sketch_photography_layout_before_prompt: true
+  minimum_prompt_personalization_dimensions:
+    - product_identity
+    - platform
+    - audience
+    - season_or_occasion
+    - buyer_question
+    - commerce_goal
+    - photography_treatment
+    - layout_intent
+  prompt_layer_architect_decides_conditional_layers: true
+qa_loop_policy:
+  use_unified_router_after_gate_failure: true
+  rerun_smallest_downstream_scope: true
+  return_fake_scene_to_scene_asset_production: true
+  return_generic_prompt_to_prompt_layer_stack: true

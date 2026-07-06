@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "required": ["product_fact_sheet", "platform", "category", "target_image_count"],
+  "properties": {
+    "product_fact_sheet": { "type": "object" },
+    "platform": { "type": "string" },
+    "category": { "type": "string" },
+    "target_image_count": { "type": "integer", "minimum": 1 },
+    "platform_category_research": { "type": "object" },
+    "audience_persona": { "type": "object" },
+    "product_positioning": { "type": "object" }
+  }
+}

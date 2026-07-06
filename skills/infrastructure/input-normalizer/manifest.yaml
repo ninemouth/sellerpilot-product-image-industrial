@@ -1,0 +1,19 @@
+skill_id: input-normalizer
+name: Input Normalizer
+version: 1.2.0
+layer: L1 Infrastructure
+owner: sellerpilot-visual-core
+business_goal: Normalize raw user inputs into structured task context.
+inputs:
+  required: [task_context]
+  optional: [source_images, product_url, product_fact_sheet, platform_profile, audience_persona, image_set_blueprint, localized_copy_pack, generated_images, user_annotations]
+outputs:
+  - structured_result
+  - evidence_refs
+  - risk_flags
+risk_boundary:
+  - preserve_product_truth
+  - distinguish_observed_facts_from_ai_inference
+telemetry:
+  - success_rate
+  - revision_rate

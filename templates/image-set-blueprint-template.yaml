@@ -1,0 +1,33 @@
+- image_index: 1
+  image_role:
+  platform:
+  aspect_ratio:
+  buyer_question:
+  main_message:
+  secondary_message:
+  visual_composition:
+  product_view:
+  camera_angle:
+  crop_type:
+  focal_subject:
+  background_or_scene:
+  lighting:
+  props_or_model_context:
+  graphic_design_intent:
+  text_hierarchy:
+  safe_zone_notes:
+  mobile_thumbnail_rule:
+  visual_difference_from_previous:
+  photography_style_archetype:
+  lens_feel:
+  lighting_direction:
+  color_temperature:
+  product_placement:
+  audience_fit:
+  micro_detail_preservation:
+  detail_evidence_status:
+  required_copy:
+  buyer_facing_message:
+  forbidden_elements: []
+  identity_constraints: []
+  localization_notes: []

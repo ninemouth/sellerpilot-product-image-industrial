@@ -1,0 +1,53 @@
+platform_id: douyin
+name: Douyin Ecommerce / Douyin Shop / 抖音电商
+aliases: [douyin_shop, doudian, 抖音, 抖店, 抖音商城, 抖音小店]
+not_same_as: tiktok_shop
+locale_defaults: [zh-CN]
+source_meta:
+  researched_at: "2026-07-05"
+  source_confidence: mixed_official_and_secondary
+  notes:
+    - Douyin and TikTok Shop are separate platform profiles. Do not reuse TikTok Shop US rules as Douyin rules.
+  sources:
+    - title: "抖音商城管理规范"
+      url: "https://school.jinritemai.com/doudian/web/article/aHRK3WaAk7AN"
+      type: official_douyin_ecommerce_learning_center
+    - title: "商品信息发布规范"
+      url: "https://school.jinritemai.com/doudian/web/article/101800"
+      type: official_douyin_ecommerce_learning_center
+    - title: "抖音小店主图和详情页尺寸"
+      url: "https://www.canva.cn/learn/douyin-size/"
+      type: secondary_design_reference
+visual_strategy:
+  default_set:
+    - main_product_image
+    - white_background_or_clean_scene_image
+    - multi_angle_image
+    - detail_quality_image
+    - use_scene_image
+    - selling_point_image
+    - detail_page_modules
+  tone: mobile_content_commerce_direct
+  text_density: low_to_medium
+  language: zh-CN
+technical_baseline:
+  main_image_square_min: "600x600px+ commonly cited for square product images"
+  white_or_scene_image_baseline: "800x800px+ commonly cited for white-background or scene images"
+  apparel_bag_vertical_material: "3:4 vertical materials may apply for shoes/bags/apparel; recommended production target 750x1000px when applicable"
+  file_types: [jpg, jpeg, png]
+image_guidance:
+  - clearly show the actual product subject and preserve its real proportions
+  - avoid watermark-heavy images, excessive text, spliced/collage main images, compression distortion, blur, and unrelated objects
+  - use mobile-readable benefit language and short labels
+  - distinguish product listing images from Douyin content/short-video cover assets
+  - use run-level overlay for category-specific material size and display surface
+marketing_guidance:
+  - optimize for mobile first glance, creator-commerce scene fit, and fast product comprehension
+  - scene images should feel native to Douyin commerce, but product identity must stay dominant and truthful
+risk_notes:
+  - avoid exaggerated or false promotion, inducement-to-click language, unrelated watermarks, political/religious/sensitive content, and obvious AI-fake product representations
+  - do not import TikTok Shop US policy directly; verify Douyin-specific rules per category
+research_policy:
+  yaml_is_baseline: true
+  require_run_level_overlay: true
+  promote_only_official_or_repeated_findings: true

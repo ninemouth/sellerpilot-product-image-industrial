@@ -1,0 +1,49 @@
+platform_id: temu
+name: Temu
+aliases: [temu_marketplace, temu_seller, temu_eu, temu_us]
+locale_defaults: [en-US]
+source_meta:
+  researched_at: "2026-07-05"
+  source_confidence: official_partner_docs_plus_secondary_pim_research
+  sources:
+    - title: "Product Basic Introduction - Partner Platform for EU"
+      url: "https://partner-eu.temu.com/documentation?menu_code=85762c6ccc5a4dbc8c023ea5e10c6dc0&sub_menu_code=894d49588571477da64a04a5d81b53a7"
+      type: official_temu_partner_documentation
+    - title: "Product data requirements for Temu"
+      url: "https://www.inriver.com/resources/product-data-requirements-temu/"
+      type: secondary_pim_research
+    - title: "TEMU How to Upload Size Image instead of Size Chart"
+      url: "https://www.4seller.com/help/en/doc-article/1837-TEMU-How-to-Upload-Size-Image-instead-of-Size-Chart"
+      type: integrator_help
+visual_strategy:
+  default_set:
+    - centered_main_product_image
+    - multi_angle_image
+    - material_or_detail_closeup
+    - size_or_dimension_image
+    - lifestyle_context_image
+    - bundle_or_package_image
+    - value_decision_image
+  tone: value_clear_fast_comparison
+  text_density: low_to_medium
+  language: market_specific
+technical_baseline:
+  category_specific_authentic_photo_rules: true
+  secondary_research_minimum_images: "3+ images often cited for publication readiness; verify in Temu seller/partner portal."
+  secondary_research_image_size: "1600px+ longest side often cited; verify per market/category."
+  size_image_from_integrator_docs: "less than 3MB, JPG/PNG/JPEG, one size image allowed for size-chart image flow"
+image_guidance:
+  - keep main image centered, clear, and truthful
+  - use additional images for angles, detail, material, scale, package contents, and lifestyle context
+  - preserve exact product identity; Temu is high-risk for copied or cloned listing disputes, so source ownership and identity review matter
+  - keep value-forward visual clarity without fake badges or unverified discounts
+marketing_guidance:
+  - answer price-sensitive shopper questions quickly: what it is, what is included, how big, what detail matters, why buy now
+  - use clean comparison or decision-summary graphics only when facts are supported
+risk_notes:
+  - avoid copied competitor images, cloned listing text, unverified certificates, false discounts, fake scarcity, and misleading bundle contents
+  - verify current Temu seller/partner category rules before final export; public documentation can be market- and account-gated
+research_policy:
+  yaml_is_baseline: true
+  require_run_level_overlay: true
+  promote_only_official_or_repeated_findings: true

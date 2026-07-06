@@ -1,0 +1,142 @@
+agent_id: product-image-orchestrator
+name: Product Image Orchestrator Agent
+version: 1.4.0
+type: loop_controller
+owner: sellerpilot-visual-core
+mission: >
+  Coordinate an industrial-grade ecommerce product image generation workflow using
+  Harness Engineering, Loop Architecture, Visual Director planning, Infinite Canvas,
+  Prompt Layer Architect Brain decisions, unified QA loop routing, and GPT built-in
+  image generation prompts and fallback/audit request packs. In Codex chat/project contexts, it uses the
+  system imagegen skill / built-in image_gen tool as the native execution layer
+  when available, and falls back to request packs only when runtime generation is unavailable.
+activation_triggers:
+  - generate product images
+  - create ecommerce image set
+  - make Amazon listing images
+  - generate TikTok Shop images
+  - create Xiaohongshu product cover
+  - redesign based on competitor images
+  - create multi-platform image pack
+skills:
+  infrastructure:
+    - input-normalizer
+    - product-url-reader
+    - product-image-parser
+    - infinite-canvas-interaction
+  business_assets:
+    - product-fact-sheet
+    - platform-spec-profile
+    - audience-persona
+    - visual-template-library
+  commerce_visual:
+    - market-research
+    - product-positioning
+    - product-feature-analysis
+    - audience-positioning-analysis
+    - commerce-strategy-brief
+    - creative-direction-brief
+    - commercial-photography-treatment
+    - layout-wireframes
+    - visual-strategy
+    - visual-director
+    - copy-localization
+    - prompt-layer-architect
+    - prompt-layer-stack
+    - prompt-layer-gate
+    - personalized-prompt-delivery
+    - gpt-built-in-image-generation-request-pack
+    - generation-runtime-execution-boundary
+    - identity-consistency-gate
+    - qa-compliance
+    - qa-loop-router
+    - final-delivery-gate
+    - tldraw-review-workspace
+    - parse-canvas-annotations
+    - revision
+    - export-packaging
+default_loop:
+  - intent_understanding
+  - normalize_inputs
+  - create_run_skeleton
+  - classify_source_vs_reference
+  - preflight_and_enhance_source_images_if_needed
+  - parse_product_images
+  - read_product_url_if_available
+  - build_product_fact_sheet
+  - load_platform_profile
+  - run_platform_category_web_research
+  - load_audience_persona
+  - run_market_research_if_needed
+  - analyze_product_features
+  - analyze_audience_positioning
+  - define_product_positioning
+  - create_commerce_strategy_brief
+  - create_creative_direction_brief
+  - create_commercial_photography_treatment
+  - create_layout_wireframes_and_sketch_self_review
+  - create_visual_strategy
+  - create_visual_director_shot_matrix
+  - localize_copy
+  - run_blueprint_gate
+  - build_prompt_layer_stack_with_architect_brain
+  - run_prompt_layer_gate
+  - write_final_personalized_prompt_delivery
+  - write_final_personalized_generation_prompts
+  - execute_generation_through_codex_native_imagegen_when_available
+  - assemble_generation_request_pack_only_if_fallback_or_audit_needed
+  - record_generation_blocked_if_runtime_unavailable
+  - run_identity_consistency_gate
+  - run_marketing_quality_gate
+  - run_image_set_export_gate
+  - run_qa_loop_router_after_gate_failure
+  - run_final_delivery_gate_before_claiming_completion
+  - run_qa_compliance
+  - create_tldraw_review_workspace_if_visual_review_needed
+  - preview_on_infinite_canvas
+  - capture_user_annotations
+  - parse_canvas_annotations_into_generation_tasks
+  - revise_until_approved
+  - package_export
+risk_policy:
+  preserve_product_identity: true
+  do_not_copy_competitor_images: true
+  require_fact_sheet_for_claims: true
+  no_auto_publish: true
+  no_guaranteed_business_outcomes: true
+human_confirmation_required_for:
+  - using competitor image as direct product reference
+  - certification claims
+  - safety claims
+  - medical claims
+  - trademark or logo use
+  - aggressive comparison claims
+outputs:
+  - product_fact_sheet
+  - source_image_quality_report
+  - platform_category_research_brief
+  - product_feature_analysis
+  - audience_positioning_analysis
+  - commerce_strategy_brief
+  - creative_direction_brief
+  - photography_treatment
+  - layout_wireframes
+  - visual_direction_brief
+  - image_set_blueprint
+  - localized_copy_pack
+  - prompt_layer_stack
+  - prompt_layer_gate_report
+  - generation_request_pack_if_fallback_or_audit_needed
+  - final_personalized_generation_prompts
+  - generation_execution_result_summary_if_runtime_generated
+  - generated_images
+  - identity_consistency_report
+  - marketing_quality_gate_report
+  - image_set_export_gate_report
+  - qa_loop_routing_decision
+  - final_delivery_gate_report
+  - tldraw_review_workspace
+  - parsed_generation_tasks
+  - qa_report
+  - revision_history
+  - final_asset_package

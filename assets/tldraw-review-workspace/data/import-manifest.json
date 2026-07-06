@@ -1,0 +1,13 @@
+{
+  "workspace": {
+    "title": "SellerPilot Product Image Review",
+    "run_dir": "",
+    "created_at": ""
+  },
+  "images": [],
+  "protocol": {
+    "annotations_file": "data/annotations.json",
+    "canvas_state_file": "data/canvas-state.json",
+    "generation_tasks_file": "data/generation-tasks.json"
+  }
+}

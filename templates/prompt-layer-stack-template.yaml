@@ -1,0 +1,109 @@
+prompt_layer_stack:
+  image_index:
+  output_filename:
+  prompt_layer_architect:
+    decision_basis:
+      product_category:
+      platform:
+      image_role:
+      audience:
+      scene_complexity:
+      identity_risk:
+      claim_risk:
+      layout_complexity:
+      runtime_generation_available:
+    mandatory_layers:
+      - execution_contract_layer
+      - product_identity_layer
+      - fact_boundary_layer
+      - commerce_goal_layer
+      - context_layer
+      - creative_concept_layer
+      - photography_treatment_layer
+      - layout_copy_layer
+      - negative_qa_layer
+    conditional_layers: []
+    omitted_layers: []
+    layer_order: []
+    locked_layers: []
+    conflict_notes: []
+  layers:
+    execution_contract_layer:
+      provider: gpt-built-in-image-generation
+      execution_boundary: runtime_or_host_app_executes_generation
+      output_filename:
+      image_role:
+    product_identity_layer:
+      source_image_refs: []
+      enhanced_source_image_refs: []
+      identity_lock_ref:
+      must_preserve: []
+      forbidden_changes: []
+    fact_boundary_layer:
+      supported_claims: []
+      uncertain_facts: []
+      prohibited_claims: []
+      user_confirmation_required: []
+    commerce_goal_layer:
+      buyer_question:
+      conversion_intent:
+      purchase_objection:
+      image_job:
+      success_criteria:
+      reject_if:
+    context_layer:
+      platform:
+      locale:
+      category:
+      audience:
+      price_band:
+      season_or_occasion:
+      marketplace_tone:
+    creative_concept_layer:
+      visual_concept:
+      mood_keywords: []
+      color_system: []
+      differentiation_angle:
+      visual_memory_point:
+    photography_treatment_layer:
+      camera_angle:
+      lens_feel:
+      crop:
+      camera_height:
+      lighting_direction:
+      color_temperature:
+      scene:
+      model_or_body_context:
+      outfit_context:
+      props:
+      product_placement:
+      scale_cues:
+    layout_copy_layer:
+      layout_intent:
+      product_area:
+      text_area:
+      safe_zones:
+      hierarchy:
+      copy_to_include: []
+      copy_to_avoid: []
+      text_generation_policy:
+    negative_qa_layer:
+      negative_prompt: []
+      qa_expectations:
+        identity:
+        scene_authenticity:
+        marketing:
+        layout:
+        platform:
+      retry_policy:
+        max_prompt_revisions:
+        max_generation_attempts:
+        revise_only_failed_layer: true
+  conditional_layer_payloads: {}
+  layer_review:
+    status: pending
+    missing_layers: []
+    conflict_notes: []
+    generic_prompt_risk:
+    blocked_reason:
+  iteration_history: []

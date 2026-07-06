@@ -1,0 +1,28 @@
+photography_treatment:
+  overall_style:
+  selected_master_archetypes: []
+  product_truth_constraints: []
+  shots:
+    - image_index:
+      image_role:
+      final_asset_type:
+      photography_style_archetype:
+      why_it_fits_product_and_audience:
+      camera_angle:
+      lens_feel:
+      crop:
+      camera_height:
+      lighting_direction:
+      color_temperature:
+      background_or_scene:
+      model_or_body_context:
+      outfit_context:
+      props:
+      product_placement:
+      scale_cues:
+      audience_fit:
+      product_truth_constraints: []
+      identity_risks:
+      must_preserve_micro_details: []
+      must_preserve: []
+      forbidden_changes: []

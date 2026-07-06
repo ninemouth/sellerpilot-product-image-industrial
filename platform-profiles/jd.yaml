@@ -1,0 +1,53 @@
+platform_id: jd
+name: JD.com / Jingdong / 京东
+aliases: [jingdong, jd_com, 京东, 京东商城, 京东小店, jingxi]
+locale_defaults: [zh-CN]
+source_meta:
+  researched_at: "2026-07-05"
+  source_confidence: mixed_official_public_and_login_gated
+  notes:
+    - Some JD merchant-learning articles redirect to JD merchant login when opened directly; keep this profile as a baseline and verify through run-level overlay before production.
+  sources:
+    - title: "关于京东商品主图规范经营公告"
+      url: "https://mtt.m.jd.com/article/articleView/38caf73d-746f-4607-b15f-5495c32d1b41"
+      type: official_jd_merchant_learning_login_gated
+    - title: "图片空间主图尺寸/数量放宽公告"
+      url: "https://mtt.m.jd.com/article/articleView/6bcf496d-ed86-46fe-9667-f0878bf97d35.action"
+      type: official_jd_merchant_learning_login_gated
+    - title: "京喜平台重点规则解析"
+      url: "https://mtt.jd.com/article/articleView/c6be0f29-398e-4e63-b306-755ed1b3f69b.action"
+      type: official_jd_merchant_learning_login_gated
+visual_strategy:
+  default_set:
+    - white_background_main_image
+    - alternate_angle_image
+    - feature_detail_image
+    - scale_or_dimension_image
+    - scenario_or_use_case_image
+    - trust_or_decision_image
+    - detail_page_modules
+  tone: quality_trust_conversion_clear
+  text_density: medium
+  language: zh-CN
+technical_baseline:
+  main_image_aspect_ratio: "1:1 square baseline; some categories/support surfaces may allow long image"
+  baseline_size: "800x800px is a common merchant-learning baseline; public JD merchant snippets also mention relaxed image-space ranges such as 480-1500px square with file-size limits. Verify per category."
+  file_types: [jpg, jpeg, png]
+  first_image: "front physical product image; white background expected for baseline commodity surfaces"
+image_guidance:
+  - keep first image clean, product-dominant, and physically accurate
+  - provide multiple angles such as front, side, back, and detail when the category benefits from them
+  - use secondary images for dimensions, material/detail evidence, and usage scenarios
+  - keep Chinese selling points concise and avoid dense small text
+  - use run-level platform/category overlay for current category dimensions and merchant-backend prompts
+marketing_guidance:
+  - emphasize trust, quality, specifications, service, and clear comparison-friendly decision information
+  - use evidence-backed JD-style value points rather than noisy promotion claims
+risk_notes:
+  - avoid false discounts, false ranking, official/authorized claims without evidence, certification claims without proof, and third-party watermarks
+  - do not use model/lifestyle scenes on first image when the current category rule requires a white-background product image
+  - verify current category-specific image rules through JD merchant backend or official learning center before final export
+research_policy:
+  yaml_is_baseline: true
+  require_run_level_overlay: true
+  promote_only_official_or_repeated_findings: true

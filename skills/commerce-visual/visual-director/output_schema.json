@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "required": ["visual_strategy", "shot_matrix", "copy_policy", "generation_notes"],
+  "properties": {
+    "visual_strategy": { "type": "object" },
+    "shot_matrix": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "copy_policy": { "type": "object" },
+    "generation_notes": { "type": "object" }
+  }
+}

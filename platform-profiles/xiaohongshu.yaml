@@ -1,0 +1,11 @@
+platform_id: xiaohongshu
+name: Xiaohongshu
+visual_strategy:
+  default_set: [cover_image, lifestyle_seed_image, pain_point_image, feature_soft_explain_image, soft_cta_image]
+  tone: lifestyle_natural_content_native
+  text_density: low_to_medium
+image_guidance:
+  - make image feel natural and content-native
+  - avoid overly hard-sell visuals
+risk_notes:
+  - avoid fake personal experience claims

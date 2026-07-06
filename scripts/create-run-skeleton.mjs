@@ -1,0 +1,734 @@
+#!/usr/bin/env node
+import fs from "node:fs";
+import path from "node:path";
+
+function parseArgs(argv) {
+  const args = {};
+  for (let i = 2; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (!arg.startsWith("--")) continue;
+    const key = arg.slice(2);
+    const next = argv[i + 1];
+    if (!next || next.startsWith("--")) args[key] = true;
+    else {
+      args[key] = next;
+      i += 1;
+    }
+  }
+  return args;
+}
+
+function usage() {
+  console.error(`Usage:
+node scripts/create-run-skeleton.mjs --out-dir /abs/runs/run-id --platform "拼多多" --category "女包" [--product-name "..."]
+
+Creates a standard SellerPilot product-image run folder so later loops can reuse
+approved assets and regenerate only failed pieces.`);
+  process.exit(2);
+}
+
+const args = parseArgs(process.argv);
+if (!args["out-dir"] || !args.platform || !args.category) usage();
+
+const outDir = path.resolve(args["out-dir"]);
+const platform = args.platform;
+const category = args.category;
+const productName = args["product-name"] || "";
+const now = new Date().toISOString();
+
+for (const dir of [
+  "source-original",
+  "source-enhanced",
+  "brief-intake",
+  "research",
+  "research/references",
+  "blueprint",
+  "prompt-pack",
+  "generated-assets",
+  "layout-drafts",
+  "final-images",
+  "review",
+  "qa",
+  "export",
+]) {
+  fs.mkdirSync(path.join(outDir, dir), { recursive: true });
+}
+
+writeIfMissing(path.join(outDir, "brief-intake", "brief-intake-gate-report.json"), JSON.stringify({
+  status: "not_run",
+  critical_questions: [],
+  assumptions: [],
+  risk_flags: [],
+  task_analysis_additions: [],
+}, null, 2) + "\n");
+
+writeIfMissing(path.join(outDir, "00-task-context.yaml"), [
+  `created_at: ${JSON.stringify(now)}`,
+  `platform: ${JSON.stringify(platform)}`,
+  `category: ${JSON.stringify(category)}`,
+  `product_name: ${JSON.stringify(productName)}`,
+  "source_images: []",
+  "target_image_count:",
+  "locale:",
+  "audience:",
+  "season_or_occasion:",
+  "commercial_goal:",
+  "notes: []",
+  "",
+].join("\n"));
+
+writeIfMissing(path.join(outDir, "01-goal-contract.yaml"), [
+  "goal_contract:",
+  `  created_at: ${JSON.stringify(now)}`,
+  `  platform: ${JSON.stringify(platform)}`,
+  `  category: ${JSON.stringify(category)}`,
+  `  product_name: ${JSON.stringify(productName)}`,
+  "  run_goal:",
+  "  commercial_objective:",
+  "    primary:",
+  "    secondary:",
+  "  target_image_count:",
+  "  deliverable_type:",
+  "    - final_generated_images",
+  "    - personalized_generation_prompts",
+  "    - generation_request_pack_only_if_fallback_or_audit_needed",
+  "  success_criteria:",
+  "    - source product identity is preserved",
+  "    - each image has a buyer question and commercial task",
+  "    - final prompts are personalized, not fixed generic prompts",
+  "    - sketches/wireframes exist before final prompt delivery",
+  "    - QA gates are recorded before export",
+  "  stop_conditions:",
+  "    - source identity cannot be locked",
+  "    - scene roles lack real generated/photo scene asset or executable generation prompt",
+  "    - prompt is generic enough to fit unrelated products",
+  "    - unsupported product claims are required for the concept",
+  "",
+].join("\n"));
+
+writeIfMissing(path.join(outDir, "research", "platform-category-profile-overlay.yaml"), [
+  "platform_category_profile_overlay:",
+  `  platform: ${JSON.stringify(platform)}`,
+  `  category: ${JSON.stringify(category)}`,
+  "  locale:",
+  `  research_date: ${JSON.stringify(now.slice(0, 10))}`,
+  "  baseline_profile:",
+  "  official_constraints:",
+  "    dimensions:",
+  "    image_count:",
+  "    file_rules:",
+  "    prohibited_content:",
+  "  category_visual_norms:",
+  "    common_main_image_patterns: []",
+  "    common_detail_patterns: []",
+  "    common_scene_patterns: []",
+  "    common_copy_patterns: []",
+  "    common_trust_patterns: []",
+  "  category_buyer_expectations:",
+  "    buyer_questions: []",
+  "    objections: []",
+  "    price_or_value_signals: []",
+  "  trend_hypotheses: []",
+  "  production_implications:",
+  "    image_roles: []",
+  "    camera_angles: []",
+  "    scenes: []",
+  "    copy_voice:",
+  "    avoid: []",
+  "",
+].join("\n"));
+
+writeIfMissing(path.join(outDir, "research", "bestseller-design-mining.md"), [
+  "# Bestseller Design Mining",
+  "",
+  "- Status: pending",
+  "- References reviewed:",
+  "- Extracted design patterns:",
+  "- Patterns to borrow:",
+  "- Patterns rejected:",
+  "- Copying/IP risks:",
+  "",
+].join("\n"));
+
+writeIfMissing(path.join(outDir, "research", "bestseller-patterns.yaml"), [
+  "bestseller_patterns:",
+  "  references: []",
+  "  extracted_patterns: []",
+  "  used_in_blueprint: []",
+  "  rejected_patterns: []",
+  "",
+].join("\n"));
+
+writeIfMissing(path.join(outDir, "research", "platform-category-research.md"), [
+  "# Platform Category Research",
+  "",
+  `- Search date: ${now.slice(0, 10)}`,
+  `- Platform: ${platform}`,
+  `- Category: ${category}`,
+  "- Official sources:",
+  "- Non-official/category findings:",
+  "- Shopper tone implications:",
+  "- Visual implications:",
+  "- Claim/risk implications:",
+  "",
+].join("\n"));
+
+writeIfMissing(path.join(outDir, "blueprint", "02-identity-lock.yaml"), [
+  "identity_lock:",
+  "  source_images: []",
+  "  enhanced_source_image:",
+  `  product_category: ${JSON.stringify(category)}`,
+  "  must_preserve:",
+  "    silhouette:",
+  "    proportions:",
+  "    primary_color:",
+  "    material_appearance:",
+  "    texture:",
+  "    hardware:",
+  "    closure:",
+  "    strap_or_handle:",
+  "    accessory_or_decoration:",
+  "    logo_or_markings:",
+  "    distinctive_details: []",
+  "  micro_detail_lock:",
+  "    visible_text_or_logo:",
+  "      status: not_visible",
+  "      location:",
+  "      preserve_as: shape_only",
+  "      ask_user_for_closeup: false",
+  "    product_name_or_trademark:",
+  "      status: not_visible",
+  "      preserve_as: shape_only",
+  "    hardware_marks:",
+  "      status: not_visible",
+  "      preserve_as: shape_only",
+  "    stitching_pattern:",
+  "    zipper_teeth:",
+  "    charm_face:",
+  "    edge_shape:",
+  "  flexible:",
+  "    background:",
+  "    lighting:",
+  "    model_or_props:",
+  "    camera_angle:",
+  "    crop:",
+  "  forbidden_changes:",
+  "    - changing color family",
+  "    - changing silhouette or size ratio",
+  "    - adding/removing product structures or accessories",
+  "    - changing material appearance",
+  "    - inventing interior, capacity, bundle items, branding, or certification",
+  "  detail_checklist: []",
+  "",
+].join("\n"));
+
+writeIfMissing(path.join(outDir, "blueprint", "03-product-feature-analysis.yaml"), [
+  "product_feature_analysis:",
+  `  category: ${JSON.stringify(category)}`,
+  "  confirmed_core_traits: []",
+  "  visual_features:",
+  "    shape:",
+  "    color:",
+  "    material_appearance:",
+  "    structure:",
+  "    hardware:",
+  "    closure:",
+  "    strap_or_handle:",
+  "    accessories:",
+  "    texture:",
+  "    size:",
+  "  buyer_relevant_benefits: []",
+  "  detail_shot_opportunities: []",
+  "  scene_triggers: []",
+  "  differentiation_angles: []",
+  "  uncertain_or_unverified: []",
+  "",
+].join("\n"));
+
+writeIfMissing(path.join(outDir, "blueprint", "04-audience-positioning-analysis.yaml"), [
+  "audience_positioning_analysis:",
+  "  primary_buyer:",
+  "    description:",
+  "    shopping_moment:",
+  "    price_sensitivity:",
+  "    decision_style:",
+  "  secondary_buyers: []",
+  "  buying_motivations: []",
+  "  purchase_objections: []",
+  "  aesthetic_preferences:",
+  "    colors:",
+  "    styling:",
+  "    scene_mood:",
+  "    model_or_no_model:",
+  "    lighting:",
+  "  platform_behavior_hypotheses: []",
+  "  scene_priority: []",
+  "  copy_voice:",
+  "    tone:",
+  "    phrase_patterns: []",
+  "    avoid: []",
+  "  conversion_intent:",
+  "    click_reason:",
+  "    trust_reason:",
+  "    comparison_reason:",
+  "",
+].join("\n"));
+
+writeIfMissing(path.join(outDir, "blueprint", "05-commerce-strategy-brief.yaml"), [
+  "commerce_strategy_brief:",
+  "  run_goal:",
+  `  product_category: ${JSON.stringify(category)}`,
+  `  platform: ${JSON.stringify(platform)}`,
+  "  locale:",
+  "  season_or_occasion:",
+  "  commercial_objective:",
+  "    primary:",
+  "    secondary:",
+  "  buyer_path:",
+  "    click_trigger:",
+  "    trust_builder:",
+  "    comparison_reason:",
+  "    conversion_push:",
+  "  image_set_architecture: []",
+  "  unsupported_or_risky_claims: []",
+  "  notes: []",
+  "",
+].join("\n"));
+
+writeIfMissing(path.join(outDir, "blueprint", "06-creative-direction-brief.yaml"), [
+  "creative_direction_brief:",
+  "  creative_goal:",
+  "  single_minded_proposition:",
+  "  visual_concept:",
+  "  mood_keywords: []",
+  "  price_band_signal:",
+  "  differentiation_angle:",
+  "  color_system:",
+  "    dominant:",
+  "    accent:",
+  "    neutral:",
+  "    avoid: []",
+  "  visual_memory_points: []",
+  "  do: []",
+  "  do_not: []",
+  "  platform_fit_notes: []",
+  "  season_or_occasion_notes: []",
+  "",
+].join("\n"));
+
+writeIfMissing(path.join(outDir, "blueprint", "07-visual-direction-brief.yaml"), [
+  "visual_strategy:",
+  `  platform: ${JSON.stringify(platform)}`,
+  `  category: ${JSON.stringify(category)}`,
+  "  audience:",
+  "  tone:",
+  "  conversion_intent:",
+  "shot_matrix: []",
+  "copy_policy:",
+  "  voice:",
+  "  banned_internal_phrases:",
+  "    - 不虚标",
+  "    - 以源图为准",
+  "    - 示意",
+  "    - QA",
+  "    - 风险",
+  "generation_notes:",
+  "  generate_first: []",
+  "  reuse_allowed: []",
+  "  rerender_only: []",
+  "  stop_conditions: []",
+  "",
+].join("\n"));
+
+writeIfMissing(path.join(outDir, "blueprint", "07-graphic-design-direction.yaml"), [
+  "graphic_design_direction:",
+  `  platform: ${JSON.stringify(platform)}`,
+  `  category: ${JSON.stringify(category)}`,
+  "  audience:",
+  "  design_goal:",
+  "  set_layout_system:",
+  "    typography_hierarchy:",
+  "    safe_zones:",
+  "    overlay_style:",
+  "    text_density:",
+  "    color_and_contrast:",
+  "    mobile_thumbnail_rule:",
+  "  per_image_design: []",
+  "  no_watermark_policy:",
+  "    default_visible_mark_decision: prohibited_unless_user_explicitly_requests_exact_mark",
+  "    visible_platform_pack_label_allowed: false",
+  "    internal_system_mark_allowed: false",
+  "    corner_label_allowed: false",
+  "    watermark_authorization:",
+  "      status: none",
+  "      source_user_request:",
+  "      exact_visible_text:",
+  "      placement:",
+  "      purpose:",
+  "      allowed_images: []",
+  "    allowed_visible_marks: []",
+  "    forbidden_visible_marks:",
+  "      - 拼多多女包套图",
+  "      - 拼多多套图",
+  "      - 女包套图",
+  "      - PDD",
+  "      - SellerPilot",
+  "      - Codex",
+  "      - AI生成",
+  "      - 样图",
+  "      - 示例图",
+  "      - 仅供参考",
+  "  rejection_triggers: []",
+  "",
+].join("\n"));
+
+writeIfMissing(path.join(outDir, "blueprint", "08-photography-treatment.yaml"), [
+  "photography_treatment:",
+  "  overall_style:",
+  "  selected_master_archetypes: []",
+  "  product_truth_constraints: []",
+  "  shots: []",
+  "",
+].join("\n"));
+
+writeIfMissing(path.join(outDir, "layout-drafts", "09-layout-wireframes.yaml"), [
+  "layout_wireframes:",
+  "  design_system:",
+  "    canvas: 1200x1200",
+  "    grid:",
+  "    margins:",
+  "    safe_zones:",
+  "    typography:",
+  "    color_tokens:",
+  "    mobile_thumbnail_minimums:",
+  "  frames: []",
+  "",
+].join("\n"));
+
+writeIfMissing(path.join(outDir, "layout-drafts", "09-sketch-self-review.md"), [
+  "# Sketch Self Review",
+  "",
+  "- Status: pending",
+  "- Does each image deserve to exist?",
+  "- Does each image answer a different buyer question?",
+  "- Are scene sketches real enough to generate?",
+  "- Are layout wireframes clear before final prompt delivery?",
+  "- Generic prompt risk:",
+  "- Smallest upstream fix before prompt:",
+  "",
+].join("\n"));
+
+writeIfMissing(path.join(outDir, "prompt-pack", "10-generation-request-pack.yaml"), [
+  "generation_request_pack:",
+  "  provider: gpt-built-in-image-generation",
+  "  execution_boundary: codex_native_imagegen_or_host_app_executes_generation",
+  "  preferred_execution_layer: system imagegen skill / built-in image_gen tool when running in Codex",
+  "  generation_status: request_pack_pending_only_for_fallback_or_audit",
+  "  forbidden_execution_layers:",
+  "    - ad-hoc one-off SDK wrapper",
+  "    - silent CLI/API fallback",
+  "    - deterministic layout renderer as final scene generation",
+  "  source_image_refs: []",
+  "  enhanced_source_image_refs: []",
+  "  identity_lock_ref: blueprint/02-identity-lock.yaml",
+  "  goal_contract_ref: 01-goal-contract.yaml",
+  "  commerce_strategy_ref: blueprint/05-commerce-strategy-brief.yaml",
+  "  creative_direction_ref: blueprint/06-creative-direction-brief.yaml",
+  "  graphic_design_direction_ref: blueprint/07-graphic-design-direction.yaml",
+  "  photography_treatment_ref: blueprint/08-photography-treatment.yaml",
+  "  layout_wireframes_ref: layout-drafts/09-layout-wireframes.yaml",
+  "  prompt_readiness:",
+  "    strategy_locked: false",
+  "    sketches_reviewed: false",
+  "    photography_treatment_locked: false",
+  "    graphic_design_direction_locked: false",
+  "    layout_intent_locked: false",
+  "    prompt_is_personalized: false",
+  "  scene_policy:",
+  "    scene_roles_require_true_scene_assets: true",
+  "    deterministic_renderer_scene_cutout_only_is_final_failure: true",
+  "    minimum_true_scene_roles_when_requested: 2",
+  "  requests: []",
+  "  blocked_generation_note:",
+  "  execution_results: []",
+  "",
+].join("\n"));
+
+writeIfMissing(path.join(outDir, "prompt-pack", "10-final-generation-prompts.md"), [
+  "# Final Generation Prompts",
+  "",
+  "- Provider: GPT built-in image generation",
+  "- Execution boundary: Codex native imagegen/image_gen or host app executes generation",
+  "- In Codex, use the system `imagegen` skill / built-in `image_gen` tool when available.",
+  "- Request packs are fallback/audit evidence, not the default user-facing deliverable.",
+  "- Do not use ad-hoc wrappers, silent CLI/API fallback, or deterministic layout drafts as final generation.",
+  "",
+].join("\n"));
+
+writeIfMissing(path.join(outDir, "prompt-pack", "11-final-personalized-prompt-delivery.md"), [
+  "# Final Personalized Prompt Delivery",
+  "",
+  "## Run Goal",
+  "",
+  "- Status: pending",
+  "- This is the final production handoff after product truth, strategy, sketches, photography treatment, layout intent, and QA readiness.",
+  "- Do not use this as a fixed generic prompt template.",
+  "",
+  "## Readiness",
+  "",
+  "- Goal contract:",
+  "- Product truth:",
+  "- Platform/category/season:",
+  "- Audience:",
+  "- Commerce strategy:",
+  "- Creative direction:",
+  "- Photography treatment:",
+  "- Layout sketch:",
+  "- Prompt personalization:",
+  "",
+  "## Requests",
+  "",
+  "```yaml",
+  "requests: []",
+  "```",
+  "",
+  "## Blocked Generation Note",
+  "",
+  "",
+].join("\n"));
+
+writeIfMissing(path.join(outDir, "prompt-pack", "12-prompt-layer-stack.json"), JSON.stringify({
+  prompt_layer_stack: {
+    image_index: null,
+    output_filename: null,
+    prompt_layer_architect: {
+      decision_basis: {
+        product_category: category,
+        platform,
+        image_role: null,
+        audience: null,
+        scene_complexity: null,
+        identity_risk: null,
+        claim_risk: null,
+        layout_complexity: null,
+        runtime_generation_available: null,
+      },
+      mandatory_layers: [
+        "execution_contract_layer",
+        "product_identity_layer",
+        "fact_boundary_layer",
+        "commerce_goal_layer",
+        "context_layer",
+        "creative_concept_layer",
+        "graphic_design_layer",
+        "photography_treatment_layer",
+        "layout_copy_layer",
+        "negative_qa_layer",
+      ],
+      conditional_layers: [],
+      omitted_layers: [],
+      layer_order: [],
+      locked_layers: [],
+      conflict_notes: [],
+    },
+    layers: {
+      execution_contract_layer: {
+        provider: "gpt-built-in-image-generation",
+        execution_boundary: "codex_native_imagegen_or_host_app_executes_generation",
+        output_filename: null,
+        image_role: null,
+      },
+      product_identity_layer: {
+        source_image_refs: [],
+        enhanced_source_image_refs: [],
+        identity_lock_ref: "blueprint/02-identity-lock.yaml",
+        must_preserve: [],
+        micro_detail_lock: {},
+        forbidden_changes: [],
+      },
+      fact_boundary_layer: {
+        supported_claims: [],
+        uncertain_facts: [],
+        prohibited_claims: [],
+        user_confirmation_required: [],
+      },
+      commerce_goal_layer: {
+        buyer_question: null,
+        conversion_intent: null,
+        purchase_objection: null,
+        image_job: null,
+        success_criteria: null,
+        reject_if: null,
+      },
+      context_layer: {
+        platform,
+        locale: null,
+        category,
+        audience: null,
+        price_band: null,
+        season_or_occasion: null,
+        marketplace_tone: null,
+      },
+      creative_concept_layer: {
+        visual_concept: null,
+        mood_keywords: [],
+        color_system: [],
+        differentiation_angle: null,
+        visual_memory_point: null,
+      },
+      photography_treatment_layer: {
+        photography_style_archetype: null,
+        why_it_fits_product_and_audience: null,
+        camera_angle: null,
+        lens_feel: null,
+        crop: null,
+        camera_height: null,
+        lighting_direction: null,
+        color_temperature: null,
+        scene: null,
+        model_or_body_context: null,
+        outfit_context: null,
+        props: null,
+        product_placement: null,
+        scale_cues: null,
+        must_preserve_micro_details: [],
+      },
+      graphic_design_layer: {
+        graphic_design_direction_ref: "blueprint/07-graphic-design-direction.yaml",
+        layout_intent: null,
+        typography_hierarchy: null,
+        safe_zones: null,
+        overlay_style: null,
+        mobile_thumbnail_rule: null,
+        no_watermark_policy: {
+          default_visible_mark_decision: "prohibited_unless_user_explicitly_requests_exact_mark",
+          visible_platform_pack_label_allowed: false,
+          internal_system_mark_allowed: false,
+          corner_label_allowed: false,
+          watermark_authorization: {
+            status: "none",
+            source_user_request: null,
+            exact_visible_text: null,
+            placement: null,
+            purpose: null,
+            allowed_images: [],
+          },
+          allowed_visible_marks: [],
+        },
+      },
+      layout_copy_layer: {
+        layout_intent: null,
+        product_area: null,
+        text_area: null,
+        safe_zones: null,
+        hierarchy: null,
+        copy_to_include: [],
+        copy_to_avoid: [],
+        text_generation_policy: null,
+      },
+      negative_qa_layer: {
+        negative_prompt: [],
+        qa_expectations: {},
+        retry_policy: {
+          max_prompt_revisions: 3,
+          max_generation_attempts: 2,
+          revise_only_failed_layer: true,
+        },
+      },
+    },
+    conditional_layer_payloads: {},
+    layer_review: {
+      status: "pending",
+      missing_layers: [],
+      conflict_notes: [],
+      generic_prompt_risk: "unknown",
+      blocked_reason: null,
+    },
+    iteration_history: [],
+  },
+}, null, 2) + "\n");
+
+writeIfMissing(path.join(outDir, "generated-assets", "generation-progress.json"), JSON.stringify({
+  status: "not_started",
+  completed_images: [],
+  pending_images: [],
+  failed_images: [],
+  next_action: "run brief intake, identity lock, visual direction, then generate anchor batch",
+  anchor_batch_required: true,
+}, null, 2) + "\n");
+
+writeIfMissing(path.join(outDir, "qa", "prompt-readiness-gate-report.md"), [
+  "# Prompt Readiness Gate Report",
+  "",
+  "- Status: pending",
+  "- Missing goal contract:",
+  "- Missing commerce strategy:",
+  "- Missing creative direction:",
+  "- Missing photography treatment:",
+  "- Missing sketches/wireframes:",
+  "- Generic prompt risk:",
+  "- Product identity risk:",
+  "- Unsupported claim risk:",
+  "- Decision: blocked | ready_with_risks | ready",
+  "",
+].join("\n"));
+
+writeIfMissing(path.join(outDir, "qa", "prompt-layer-gate-report.md"), [
+  "# Prompt Layer Gate Report",
+  "",
+  "- Status: pending",
+  "- Missing mandatory layers:",
+  "- Missing conditional layers:",
+  "- Layer conflicts:",
+  "- Generic prompt risk:",
+  "- Return node:",
+  "",
+].join("\n"));
+
+writeIfMissing(path.join(outDir, "qa", "qa-loop-routing-decision.yaml"), [
+  "loop_decision:",
+  "  status: pending",
+  "  primary_failure_type:",
+  "  return_node:",
+  "  failed_gate:",
+  "  failed_images: []",
+  "  smallest_next_action:",
+  "  rerun_from: []",
+  "  do_not_rerun: []",
+  "  retry_budget:",
+  "  blocked_reason:",
+  "  user_input_required: false",
+  "",
+].join("\n"));
+
+writeIfMissing(path.join(outDir, "qa", "final-delivery-gate-report.md"), [
+  "# Final Delivery Gate Report",
+  "",
+  "- Status: pending",
+  "- Upstream gate failures:",
+  "- Draft/placeholder assets in final-images:",
+  "- Runtime generation blocked:",
+  "- QA loop closed:",
+  "- Decision: fail | pass_with_warnings | pass",
+  "",
+].join("\n"));
+
+writeIfMissing(path.join(outDir, "qa", "marketing-quality-gate-report.md"), [
+  "# Marketing Quality Gate Report",
+  "",
+  "- Status: pending",
+  "- Repeated camera findings:",
+  "- Repeated detail findings:",
+  "- Buyer-facing copy findings:",
+  "- Scene authenticity findings:",
+  "- Smallest next action:",
+  "",
+].join("\n"));
+
+console.log(outDir);
+
+function writeIfMissing(filePath, content) {
+  if (fs.existsSync(filePath)) return;
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, content);
+}

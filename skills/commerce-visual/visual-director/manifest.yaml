@@ -1,0 +1,15 @@
+skill_id: visual-director
+name: Visual Director
+category: commerce-visual
+version: 1.0.0
+purpose: Create the per-image photography, camera, lighting, scene, prop, and buyer-facing copy direction before image generation.
+inputs:
+  - product_fact_sheet
+  - platform_category_research
+  - audience_persona
+  - product_positioning
+  - target_image_count
+outputs:
+  - visual_direction_brief
+  - shot_matrix
+  - copy_policy

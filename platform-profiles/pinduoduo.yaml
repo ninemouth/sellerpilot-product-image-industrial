@@ -1,0 +1,44 @@
+platform_id: pinduoduo
+name: Pinduoduo
+visual_strategy:
+  default_set:
+    - main_selling_image
+    - size_image
+    - feature_detail_image
+    - outfit_wearing_image
+    - capacity_or_use_case_image
+    - commute_lifestyle_scene_image
+    - weekend_lifestyle_scene_image
+    - decision_summary_image
+  tone: conversion_dense_value_clear
+  text_density: medium_to_high
+  language: zh-CN
+image_guidance:
+  - keep the product identity clear and large
+  - use direct Chinese selling-point callouts
+  - support size, detail, use-case, and decision-summary graphics
+  - require visible role diversity across the set; do not repeat the same source image with only text changes
+  - scene images must show the product in a plausible wearing, commute, shopping, coffee-shop, street, office, or home-entry context
+  - outfit and lifestyle scenes should use generated or photographed scene assets before adding Chinese ecommerce copy
+  - keep claims inside the Product Fact Sheet evidence boundary
+  - prefer readable 1:1 square assets for initial drafts unless the user provides official dimensions
+minimum_marketing_roles:
+  for_8_image_set:
+    - clean_main_product
+    - size_and_scale
+    - material_or_detail_closeups
+    - wearing_or_outfit_scene
+    - capacity_or_daily_items
+    - commute_use_scene
+    - weekend_or_date_scene
+    - decision_summary
+quality_gates:
+  - no_more_than_three_images_may_use_the_same_white-background_product_cutout_as_the_primary_visual
+  - at_least_two_images_must_be_true_or_generated_lifestyle_scene_compositions_when_the_user_requests_scene_images
+  - capacity_images_must_show_distinct_composition_with_everyday_items_and_no_unverified_oversized_capacity
+  - detail_images_must_use_crops_callouts_or_closeups_rather_than_the_same_full_product_image
+risk_notes:
+  - avoid fake discounts, false urgency, fake sales ranking, or lowest-price claims
+  - avoid unverified material claims such as genuine leather
+  - avoid unverified waterproof, load-bearing, certification, safety, or medical claims
+  - do not auto-upload or publish assets

@@ -1,0 +1,11 @@
+platform_id: shopee_lazada
+name: Shopee / Lazada
+visual_strategy:
+  default_set: [marketplace_main_image, benefit_image, promotion_image, feature_image, localized_use_case_image]
+  tone: mobile_marketplace_promo_aware
+  text_density: medium
+image_guidance:
+  - maintain mobile readability
+  - localize language and offer cues
+risk_notes:
+  - avoid fake promotion badges

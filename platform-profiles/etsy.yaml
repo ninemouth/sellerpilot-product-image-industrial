@@ -1,0 +1,50 @@
+platform_id: etsy
+name: Etsy
+aliases: [etsy_marketplace]
+locale_defaults: [en-US]
+source_meta:
+  researched_at: "2026-07-05"
+  source_confidence: official_help_center
+  sources:
+    - title: "Requirements and Best Practices for Images in Your Etsy Shop"
+      url: "https://help.etsy.com/hc/en-us/articles/115015663347-Requirements-and-Best-Practices-for-Images-in-Your-Etsy-Shop"
+      type: official_etsy_help
+    - title: "How to Create a Listing"
+      url: "https://help.etsy.com/hc/en-us/articles/115015628707-How-to-Create-a-Listing"
+      type: official_etsy_help
+    - title: "Listing Image Requirements"
+      url: "https://www.etsy.com/legal/policy/listing-image-requirements/253962679005"
+      type: official_etsy_policy
+visual_strategy:
+  default_set:
+    - first_listing_image
+    - scale_context_image
+    - material_or_process_detail_image
+    - lifestyle_use_image
+    - variation_or_option_image
+    - packaging_or_giftability_image
+    - maker_process_or_trust_image
+  tone: handmade_authentic_story_driven
+  text_density: low
+  language: en-US
+technical_baseline:
+  recommended_listing_image_width: "2000px+ recommended by Etsy Help for listing image quality"
+  first_image_orientation: "horizontal or square recommended so the center focal point works in thumbnail crops"
+  color_profile: sRGB
+  photos_per_listing: "up to 10 photos appears in Etsy Help variation workflow; verify current UI"
+image_guidance:
+  - use original photos of the actual item whenever policy requires real product photos
+  - keep the product clear in square, portrait, and landscape thumbnail crops
+  - preserve extra negative space so Etsy crops do not cut off important details
+  - prefer authentic handmade, craft, vintage, or maker-context storytelling over hard-sell graphics
+  - keep text overlays minimal; let photography, material, scale, process, and lifestyle carry trust
+marketing_guidance:
+  - answer buyer questions about scale, material, personalization, giftability, process, and real item condition
+  - use lifestyle and process images to build trust and uniqueness
+risk_notes:
+  - Etsy policy emphasizes original photos of the actual product except specific allowed exceptions; do not use generic stock/rendered images as final listing photos without checking policy fit
+  - avoid implying handmade, vintage, personalization, production partner, or material facts without evidence
+research_policy:
+  yaml_is_baseline: true
+  require_run_level_overlay: true
+  promote_only_official_or_repeated_findings: true

@@ -1,0 +1,48 @@
+platform_id: ozon
+name: Ozon
+aliases: [ozon_ru, ozon_global, озон]
+locale_defaults: [ru-RU]
+source_meta:
+  researched_at: "2026-07-05"
+  source_confidence: official_seller_edu_with_partial_fetch_limitations
+  sources:
+    - title: "Требования к фото, видео и видеообложкам"
+      url: "https://seller-edu.ozon.ru/work-with-goods/trebovaniya-k-kartochkam-tovarov/media/foto-i-video-tovara"
+      type: official_ozon_seller_edu
+    - title: "Фото и образец цвета"
+      url: "https://seller-edu.ozon.ru/work-with-goods/zagruzka-tovarov/zagruzka-media/foto"
+      type: official_ozon_seller_edu
+    - title: "Создание товаров в личном кабинете"
+      url: "https://seller-edu.ozon.ru/work-with-goods/zagruzka-tovarov/creating-goods/sozdanie-tovarov-v-lk"
+      type: official_ozon_seller_edu
+visual_strategy:
+  default_set:
+    - square_main_product_image
+    - angle_gallery_image
+    - detail_or_material_image
+    - scale_or_dimension_image
+    - use_case_image
+    - rich_content_module
+  tone: clean_marketplace_informative
+  text_density: low_on_main_medium_in_rich_content
+  language: ru-RU
+technical_baseline:
+  main_image_aspect_ratio: "1:1 square baseline"
+  gallery_capacity: "Ozon Seller Edu public snippets indicate up to 30 photos: 1 main plus additional images; verify per category."
+  main_image_content: "product only, no infographic/text/graphic elements on main image; light clean background baseline"
+  file_types: [jpg, jpeg, png]
+image_guidance:
+  - make the first image square, product-only, clean, and easy to understand
+  - use additional images for all angles, details, materials, use cases, size, and included items
+  - keep Russian copy concise and reserve richer explanation for rich content/detail modules
+  - avoid putting infographic text on the main product image
+marketing_guidance:
+  - use gallery images to answer shopper questions quickly: what it is, what is included, how large it is, how it is used, and why it is trustworthy
+  - use rich content for structured selling points rather than overloading first image
+risk_notes:
+  - avoid inaccurate bundle contents, unsupported origin/brand/certification claims, misleading size, and inconsistent color representation
+  - verify current category-specific restrictions in Ozon Seller cabinet before final export
+research_policy:
+  yaml_is_baseline: true
+  require_run_level_overlay: true
+  promote_only_official_or_repeated_findings: true

@@ -1,0 +1,48 @@
+platform_id: shein
+name: SHEIN Marketplace
+aliases: [shein_marketplace, shein_us, shein_eu, shein_global]
+locale_defaults: [en-US]
+source_meta:
+  researched_at: "2026-07-05"
+  source_confidence: official_listing_page_plus_integrator_docs
+  sources:
+    - title: "Product Listings - Sell on SHEIN Marketplace"
+      url: "https://seller-us.shein.com/product-listing"
+      type: official_shein_seller_page
+    - title: "SHEIN marketplace guide"
+      url: "https://support.channelengine.com/hc/en-us/articles/21552893542941-SHEIN-marketplace-guide"
+      type: integrator_documentation
+visual_strategy:
+  default_set:
+    - fashion_or_product_main_image
+    - model_or_lifestyle_image
+    - detail_material_image
+    - size_or_fit_image
+    - color_variant_image
+    - styling_or_outfit_image
+    - packaging_or_trust_image
+  tone: fashion_trend_mobile_first
+  text_density: low
+  language: market_specific
+technical_baseline:
+  listing_images: "SHEIN seller page states product images up to 11 per listing."
+  supported_ratios_from_integrator_docs: ["1:1", "3:4", "4:5", "13:16"]
+  square_resolution_from_integrator_docs: ["900x900", "2200x2200"]
+  max_file_size_from_integrator_docs: "3MB"
+  file_types_from_integrator_docs: [jpg, jpeg, png]
+image_guidance:
+  - optimize for mobile fashion/product browsing and fast visual appeal
+  - use clean product identity plus trend-aware lifestyle/model/styling images when category fit allows
+  - preserve color, fabric/material appearance, fit, hardware, and distinctive details
+  - keep text overlays minimal; let styling and product clarity carry the image
+  - use run-level overlay because requirements may differ by SHEIN market and category
+marketing_guidance:
+  - emphasize trend fit, outfit matching, material feel, size/fit confidence, and variant clarity
+  - use category-specific fashion or lifestyle references without copying competitor styling or model poses
+risk_notes:
+  - avoid unverified brand, fabric, origin, sustainability, influencer, or performance claims
+  - verify current seller portal requirements before final export because some public details come from integrator documentation
+research_policy:
+  yaml_is_baseline: true
+  require_run_level_overlay: true
+  promote_only_official_or_repeated_findings: true

@@ -1,0 +1,24 @@
+{
+  "type": "object",
+  "properties": {
+    "structured_result": {
+      "type": "object"
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "risk_flags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "structured_result"
+  ],
+  "additionalProperties": true
+}

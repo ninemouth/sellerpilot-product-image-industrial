@@ -1,0 +1,50 @@
+platform_id: mercado_libre
+name: Mercado Libre / Mercado Livre
+aliases: [mercadolibre, mercado_livre, meli, mercado_libre_global_selling, mercado_livre_brasil]
+locale_defaults: [es-419, pt-BR]
+source_meta:
+  researched_at: "2026-07-05"
+  source_confidence: official_global_selling_and_country_learning_centers
+  sources:
+    - title: "Photos are your business' first impression. Stand out!"
+      url: "https://global-selling.mercadolibre.com/learning-center/news/photos-are-your-business-first-impression-stand-out?guideKeyId=GE53"
+      type: official_mercado_libre_global_selling
+    - title: "How to create effective listings in Mercado Libre"
+      url: "https://global-selling.mercadolibre.com/learning-center/news/how-to-create-effective-listings-in-mercado-libre"
+      type: official_mercado_libre_global_selling
+    - title: "Requisitos de fotos para Acessórios"
+      url: "https://vendedores.mercadolivre.com.br/nota/requisitos-de-fotos-para-vender-acessorios"
+      type: official_mercado_livre_brazil_learning_center
+visual_strategy:
+  default_set:
+    - clean_main_product_image
+    - angle_gallery_image
+    - scale_or_dimension_image
+    - detail_texture_image
+    - use_context_image
+    - package_or_included_items_image
+    - decision_summary_image
+  tone: latin_america_marketplace_clear_trustworthy
+  text_density: low_on_main_medium_on_secondary
+  language: market_specific_spanish_or_portuguese
+technical_baseline:
+  recommended_square_zoom: "1200x1200px often recommended by official global selling guidance"
+  vertical_category_standard: "1200x1540px appears in official fashion/accessory category guidance; verify by category"
+  minimum_image_hint: "official global guidance mentions larger side at least 500px, but recommends 1200px for zoom"
+  main_image_background: "high quality and white background required in global-selling listing guidance; some categories allow contextual backgrounds"
+image_guidance:
+  - first image should be clean, centered, high-definition, and easy to understand
+  - avoid text, watermarks, borders, contact info, misleading accessories, and unrelated props on the main image
+  - use secondary images for context, scale, texture, packaging, variants, and use cases
+  - choose Spanish or Brazilian Portuguese copy by marketplace country
+  - create a run-level overlay because Mercado Libre category image standards differ by country and category
+marketing_guidance:
+  - focus on trust, clear scale, realistic context, complete technical attributes, and buyer objection handling
+  - use gallery images to reduce uncertainty in mobile browsing
+risk_notes:
+  - avoid copyright-infringing web images, misleading included-items visuals, fake promotions, contact information in images, and false warranties/certifications
+  - verify current country/category guidance for Mercado Libre Argentina, Mexico, Chile, Colombia, or Mercado Livre Brazil
+research_policy:
+  yaml_is_baseline: true
+  require_run_level_overlay: true
+  promote_only_official_or_repeated_findings: true

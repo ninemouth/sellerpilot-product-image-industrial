@@ -1,0 +1,11 @@
+platform_id: taobao_tmall
+name: Taobao / Tmall
+visual_strategy:
+  default_set: [main_selling_image, promotion_image, feature_detail_image, scenario_image, trust_image, long_detail_modules]
+  tone: conversion_dense_promotion_aware
+  text_density: medium_to_high
+image_guidance:
+  - support stronger selling-point callouts
+  - support detail-page modules
+risk_notes:
+  - avoid false discount or certification claims

@@ -1,0 +1,24 @@
+commerce_strategy_brief:
+  run_goal:
+  product_category:
+  platform:
+  locale:
+  season_or_occasion:
+  commercial_objective:
+    primary:
+    secondary:
+  buyer_path:
+    click_trigger:
+    trust_builder:
+    comparison_reason:
+    conversion_push:
+  image_set_architecture:
+    - image_index:
+      image_role:
+      buyer_question:
+      conversion_intent:
+      required_evidence:
+      success_criteria:
+      reject_if:
+  unsupported_or_risky_claims: []
+  notes: []

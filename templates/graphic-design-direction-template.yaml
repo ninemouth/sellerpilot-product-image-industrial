@@ -1,0 +1,44 @@
+graphic_design_direction:
+  platform:
+  category:
+  audience:
+  design_goal:
+  design_quality_bar:
+    concept_before_layout:
+    product_first_rule:
+    hierarchy_grade_target:
+    layout_rhythm:
+    set_variation_rule:
+    mobile_feed_readability:
+    premium_finish_notes:
+  set_layout_system:
+    typography_hierarchy:
+    safe_zones:
+    overlay_style:
+    text_density:
+    color_and_contrast:
+    mobile_thumbnail_rule:
+  per_image_design:
+    - image_index:
+      role:
+      layout_intent:
+      text_hierarchy:
+      safe_zone_notes:
+      allowed_badges: []
+      forbidden_marks: []
+      visual_difference_from_previous:
+  no_watermark_policy:
+    default_visible_mark_decision: prohibited_unless_user_explicitly_requests_exact_mark
+    visible_platform_pack_label_allowed: false
+    internal_system_mark_allowed: false
+    corner_label_allowed: false
+    watermark_authorization:
+      status: none
+      source_user_request:
+      exact_visible_text:
+      placement:
+      purpose:
+      allowed_images: []
+    allowed_visible_marks: []
+    forbidden_visible_marks: []
+  rejection_triggers: []

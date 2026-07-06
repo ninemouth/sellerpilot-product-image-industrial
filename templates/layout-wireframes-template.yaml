@@ -1,0 +1,31 @@
+layout_wireframes:
+  design_system:
+    canvas:
+    grid:
+    margins:
+    safe_zones:
+    typography:
+    color_tokens:
+    mobile_thumbnail_minimums:
+  frames:
+    - image_index:
+      filename:
+      image_role:
+      thumbnail_sketch:
+      product_area:
+      scene_area:
+      title_area:
+      subtitle_area:
+      label_area:
+      proof_area:
+      a_h_regions:
+        A:
+        B:
+        C:
+        D:
+        E:
+        F:
+        G:
+        H:
+      hierarchy_check:
+      reject_if:

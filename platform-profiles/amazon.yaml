@@ -1,0 +1,17 @@
+platform_id: amazon
+name: Amazon
+visual_strategy:
+  default_set: [main_image, feature_image_1, feature_image_2, dimension_image, lifestyle_image, comparison_image, packaging_or_trust_image]
+  tone: clear_trustworthy_conversion_oriented
+  text_density: medium
+main_image_guidance:
+  - product should be clear and dominant
+  - avoid clutter
+  - avoid unsupported badges
+secondary_image_guidance:
+  - explain features visually
+  - show dimensions when relevant
+  - show lifestyle use cases
+risk_notes:
+  - be careful with certification claims
+  - do not imply official approval

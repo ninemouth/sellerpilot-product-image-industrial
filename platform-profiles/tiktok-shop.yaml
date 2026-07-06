@@ -1,0 +1,37 @@
+platform_id: tiktok_shop
+name: TikTok Shop
+aliases: [tiktok_shop_global, tiktok_shop_us, tiktok_shop_uk, tiktok_shop_sea]
+not_same_as: douyin
+locale_defaults: [en-US]
+source_meta:
+  researched_at: "2026-07-05"
+  source_confidence: official_seller_center_and_help_research_required_per_market
+  sources:
+    - title: "TikTok Shop Seller University"
+      url: "https://seller-us.tiktok.com/university"
+      type: official_tiktok_shop_seller_education
+    - title: "TikTok Shop Academy"
+      url: "https://seller.tiktokglobalshop.com/university"
+      type: official_tiktok_shop_global_seller_education
+visual_strategy:
+  default_set: [product_card_image, lifestyle_scene_image, benefit_first_image, mobile_infographic, short_video_cover]
+  tone: mobile_first_scene_driven
+  text_density: low_to_medium
+  language: market_specific
+technical_baseline:
+  market_specific: true
+  note: "TikTok Shop requirements vary by seller market/region. Use this as a baseline and create a run-level overlay for US, UK, SEA, EU, etc."
+image_guidance:
+  - make benefit obvious quickly
+  - use scene-driven visuals
+  - keep copy short
+  - separate product listing images from short-video cover/creative assets
+  - do not reuse Douyin-specific assumptions without verification
+risk_notes:
+  - avoid exaggerated before/after claims
+  - avoid unsupported health, safety, certification, and performance claims
+  - verify current market-specific listing image rules through the correct TikTok Shop seller center before final export
+research_policy:
+  yaml_is_baseline: true
+  require_market_specific_overlay: true
+  douyin_is_separate_profile: true

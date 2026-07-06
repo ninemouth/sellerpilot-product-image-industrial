@@ -1,0 +1,8 @@
+.DS_Store
+node_modules/
+assets/tldraw-review-workspace/node_modules/
+runs/
+outputs/
+*.log
+work/*
+!work/README.md

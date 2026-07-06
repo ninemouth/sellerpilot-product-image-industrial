@@ -1,0 +1,53 @@
+platform_id: wildberries
+name: Wildberries / WB
+aliases: [wb, wildberries_ru, вайлдберриз]
+locale_defaults: [ru-RU]
+source_meta:
+  researched_at: "2026-07-05"
+  source_confidence: official_wb_partners
+  sources:
+    - title: "Фото товаров: правила, рекомендации и частые ошибки"
+      url: "https://seller.wildberries.ru/instructions/ru/ru/material/item-photo-rules-recommendations-and-common-mistakes"
+      type: official_wb_partners
+    - title: "Как улучшить фото и видео в карточке"
+      url: "https://seller.wildberries.ru/instructions/ru/am/material/how-to-improve-photos-and-videos-in-a-card"
+      type: official_wb_partners
+    - title: "A/B-тестирование главного фото"
+      url: "https://seller.wildberries.ru/instructions/ru/ru/material/main-photo-ab-testing"
+      type: official_wb_partners
+visual_strategy:
+  default_set:
+    - portrait_main_product_image
+    - model_or_object_shoot_image
+    - detail_image
+    - scale_or_fit_image
+    - accessory_or_package_image
+    - lifestyle_or_context_image
+  tone: marketplace_catalog_clean_mobile
+  text_density: low_to_medium
+  language: ru-RU
+technical_baseline:
+  accepted_formats: [jpg, jpeg, png, webp]
+  minimum_resolution: "700x900px"
+  preferred_aspect_ratio: "portrait 3:4 baseline for product card photography"
+  compression_quality: "65%+"
+  max_file_size: "10MB"
+  max_images_per_card: 30
+image_guidance:
+  - keep the main product fully visible and not cropped
+  - use clean neutral backgrounds that contrast with the product
+  - keep the product centered, sharp, and undistorted
+  - keep product color consistent across the image set
+  - model images are allowed when appropriate, but lighting and pose should not distract from the product
+  - avoid logos, tags, promotions, or unrelated images in product photos
+marketing_guidance:
+  - use a consistent visual style across one SKU
+  - use detail images to show material, fit, scale, included accessories, and package contents
+  - use A/B main-photo logic when optimizing the first image
+risk_notes:
+  - avoid rights-infringing borrowed images, misleading kit contents, inconsistent colors, distorted products, adult/sensitive imagery, and promotional marks inside photos
+  - verify regional WB seller cabinet rules when selling outside the RU account context
+research_policy:
+  yaml_is_baseline: true
+  require_run_level_overlay: true
+  promote_only_official_or_repeated_findings: true

@@ -1,0 +1,48 @@
+platform_id: shopee_latam
+name: Shopee LatAm / Shopee Brazil
+aliases: [shopee_brazil, shopee_brasil, shopee_br, shopee_latam]
+locale_defaults: [pt-BR, es-419]
+source_meta:
+  researched_at: "2026-07-05"
+  source_confidence: official_shopee_ads_and_open_platform_plus_cross_region_seller_edu
+  sources:
+    - title: "Melhore a página do seu produto para ter sucesso"
+      url: "https://ads.shopee.com.br/learn/faq/111/1462"
+      type: official_shopee_brazil_ads_learning
+    - title: "Creating product - Developer Guide"
+      url: "https://open.shopee.com/developer-guide/211"
+      type: official_shopee_open_platform
+    - title: "Improve your Product's Images and Descriptions"
+      url: "https://seller.shopee.ph/edu/article/284"
+      type: official_shopee_seller_education_cross_region
+visual_strategy:
+  default_set:
+    - attractive_cover_image
+    - clear_main_product_image
+    - size_or_scale_image
+    - detail_or_material_image
+    - use_instruction_image
+    - package_or_included_items_image
+    - promotion_or_value_image
+  tone: mobile_marketplace_value_promo_aware
+  text_density: medium
+  language: pt-BR_or_es-419
+technical_baseline:
+  main_image_minimum_from_open_platform: "max 10MB, JPG/JPEG/PNG"
+  common_square_requirement: "1:1 listing image is required in several Shopee markets; 3:4 support can be market-specific"
+  brazil_learning_focus: "choose attractive/informative cover; show scale, avoid unrelated accessories, avoid distracting watermarks"
+image_guidance:
+  - make the cover image attractive and informative while keeping the product clear
+  - avoid accessories not included in purchase
+  - avoid watermarks and distracting graphics
+  - include size/scale, usage, packaging, and informative images when helpful
+  - localize to Brazilian Portuguese for Shopee Brazil unless the country overlay says otherwise
+marketing_guidance:
+  - use mobile-readable value labels, clear package contents, shipping/value cues only when true, and simple use-case images
+risk_notes:
+  - avoid fake promotion badges, Shopee brand misuse, unrelated props, misleading bundle contents, and unsupported claims
+  - verify market-specific Seller Centre image ratios and current product listing rules before final export
+research_policy:
+  yaml_is_baseline: true
+  require_run_level_overlay: true
+  promote_only_official_or_repeated_findings: true

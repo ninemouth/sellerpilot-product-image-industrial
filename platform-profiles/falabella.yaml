@@ -1,0 +1,49 @@
+platform_id: falabella
+name: Falabella Marketplace
+aliases: [falabella_chile, falabella_peru, falabella_colombia, saga_falabella]
+locale_defaults: [es-419]
+source_meta:
+  researched_at: "2026-07-05"
+  source_confidence: official_seller_help
+  sources:
+    - title: "Carga de imágenes"
+      url: "https://ayudaseller.falabella.com/s/article/Carga-de-imagenes"
+      type: official_falabella_seller_help
+    - title: "Requisitos de las imágenes"
+      url: "https://ayudaseller.falabella.com.pe/s/article/Requisitos-de-las-imagenes"
+      type: official_falabella_peru_seller_help
+    - title: "Registro en Falabella Marketplace"
+      url: "https://www.falabella.com/falabella-cl/page/vender-en-falabella"
+      type: official_falabella_marketplace_onboarding
+visual_strategy:
+  default_set:
+    - white_background_main_image
+    - alternate_angle_image
+    - detail_material_image
+    - scale_or_dimension_image
+    - use_context_image
+    - trust_or_package_image
+  tone: department_store_clean_trustworthy
+  text_density: low_to_medium
+  language: es-419
+technical_baseline:
+  image_format_from_peru_help: jpg
+  optimal_size_from_peru_help: "1500x1500px"
+  main_background_from_peru_help: "white background for main image"
+  internal_margin_from_peru_help: "45px internal margin"
+  product_position_from_peru_help: "product centered, no shadow or soft shadow, no watermark"
+image_guidance:
+  - first image should be white-background, centered, clean, and retail-catalog friendly
+  - use secondary images for angles, details, dimensions, lifestyle, package, and trust cues
+  - maintain department-store polish and avoid excessive marketplace-style badges
+  - use Spanish copy and verify country-specific Falabella Seller Center rules
+marketing_guidance:
+  - emphasize catalog trust, complete attributes, visual clarity, and product quality
+  - use simple decision-support modules rather than dense promotion-heavy graphics
+risk_notes:
+  - avoid watermark, brand misuse, unsupported warranty/certification claims, and misleading package contents
+  - verify country-specific Falabella Seller Center rules for Chile, Peru, or Colombia before final export
+research_policy:
+  yaml_is_baseline: true
+  require_run_level_overlay: true
+  promote_only_official_or_repeated_findings: true

@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "properties": {
+    "task_context": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "task_context"
+  ],
+  "additionalProperties": true
+}

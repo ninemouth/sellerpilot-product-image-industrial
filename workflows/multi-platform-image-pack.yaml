@@ -1,0 +1,23 @@
+workflow_id: multi-platform-image-pack
+name: Multi Platform Image Pack
+version: 1.3.0
+goal: Prepare adapted packs for Amazon, TikTok Shop, Xiaohongshu, and other platform profiles using GPT built-in image generation prompts; create request packs only as fallback or audit evidence.
+steps:
+  - input-normalizer
+  - product-image-parser
+  - product-url-reader
+  - product-fact-sheet
+  - platform-spec-profile
+  - audience-persona
+  - market-research
+  - product-positioning
+  - visual-template-library
+  - visual-strategy
+  - copy-localization
+  - gpt-built-in-image-generation-policy
+  - generation-request-pack-if-fallback-or-audit-needed
+  - generation-runtime-execution-boundary
+  - qa-compliance
+  - infinite-canvas-interaction
+  - revision
+  - export-packaging

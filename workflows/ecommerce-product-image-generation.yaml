@@ -1,0 +1,236 @@
+workflow_id: ecommerce-product-image-generation
+name: Ecommerce Product Image Generation
+version: 1.5.0
+goal: >
+  Run the platform-agnostic SellerPilot ecommerce image production loop:
+  normalize inputs, improve weak source photos, research the target
+  platform/category, direct visual shots and buyer-facing copy, prepare GPT
+  built-in image generation prompts, execute through Codex-native imagegen/image_gen
+  when available, let host runtime boundaries generate only needed assets otherwise, QA the set, collect
+  review annotations, and package exports. Treat final prompts as personalized
+  production work orders created after strategy, sketches, photography treatment,
+  and self-review.
+platform_binding: Load the target platform profile after input normalization. Do not fork the core generation process by platform unless a platform-specific workflow adds extra constraints.
+execution_modes:
+  fast_generation:
+    default_for:
+      - short_chat_image_requests
+      - single_image_generation
+      - standard_image_sets
+    create_full_run_skeleton: false
+    create_review_workspace_by_default: false
+    outputs:
+      - final_images
+      - concise_generation_summary
+      - compact_identity_notes
+      - compact_visual_strategy
+      - focused_qa_summary
+      - optional_review_workspace_if_requested_or_failed
+  industrial_audit:
+    default_for:
+      - explicit_industrial_workflow
+      - migration_to_sellerpilot
+      - audit_package
+      - gate_reports
+      - repeated_failure_debugging
+    create_full_run_skeleton: true
+    create_review_workspace_by_default: true
+    outputs: full_default_outputs
+  debug_development:
+    default_for:
+      - skill_selftest
+      - script_validation
+      - regression_debugging
+    write_verbose_work_artifacts: true
+steps:
+  - resolve-skill-root
+  - input-normalizer
+  - brief-intake-gate
+  - create-run-skeleton
+  - goal-contract
+  - source-image-set-manifest-if-multiple-images
+  - source-image-quality-gate
+  - source-image-enhancement-if-needed
+  - product-image-parser
+  - product-identity-lock
+  - product-url-reader
+  - product-fact-sheet
+  - platform-spec-profile
+  - platform-category-web-research
+  - platform-category-profile-overlay
+  - bestseller-design-mining-if-marketing-enhancement
+  - audience-persona
+  - market-research
+  - product-feature-analysis
+  - audience-positioning-analysis
+  - product-positioning
+  - commerce-strategy-brief
+  - creative-direction-brief
+  - graphic-design-direction
+  - commercial-photography-treatment
+  - image-set-architecture
+  - sketch-to-final-production
+  - layout-wireframes
+  - prompt-readiness-gate
+  - visual-director
+  - scene-asset-production-if-scene-roles
+  - buyer-facing-copy-director
+  - image-set-blueprint
+  - blueprint-gate
+  - gpt-built-in-image-generation-policy
+  - prompt-layer-architect
+  - prompt-layer-stack
+  - prompt-layer-gate
+  - personalized-prompt-delivery
+  - generation-request-pack-if-fallback-or-audit-needed
+  - scene-asset-generation-if-scene-roles
+  - generation-runtime-execution-boundary
+  - anchor-batch-generation-loop-if-runtime-available
+  - continue-missing-assets-only
+  - identity-consistency-gate
+  - layout-composition
+  - marketing-quality-gate
+  - image-set-export-gate
+  - qa-loop-router
+  - final-delivery-gate
+  - qa-compliance
+  - tldraw-review-workspace-if-visual-review-needed
+  - review-surface
+  - region-review-html
+  - parse-canvas-annotations-if-feedback-provided
+  - revision-loop
+  - export-packaging
+default_outputs:
+  fast_generation:
+    - final_images
+    - concise_generation_summary
+    - compact_source_image_quality_note
+    - compact_product_identity_lock
+    - compact_visual_direction_summary
+    - focused_qa_summary
+    - review_canvas_if_requested_or_needed
+  industrial_audit:
+    - task_context
+    - goal_contract
+    - source_image_set_manifest
+    - product_fact_sheet
+    - product_identity_lock
+    - product_feature_analysis
+    - audience_positioning_analysis
+    - source_image_quality_report
+    - platform_category_research_brief
+    - platform_category_profile_overlay
+    - bestseller_design_mining_report
+    - commerce_strategy_brief
+    - creative_direction_brief
+    - graphic_design_direction
+    - photography_treatment
+    - layout_wireframes
+    - visual_direction_brief
+    - image_set_blueprint
+    - localized_copy_pack
+    - final_personalized_prompt_delivery
+    - prompt_layer_stack
+    - prompt_readiness_gate_report
+    - prompt_layer_gate_report
+    - generation_request_pack_if_fallback_or_audit_needed
+    - final_personalized_generation_prompts
+    - generation_execution_result_summary_if_runtime_generated
+    - generated_or_rendered_images
+    - identity_consistency_report
+    - review_canvas
+    - tldraw_review_workspace_if_visual_review_needed
+    - parsed_generation_tasks_if_annotations_provided
+    - region_review_html
+    - marketing_quality_gate_report
+    - image_set_export_gate_report
+    - qa_loop_routing_decision
+    - final_delivery_gate_report
+    - qa_report
+    - revision_history
+    - final_asset_package
+loop_policy:
+  max_generation_attempts_per_scene_role: 2
+  use_anchor_batch_before_full_set_generation: true
+  anchor_batch_max_assets: 3
+  anchor_batch_should_include:
+    - main_identity_or_hero
+    - one_scene_or_scale_image_when_scene_requested
+    - one_detail_or_texture_image_when_identity_risk_high
+  continue_remaining_assets_only_after_anchor_batch_passes: true
+  lock_blueprint_before_full_generation: true
+  reuse_approved_assets: true
+  generate_only_missing_or_failed_assets: true
+  rerender_layout_only_when_text_or_spacing_fails: true
+  stop_if_product_identity_drift_is_high: true
+  fail_fast_on_repeated_camera_or_internal_copy: true
+identity_preservation_policy:
+  require_source_image_for_final_identity_preserving_output: true
+  require_identity_lock_before_generation: true
+  require_gpt_built_in_image_generation_for_final_product_images: true
+  use_codex_native_imagegen_image_gen_when_available: true
+  forbid_ad_hoc_generation_wrappers: true
+  forbid_silent_cli_or_api_fallback: true
+  require_image_reference_generation: true
+  block_final_generation_if_required_image_references_unavailable: true
+  forbid_text_only_final_product_generation: true
+  require_side_by_side_identity_review: true
+  regenerate_only_failed_identity_assets: true
+source_image_policy:
+  build_manifest_when_multiple_sources: true
+  enhance_each_user_owned_source_image: true
+  fuse_identity_lock_from_complementary_sources: true
+  stop_on_conflicting_product_sources: true
+platform_policy:
+  platform_yaml_is_baseline: true
+  require_run_level_overlay_for_conversion_critical_runs: true
+  promote_only_stable_or_official_findings_to_global_profile: true
+market_research_policy:
+  mine_bestseller_patterns_without_copying: true
+  require_pattern_not_asset_borrowing: true
+  require_rejected_patterns_and_risks: true
+export_policy:
+  contact_sheet_preview_is_not_final_delivery: true
+  require_independent_export_files: true
+  require_stable_id_plus_english_slug_filenames: true
+  fail_contact_sheet_or_banner_as_listing_image: true
+visual_director_requirements:
+  require_shot_matrix: true
+  require_graphic_design_direction: true
+  require_distinct_camera_angles: true
+  require_distinct_detail_crops: true
+  require_scene_lighting_and_environment: true
+  require_true_scene_asset_for_scene_roles: true
+  forbid_layout_renderer_only_scene_roles: true
+  require_buyer_facing_copy: true
+  forbid_internal_review_language_in_final_images: true
+  forbid_watermark_or_platform_pack_label_in_final_images: true
+  watermark_default_decision: prohibited_unless_user_explicitly_requests_exact_mark
+  require_watermark_authorization_before_design: true
+  forbid_repeated_template_card_layout: true
+  require_photography_style_archetype: true
+  require_micro_detail_preservation_notes: true
+  require_a_h_editable_regions: true
+analysis_requirements:
+  require_product_feature_analysis: true
+  require_audience_positioning_analysis: true
+  require_scene_triggers_from_features_and_audience: true
+  require_copy_voice_from_audience_positioning: true
+industrial_prompt_policy:
+  final_prompt_is_personalized_production_handoff: true
+  forbid_fixed_prompt_as_complete_workflow: true
+  require_strategy_before_prompt: true
+  require_sketch_before_prompt: true
+  require_photography_treatment_before_prompt: true
+  require_layout_intent_before_prompt: true
+  block_prompt_delivery_if_buyer_question_missing: true
+  block_prompt_delivery_if_prompt_is_generic: true
+  require_prompt_layer_architect_decision: true
+  require_mandatory_prompt_layers: true
+  require_conditional_layers_when_triggered: true
+qa_loop_policy:
+  use_unified_router_after_gate_failure: true
+  return_to_earliest_responsible_node: true
+  rerun_smallest_downstream_scope: true
+  lock_approved_assets: true
+  stop_on_retry_budget_exhaustion: true
