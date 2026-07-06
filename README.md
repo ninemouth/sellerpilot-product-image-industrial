@@ -47,6 +47,50 @@ npm install
 
 ## 安装到 Codex
 
+安装完成后，通常需要重启 Codex，让新的 skill 列表重新加载。默认安装位置是：
+
+```text
+${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial
+```
+
+### 方式 1：在 Codex 对话框里安装
+
+适合不想手动打开终端的用户。把下面这段话直接发给 Codex：
+
+```text
+请使用 skill-installer 从 GitHub 安装这个 Codex skill：
+
+https://github.com/ninemouth/sellerpilot-product-image-industrial
+
+注意：这个 skill 位于仓库根目录，请使用 --path .，并把安装后的 skill 名称设为 sellerpilot-product-image-industrial。安装完成后请验证 SKILL.md 存在，并提醒我重启 Codex。
+```
+
+Codex 应该会使用内置的 `skill-installer`。安装成功后，重启 Codex。
+
+### 方式 2：在终端用 skill-installer 安装
+
+适合新机器首次安装，或者你想明确看到安装命令时使用：
+
+```bash
+python3 ${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/install-skill-from-github.py \
+  --repo ninemouth/sellerpilot-product-image-industrial \
+  --path . \
+  --name sellerpilot-product-image-industrial
+```
+
+因为这个仓库的 skill 文件就在仓库根目录，所以必须显式指定：
+
+```text
+--path .
+--name sellerpilot-product-image-industrial
+```
+
+如果看到 `Destination already exists`，说明本机已经安装过同名 skill。安装器会避免覆盖已有 skill，这是正常保护。
+
+### 方式 3：clone 仓库后同步安装
+
+适合开发者、本地修改者，或者需要从 GitHub 拉取后先验证再安装的用户。
+
 把仓库 clone 到任意开发目录：
 
 ```bash
@@ -66,24 +110,48 @@ npm run verify
 npm run sync -- --source "$PWD"
 ```
 
-默认安装位置是：
-
-```text
-${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial
-```
-
 同步脚本会先备份旧版本，再把当前仓库同步到 Codex skills 目录，并验证两边文件一致。
 
-也可以让 Codex 从 GitHub 链接安装。因为这个仓库的 skill 文件就在仓库根目录，安装器需要显式指定根路径和 skill 名：
+### 方式 4：更新已经安装过的 skill
+
+如果你用方式 3 保留了本地 clone，推荐这样更新：
 
 ```bash
+cd sellerpilot-product-image-industrial
+git pull
+npm run verify
+npm run sync -- --source "$PWD"
+```
+
+如果你之前只用 GitHub installer 安装，没有保留本地 clone，可以重新 clone 到任意目录，再执行方式 3 的验证和同步。
+
+不要直接手动覆盖 `${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial`，除非你已经备份旧目录。
+
+### 方式 5：安装到临时目录做验证
+
+适合只想检查 GitHub 安装包是否完整，不想影响当前 Codex 环境：
+
+```bash
+tmp_dir="$(mktemp -d /tmp/sellerpilot-skill-install-XXXXXX)"
 python3 ${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/install-skill-from-github.py \
   --repo ninemouth/sellerpilot-product-image-industrial \
   --path . \
-  --name sellerpilot-product-image-industrial
+  --name sellerpilot-product-image-industrial \
+  --dest "$tmp_dir"
+test -f "$tmp_dir/sellerpilot-product-image-industrial/SKILL.md" && echo "install package looks OK"
 ```
 
-安装完成后，重启 Codex 让新 skill 生效。
+### 方式 6：手动复制安装（不推荐）
+
+只在目标目录不存在时使用：
+
+```bash
+mkdir -p ${CODEX_HOME:-$HOME/.codex}/skills
+test ! -e ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial && \
+  cp -R sellerpilot-product-image-industrial ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial
+```
+
+手动复制不会自动验证、不会自动备份、也不会检查安装目录是否和源码一致。除非你很清楚自己在做什么，否则优先使用方式 1、2 或 3。
 
 ## 最快上手
 
