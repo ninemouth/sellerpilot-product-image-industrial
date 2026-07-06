@@ -9,9 +9,9 @@ Product Image Orchestrator Agent
 
 根据用户提供的商品原图、商品 URL、竞品参考图、目标平台、目标国家/语言、目标人群和风格要求，生成符合目标电商平台规范与用户群体表达习惯的商品套图。
 
-本 Agent 不应直接把任务简化为“一次出图”。但日常 Codex 对话默认使用 fast generation mode，只执行足够支撑真实出图和 QA 的轻量 Harness + Loop；用户要求工业级审计、完整报告、迁移 SellerPilot 或开发验证时，才执行完整 Harness + Loop：
+本 Agent 不应直接把任务简化为“一次出图”。日常 Codex 对话应选择最轻但能保护成品质量的模式：单图草稿或明确速度优先才用 fast generation mode；高质量多图成品默认用 quality production mode；用户要求工业级审计、完整报告、迁移 SellerPilot 或开发验证时，才执行完整 Harness + Loop：
 
-Intent -> Normalize -> Brief Intake Gate -> Source Photo Preflight/Enhance -> Source Product Understanding/OCR -> Product Identity Lock -> Platform/Category Context -> Feature/Audience Analysis -> Commerce Strategy -> Creative Direction -> Graphic Design Direction -> Photography Treatment -> Sketch/Wireframe Self Review -> Visual Director Shot Matrix -> Buyer-Facing Copy -> Prompt Layer Brain -> Codex-Native GPT Built-In Image Generation Anchor Batch -> Identity/Marketing/Export QA -> Delivery Overview -> Continue Missing Assets Only -> Unified QA Loop Router -> Final Delivery Gate -> Optional tldraw/Native Canvas Review -> Revision -> Export
+Intent -> Normalize -> Brief Intake Gate -> Source Photo Preflight/Enhance -> Source Product Understanding/OCR -> Product Identity Lock -> Platform/Category Context -> Feature/Audience Analysis -> Commerce Strategy -> Creative Direction -> Graphic Design Direction -> Photography Treatment -> Sketch/Wireframe Self Review -> Visual Director Shot Matrix -> Buyer-Facing Copy -> Prompt Layer Brain -> Codex-Native GPT Built-In Image Generation Anchor Batch -> Identity/Marketing/Export QA -> Delivery Overview -> Continue Missing Assets Only -> Unified QA Loop Router -> Post-Generation tldraw Auto Start -> Final Delivery Gate -> Native Canvas Review -> Revision -> Export
 
 ## Non-negotiable Rules
 
@@ -63,7 +63,7 @@ Fast generation mode uses this compact workflow unless the user requests a full 
 - final-images-manifest
 - delivery-overview-contact-sheet
 - continue missing/failed assets only
-- optional shared tldraw review session
+- shared tldraw review session URL for generated multi-image final sets, or blocked reason if auto-start failed
 
 Industrial audit mode uses the full workflow:
 
@@ -115,7 +115,7 @@ Fast generation mode 完成必须包含：
 - 简短商品身份锁/源图增强说明
 - 简短镜头矩阵/场景策略说明
 - 简短 QA 结论
-- 需要批注时的共享 tldraw review session URL
+- 多图成品生图完成后的共享 tldraw review session URL，或自动启动失败的 blocked reason；单图草稿仅在请求审核或 gate 失败时需要
 
 Industrial audit mode 完成必须包含：
 

@@ -27,7 +27,7 @@ Quality production mode runs the full quality-critical path without generating t
 10. QA the anchor batch for identity, physical truth, scene realism, copy, and visual direction.
 11. Continue only missing/approved remaining assets after anchor QA passes.
 12. Run relevant final gates only: identity, geometry/physics when triggered, copy, marketing, export, overview, final delivery.
-13. Start tldraw only when review, failed gate markup, or revision feedback is the next action.
+13. For generated multi-image final sets, run `post-generation-tldraw-launcher.mjs` after export and overview so the final handoff includes a ready tldraw URL or a blocked startup reason.
 
 ## Fast Loop
 
@@ -61,7 +61,7 @@ Quality production mode runs the full quality-critical path without generating t
 12. Continue only missing/failed assets after anchor QA passes. Reuse approved assets; do not regenerate the full set.
 13. Compose final layouts.
 14. Run marketing diversity gate and QA.
-15. Create a review surface only when requested, when a gate fails, or when revision feedback is the next action. Prefer the shared tldraw service session over per-run dev servers.
+15. For generated multi-image final sets, create and auto-start the run-scoped tldraw workspace after export/overview. For single-image drafts, create a review surface only when requested, when a gate fails, or when revision feedback is the next action. Prefer the shared tldraw service session over per-run dev servers.
 16. Convert user annotations into Revision Brief when feedback exists.
 
 Fast mode should not create the full industrial run skeleton, every research artifact, every gate JSON, or a tldraw workspace by default. Escalate to industrial audit mode only when the user asks for evidence, migration artifacts, debug traces, or a repeated failure needs deeper routing.

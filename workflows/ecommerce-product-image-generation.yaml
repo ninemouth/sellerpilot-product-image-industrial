@@ -139,9 +139,9 @@ steps:
   - image-set-export-gate
   - qa-loop-router
   - delivery-overview-contact-sheet-if-multi-image-set
+  - post-generation-tldraw-auto-start-if-generated-images
   - final-delivery-gate
   - qa-compliance
-  - tldraw-review-workspace-and-auto-start-if-visual-review-needed
   - review-surface
   - region-review-html
   - parse-canvas-annotations-if-feedback-provided

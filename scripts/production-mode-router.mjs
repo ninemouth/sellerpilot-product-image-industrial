@@ -95,7 +95,7 @@ function selectMode(flags, ctx) {
 function modePolicy(mode, flags) {
   const common = {
     update_check: "cache-first non-blocking",
-    tldraw: "start only when review, gate failure, or revision feedback is next",
+    tldraw: "for generated multi-image final sets, auto-start after export and overview; for single-image drafts, start only when review, gate failure, or revision feedback is next",
     generation_pacing: "use anchor batch before full multi-image generation",
     rerun_policy: "rerun only missing or failed assets",
   };
@@ -124,7 +124,7 @@ function modePolicy(mode, flags) {
         "identity-marketing-export-final-gates",
         "overview-contact-sheet",
       ],
-      skipped_by_default: ["verbose-industrial-reports", "always-on-tldraw", "full-bestseller-mining-unless-requested"],
+      skipped_by_default: ["verbose-industrial-reports", "pre-generation-always-on-tldraw", "full-bestseller-mining-unless-requested"],
     };
   }
   if (mode === "revision_repair") {

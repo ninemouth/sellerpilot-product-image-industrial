@@ -169,6 +169,7 @@ record("workflow loop guard ordering", () => {
       "image-set-export-gate",
       "qa-loop-router",
       "delivery-overview-contact-sheet-if-multi-image-set",
+      "post-generation-tldraw-auto-start-if-generated-images",
       "final-delivery-gate",
     ]) {
       if (!steps.includes(required)) throw new Error(`${file} missing workflow step ${required}`);
@@ -182,6 +183,8 @@ record("workflow loop guard ordering", () => {
     assertStepBefore(file, steps, "image-set-export-gate", "qa-loop-router");
     assertStepBefore(file, steps, "qa-loop-router", "delivery-overview-contact-sheet-if-multi-image-set");
     assertStepBefore(file, steps, "delivery-overview-contact-sheet-if-multi-image-set", "final-delivery-gate");
+    assertStepBefore(file, steps, "delivery-overview-contact-sheet-if-multi-image-set", "post-generation-tldraw-auto-start-if-generated-images");
+    assertStepBefore(file, steps, "post-generation-tldraw-auto-start-if-generated-images", "final-delivery-gate");
   }
 });
 
@@ -1214,6 +1217,66 @@ record("tldraw workspace smoke", () => {
   const canvasState = readJson(path.join(outDir, "data", "canvas-state.json"));
   if (canvasState.board?.zoom_policy !== "locked-no-independent-canvas-zoom") {
     throw new Error("review workspace canvas state should lock independent zoom.");
+  }
+});
+
+record("post-generation tldraw launcher smoke", () => {
+  const runDir = path.join(tmpDir("sp-verify-post-tldraw-"), "run");
+  const imageDir = path.join(runDir, "final-images");
+  const qaDir = path.join(runDir, "qa");
+  run(process.execPath, [
+    "scripts/create-run-skeleton.mjs",
+    "--out-dir", runDir,
+    "--platform", "拼多多",
+    "--category", "女包",
+    "--product-name", "测试女包",
+  ]);
+  execFileSync(process.execPath, ["-e", `
+    const sharp = require(${JSON.stringify(path.join(os.homedir(), ".cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/sharp"))});
+    const dir = process.argv[1];
+    (async () => { await Promise.all([
+      sharp({create:{width:1200,height:1200,channels:4,background:'#f8f5f1'}}).png().toFile(dir + '/IMG-01-main-product.png'),
+      sharp({create:{width:1200,height:1200,channels:4,background:'#ece7df'}}).png().toFile(dir + '/IMG-02-detail-hardware.png')
+    ]); })().catch((e)=>{ console.error(e); process.exit(1); });
+  `, imageDir], { cwd: skillRoot, stdio: "inherit" });
+  run(process.execPath, [
+    "scripts/image-set-export-gate.mjs",
+    "--run-dir", runDir,
+    "--image-dir", imageDir,
+    "--out-dir", qaDir,
+    "--expected-count", "2",
+    "--require-square",
+  ]);
+  run(process.execPath, [
+    "scripts/create-delivery-overview.mjs",
+    "--run-dir", runDir,
+    "--manifest", path.join(runDir, "export", "final-images-manifest.json"),
+    "--out-dir", path.join(runDir, "overview"),
+    "--title", "Post Generation tldraw Verify",
+  ]);
+  run(process.execPath, [
+    "scripts/post-generation-tldraw-launcher.mjs",
+    "--run-dir", runDir,
+    "--manifest", path.join(runDir, "export", "final-images-manifest.json"),
+    "--title", "商品图审核工作台",
+    "--session-id", "post-generation-verify",
+    "--no-auto-start",
+  ]);
+  const report = readJson(path.join(qaDir, "post-generation-tldraw-launch-report.json"));
+  if (report.status !== "created_no_auto_start") {
+    throw new Error(`post-generation launcher should create workspace with --no-auto-start, got ${report.status}`);
+  }
+  for (const file of [
+    "review-workspace/data/import-manifest.json",
+    "review-workspace/data/post-generation-tldraw-launch-report.json",
+    "review-workspace/public/imported-images/IMG-01-main-product.png",
+    "review-workspace/public/imported-images/IMG-02-detail-hardware.png",
+  ]) {
+    if (!fs.existsSync(path.join(runDir, file))) throw new Error(`post-generation launcher missing ${file}`);
+  }
+  const manifest = readJson(path.join(runDir, "review-workspace", "data", "import-manifest.json"));
+  if (manifest.workspace?.image_manifest !== path.join(runDir, "export", "final-images-manifest.json")) {
+    throw new Error("post-generation launcher should build tldraw workspace from final-images manifest.");
   }
 });
 

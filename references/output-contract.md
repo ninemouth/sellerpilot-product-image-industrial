@@ -12,7 +12,7 @@ generation-summary.md  # concise product identity, visual strategy, prompt, and 
 brief-intake/brief-intake-gate-report.json  # only when clarifications or assumptions are material
 generated-assets/generation-progress.json  # for multi-image sets and long-running generation
 qa/qa-loop-state.json                     # persisted retry signatures and loop guard state
-optional-review-workspace/  # only when review/revision is requested or needed
+review-workspace/  # required after generated multi-image final sets; otherwise only when review/revision is requested or needed
 ```
 
 Fast mode may keep compact internal notes for source quality, identity lock, shot matrix, and QA, but it should not create the full industrial artifact tree unless needed.
@@ -72,7 +72,7 @@ research/platform-category-profile-overlay.yaml
 research/bestseller-design-mining.md
 research/bestseller-patterns.yaml
 review/review.html
-review-workspace/  # React + Vite + tldraw workspace when visual review is needed
+review-workspace/  # React + Vite + tldraw workspace after generated multi-image final sets or when visual review is needed
 qa/image-set-export-gate-report.json
 qa/image-set-export-gate-report.md
 export/final-images-manifest.json

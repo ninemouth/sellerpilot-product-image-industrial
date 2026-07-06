@@ -18,7 +18,7 @@
 - 针对时令、气候、节假日、区域趋势和营销热词创建平台上下文计划。
 - 对最终图片文案做策略 gate，避免无证据的夸张卖点、内部 QA 语言、平台水印或系统标记。
 - 用身份一致性、几何比例、物理功能、导出规范、总览图和 QA loop guard 降低“生造功能”“商品变形”“多任务图片串流”等风险。
-- 在需要视觉审核时启动 tldraw 画布，让用户直接批注，然后把批注转换成修订任务。
+- 多图成品在生图导出和总览图完成后自动启动 tldraw 画布，让用户直接批注，然后把批注转换成修订任务。
 
 ## 它不能做什么
 
@@ -224,7 +224,7 @@ selected_mode: quality_production
 - 镜头矩阵、场景策略、文案策略和 prompt layer 摘要。
 - Anchor batch QA 结论，以及后续只补齐缺失/失败图片的说明。
 - 相关 QA 结论：身份、物理/几何、文案、营销、导出、最终交付。
-- 需要批注时的 tldraw review session。
+- 生图完成后的 tldraw review session URL。多图最终成品会在导出和总览图完成后自动创建并启动画布；单图草稿可跳过，除非用户要求审核或 gate 失败。
 
 `fast_generation` 会输出更精简的成品、摘要和 QA；它主要用于单图、草稿或明确速度优先的任务。
 
@@ -259,6 +259,17 @@ npm run route:mode -- \
   --image-count 8 \
   --quality-target high
 ```
+
+生图完成后启动/复用 tldraw 画布：
+
+```bash
+npm run launch:canvas -- \
+  --run-dir runs/demo-amazon-bag \
+  --manifest runs/demo-amazon-bag/export/final-images-manifest.json \
+  --title "商品图审核工作台"
+```
+
+这个命令会读取当前任务的 final-images manifest，创建 `review-workspace/`，把图片作为 tldraw 底层锁定图形导入，并默认启动或复用共享 tldraw 服务。自测或只想生成文件时才加 `--no-auto-start`。
 
 创建任务目录：
 

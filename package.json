@@ -13,7 +13,8 @@
     "verify": "node scripts/verify-skill.mjs",
     "sync": "node scripts/sync-to-codex-skill.mjs",
     "check:update": "node scripts/check-skill-update.mjs",
-    "route:mode": "node scripts/production-mode-router.mjs"
+    "route:mode": "node scripts/production-mode-router.mjs",
+    "launch:canvas": "node scripts/post-generation-tldraw-launcher.mjs"
   },
   "optionalDependencies": {
     "playwright": "^1.61.1",

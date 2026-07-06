@@ -67,9 +67,9 @@ steps:
   - image-set-export-gate
   - qa-loop-router
   - delivery-overview-contact-sheet-if-multi-image-set
+  - post-generation-tldraw-auto-start-if-generated-images
   - final-delivery-gate
   - qa-compliance
-  - tldraw-review-workspace-if-visual-review-needed
   - infinite-canvas-interaction
   - parse-canvas-annotations-if-feedback-provided
   - region-review-html

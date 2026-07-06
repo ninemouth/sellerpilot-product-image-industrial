@@ -37,7 +37,7 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
 
 This check is non-blocking. If it reports `current`, continue silently. If it reports `update_available`, briefly tell the user the installed skill appears behind GitHub and offer to update before or after the current run. If it reports `unknown_*`, timed out, or uses stale cache, continue the image workflow and mention it only when the user asks about version freshness. Do not auto-install or overwrite a skill without explicit user authorization.
 
-For speed-sensitive chat generation, use the lightest mode that can still protect final image quality. Do not treat `fast_generation` as the universal default for ecommerce finals. Use `quality_production` for normal multi-image sets, high-quality final assets, scene-heavy requests, physical-function/scale-sensitive products, or conversion-critical platform/category work. Avoid starting tldraw until visual review is requested, a gate fails and needs markup, or revision feedback is expected. Use cached platform/profile memory unless the platform/category/season/region/trend question is current or conversion-critical.
+For speed-sensitive chat generation, use the lightest mode that can still protect final image quality. Do not treat `fast_generation` as the universal default for ecommerce finals. Use `quality_production` for normal multi-image sets, high-quality final assets, scene-heavy requests, physical-function/scale-sensitive products, or conversion-critical platform/category work. For generated multi-image final sets, auto-start the tldraw review workspace after final images are exported and the delivery overview is created, before final user handoff. Use cached platform/profile memory unless the platform/category/season/region/trend question is current or conversion-critical.
 
 ## User Request Contract
 
@@ -122,6 +122,7 @@ For normal chat, do not create every artifact listed in the full output contract
 17. Use the workflow steps as a gated loop, not as decorative labels. Generate only missing assets, rerender only failed layouts, and stop early when product identity, geometry, or copy strategy drifts.
 18. Run export and output-failure gates before final delivery. Do not present contact sheets, collage previews, fake scene placeholders, or visually unreadable drafts as final ecommerce images. For multi-image sets, generate a separate delivery overview contact sheet under `overview/`; it is a package review artifact and does not replace independent final images.
 18a. Enforce task-level image isolation. Each run must have a unique `run_id` and a run-local `export/final-images-manifest.json`. Overview, tldraw, export gates, A-H review, and identity review must read the current run manifest or exactly `/abs/run/final-images`; do not point them at a date-level directory, shared `outputs/`, parent folder, or another task's folder. `outputs/` can receive copies for user-facing delivery, but it is not an internal production source.
+18b. After final images are exported and the delivery overview exists, run `post-generation-tldraw-launcher.mjs` for generated multi-image final sets. This must create `/abs/run/review-workspace`, register the run-scoped manifest images, start or reuse the shared tldraw service by default, and write `qa/post-generation-tldraw-launch-report.json` with a ready URL or blocked reason before final user handoff. Use `--no-auto-start` only for selftests or explicit file-only archives.
 19. Produce the mode-appropriate Definition of Done. Fast mode should end with actual generated images and a concise QA summary; industrial audit mode should produce the full artifact package.
 
 ## Bundled Scripts
@@ -328,6 +329,15 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
 For every multi-image set, create `overview/SET-OVERVIEW-contact-sheet.png` and `overview/delivery-overview-report.json` before final delivery. This 总览图 is for package review and conversation handoff only; it must not be placed in `final-images` or used as a substitute for independent ecommerce images. Do not create it from a shared `outputs/` directory.
 
 ```bash
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/post-generation-tldraw-launcher.mjs \
+  --run-dir /abs/run \
+  --manifest /abs/run/export/final-images-manifest.json \
+  --title "商品图审核工作台"
+```
+
+Use this after generated final images are exported and the delivery overview exists. It creates `review-workspace/`, imports the current run manifest images as locked bottom-floor tldraw shapes, starts or reuses the shared tldraw service by default, and writes `qa/post-generation-tldraw-launch-report.json`. Present the ready URL in the final handoff. If it cannot start, report the blocked reason and keep the workspace files as durable review artifacts. Use `--no-auto-start` only for selftests or explicit non-interactive archives.
+
+```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/final-delivery-gate.mjs \
   --run-dir /abs/run
 ```
@@ -367,7 +377,7 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
 
 This creates a React + Vite review workspace from the current run manifest with copied image assets, `data/import-manifest.json`, `data/annotations.json`, `data/canvas-state.json`, `data/review-completion.json`, and `data/generation-tasks.json`. By default it also starts or reuses the shared tldraw service and returns a ready session URL. The review plane must use native tldraw as the actual drawing canvas: generated product images are imported as locked bottom-floor tldraw image shapes, while tldraw pen, arrow, shape, note, text, A-H standards, issue markers, and revision annotations live above those images in the same canvas coordinate system. Do not use a left sidebar or an HTML image-card overlay above the tldraw canvas. Put the image file list in the top dropdown; tldraw zoom/pan is allowed because images and annotations scale together inside the same canvas. The session id should be the run id unless an explicit unique session id is provided.
 
-The workspace and shared canvas service are started automatically when visual review is needed. Use `--no-auto-start` only for selftests, file-only artifact generation, or explicitly non-interactive audit archives.
+For generated multi-image final sets, use the post-generation launcher so the workspace and shared canvas service are started automatically after export and overview. For single-image drafts or non-final planning artifacts, create the workspace only when visual review is requested or a gate fails. Use `--no-auto-start` only for selftests, file-only artifact generation, or explicitly non-interactive audit archives.
 
 When interactive review or revision markup is the next step, ensure the shared service is ready before final delivery with the one-step launcher. This is also the fallback command if automatic startup from workspace creation is blocked:
 
@@ -465,7 +475,7 @@ Fast generation mode should provide:
 - Concise platform/category/season/region context summary when it affected strategy or copy
 - Final prompt/request summary sufficient for review
 - Focused QA summary covering product identity, scene reality, visual diversity, platform fit, and buyer-facing copy
-- tldraw review session only when the user asks for review, a gate fails, or revision feedback is expected
+- tldraw review session URL after generated multi-image final sets are exported; single-image/draft fast mode may skip unless review is requested or a gate fails
 
 Quality production mode should provide:
 
@@ -479,7 +489,7 @@ Quality production mode should provide:
 - Visual director shot matrix and prompt-layer decisions
 - Anchor batch QA decision before continuing the full set
 - Relevant QA reports only: identity, physical/geometry if triggered, copy, marketing, export, final delivery
-- tldraw review session only when requested, failed, or revision feedback is expected
+- tldraw review session URL after generated multi-image final sets are exported, with blocked reason if service startup fails
 
 Industrial audit mode should provide the complete workflow artifacts:
 
@@ -509,7 +519,7 @@ Industrial audit mode should provide the complete workflow artifacts:
 - Delivery Overview contact sheet for multi-image sets
 - Final Images Manifest proving task-scoped image membership
 - tldraw Review Workspace or annotation surface
-- tldraw Review Workspace and parsed Generation Tasks when visual review is needed
+- tldraw Review Workspace and parsed Generation Tasks after generated multi-image final sets, or when visual review/revision is needed
 - Source Image Quality Report
 - Source Product Understanding Gate Report
 - Platform/Category Research Brief when research is required

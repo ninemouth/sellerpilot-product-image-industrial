@@ -8,6 +8,17 @@ Use review surfaces in this order:
 
 ## tldraw Review Workspace
 
+For generated multi-image final sets, use the post-generation launcher after final image export and delivery overview creation:
+
+```bash
+node scripts/post-generation-tldraw-launcher.mjs \
+  --run-dir /abs/run \
+  --manifest /abs/run/export/final-images-manifest.json \
+  --title "商品图审核工作台"
+```
+
+This creates the workspace, imports the current run manifest images as locked bottom-floor tldraw shapes, starts or reuses the shared tldraw service by default, and writes `qa/post-generation-tldraw-launch-report.json`. The final handoff should include the ready URL or the blocked startup reason.
+
 Create the workspace:
 
 ```bash
