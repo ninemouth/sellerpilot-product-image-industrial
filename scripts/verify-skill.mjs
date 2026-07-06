@@ -183,6 +183,40 @@ record("review workspace UI contract", () => {
   }
 });
 
+record("no default html review canvas generation", () => {
+  const renderer = fs.readFileSync(path.join(skillRoot, "scripts", "render-commerce-image-set.mjs"), "utf8");
+  if (/review-canvas\.html|create-review-canvas/.test(renderer)) {
+    throw new Error("render-commerce-image-set.mjs must not create review-canvas.html by default.");
+  }
+  const docs = [
+    "SKILL.md",
+    "AGENTS.md",
+    "references/review-canvas.md",
+    "references/output-contract.md",
+    "references/marketing-quality-gates.md",
+  ].map((file) => [file, fs.readFileSync(path.join(skillRoot, file), "utf8")]);
+  const offenders = docs
+    .filter(([file, text]) => /review-canvas\.html|create-review-canvas|旧 HTML 画布仅作为 fallback|HTML Fallback|local HTML canvas/i.test(text))
+    .map(([file]) => file);
+  if (offenders.length) {
+    throw new Error(`Docs still recommend or name legacy review-canvas.html: ${offenders.join(", ")}`);
+  }
+});
+
+record("tldraw shared service template sync dry run", () => {
+  const dir = tmpDir("sp-verify-shared-service-");
+  const out = run(process.execPath, [
+    "scripts/start-tldraw-shared-service.mjs",
+    "--shared-root", path.join(dir, "canvas-service"),
+    "--session-id", "verify-template-sync",
+    "--dry-run",
+  ]);
+  const parsed = JSON.parse(out);
+  if (parsed.status !== "dry_run") throw new Error("shared service dry-run should not start server.");
+  if (!parsed.templateSync?.source_hash) throw new Error("shared service should report template source hash.");
+  if (!parsed.templateSync?.changed) throw new Error("new shared root should report template sync changed=true.");
+});
+
 record("brief intake smoke", () => {
   const outDir = path.join(tmpDir("sp-verify-brief-"), "brief");
   run(process.execPath, [
@@ -211,6 +245,7 @@ record("run skeleton and gates smoke", () => {
     "00-task-context.yaml",
     "01-goal-contract.yaml",
     "strategy/direction-selection.yaml",
+    "source-understanding/source-product-understanding.json",
     "research/platform-context-plan.md",
     "blueprint/02-identity-lock.yaml",
     "blueprint/02b-product-physical-truth.json",
@@ -223,6 +258,103 @@ record("run skeleton and gates smoke", () => {
   ];
   for (const file of required) {
     if (!fs.existsSync(path.join(runDir, file))) throw new Error(`run skeleton missing ${file}`);
+  }
+});
+
+record("source product understanding gate smoke", () => {
+  const dir = tmpDir("sp-verify-source-understanding-");
+  const understandingPath = path.join(dir, "source-product-understanding.json");
+  const identityPath = path.join(dir, "identity-lock.yaml");
+  const physicalPath = path.join(dir, "physical-truth.json");
+  const geometryPath = path.join(dir, "source-geometry.json");
+  fs.writeFileSync(understandingPath, JSON.stringify({
+    schema_version: "sellerpilot.source_product_understanding.v1",
+    status: "locked",
+    vision_ocr_pass: {
+      status: "completed_needs_verification",
+      raw_text: "Length 1.08 in\\nClosed Height 0.47 in\\nScrew installation",
+    },
+    codex_visual_product_read: {
+      status: "complete",
+      product_identity_summary: "Black low-profile string light cable routing clip with screw mount base.",
+      observed_product_type: "string light cable routing clip",
+      observed_components: ["curved cable channel", "screw mount base", "press-lock arm"],
+      observed_function_or_use: ["routes cable on wood rail"],
+    },
+    text_understanding: {
+      visible_text_items: [{ text: "Length 1.08 in", reveals: ["physical_size_or_dimension"] }],
+      text_derived_facts: [
+        { fact_type: "dimension", value: "Length 1.08 in" },
+        { fact_type: "dimension", value: "Closed Height 0.47 in" },
+        { fact_type: "installation", value: "Screw installation" },
+      ],
+    },
+  }, null, 2));
+  fs.writeFileSync(identityPath, "identity_lock:\n  product_type: string light cable routing clip\n  must_preserve:\n    components:\n      - curved cable channel\n      - screw mount base\n");
+  fs.writeFileSync(physicalPath, JSON.stringify({
+    product_physical_truth: {
+      status: "locked",
+      confirmed_functions: ["routes cable on wood rail"],
+      confirmed_user_actions: ["Screw installation"],
+      scale_reference: { dimensions: ["Length 1.08 in", "Closed Height 0.47 in"] },
+    },
+  }, null, 2));
+  fs.writeFileSync(geometryPath, JSON.stringify({
+    geometry_lock: {
+      product_type: "string light cable routing clip",
+      dimensions_from_source_text: ["Length 1.08 in", "Closed Height 0.47 in"],
+    },
+  }, null, 2));
+  run(process.execPath, [
+    "scripts/source-product-understanding-gate.mjs",
+    "--understanding", understandingPath,
+    "--identity-lock", identityPath,
+    "--physical-truth", physicalPath,
+    "--source-geometry", geometryPath,
+    "--out-dir", path.join(dir, "qa-pass"),
+  ]);
+
+  const pendingPath = path.join(dir, "pending-source-product-understanding.json");
+  fs.writeFileSync(pendingPath, JSON.stringify({
+    status: "starter_needs_codex_visual_review",
+    vision_ocr_pass: { status: "completed_needs_verification", raw_text: "Length 1.08 in" },
+    codex_visual_product_read: { status: "pending" },
+    text_understanding: { visible_text_items: [], text_derived_facts: [] },
+  }, null, 2));
+  spawnSync(process.execPath, [
+    "scripts/source-product-understanding-gate.mjs",
+    "--understanding", pendingPath,
+    "--out-dir", path.join(dir, "qa-fail"),
+  ], { cwd: skillRoot });
+  const failed = readJson(path.join(dir, "qa-fail", "source-product-understanding-gate-report.json"));
+  if (failed.status !== "fail") throw new Error("source understanding gate should fail pending/OCR-unstructured source read.");
+});
+
+record("source product understanding OCR starter smoke", () => {
+  const tesseract = spawnSync("tesseract", ["--version"], { encoding: "utf8" });
+  if (tesseract.status !== 0) return;
+  const dir = tmpDir("sp-verify-source-ocr-");
+  const imagePath = path.join(dir, "source.png");
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900"><rect width="1200" height="900" fill="white"/><text x="120" y="180" font-family="Arial" font-size="64" font-weight="700" fill="black">Length 1.08 in</text><text x="120" y="280" font-family="Arial" font-size="64" fill="black">Closed Height 0.47 in</text></svg>`;
+  execFileSync(process.execPath, ["-e", `
+    (async () => {
+    const sharp = require(${JSON.stringify(path.join(os.homedir(), ".cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/sharp"))});
+    await sharp(Buffer.from(process.argv[2])).png().toFile(process.argv[1]);
+    })().catch((e)=>{ console.error(e); process.exit(1); });
+  `, imagePath, svg], { cwd: skillRoot, stdio: "inherit" });
+  run(process.execPath, [
+    "scripts/create-source-product-understanding.mjs",
+    "--image", imagePath,
+    "--out-dir", path.join(dir, "source-understanding"),
+    "--category", "cable clip",
+  ]);
+  const report = readJson(path.join(dir, "source-understanding", "source-product-understanding.json"));
+  if (report.vision_ocr_pass.status !== "completed_needs_verification") {
+    throw new Error(`OCR starter should read text when tesseract is available, got ${report.vision_ocr_pass.status}`);
+  }
+  const values = (report.text_understanding?.text_derived_facts || []).map((item) => item.value).join(" ");
+  if (!/1\.08 in/.test(values) || !/0\.47 in/.test(values)) {
+    throw new Error("OCR starter should extract visible dimension facts.");
   }
 });
 
@@ -334,6 +466,39 @@ record("export gate pass and draft fail", () => {
   ], { cwd: skillRoot });
   const report = readJson(path.join(dir, "qa-fail", "image-set-export-gate-report.json"));
   if (report.status !== "fail") throw new Error("export gate should reject draft final image.");
+});
+
+record("delivery overview and final gate smoke", () => {
+  const runDir = path.join(tmpDir("sp-verify-overview-"), "run");
+  const imageDir = path.join(runDir, "final-images");
+  const qaDir = path.join(runDir, "qa");
+  fs.mkdirSync(imageDir, { recursive: true });
+  fs.mkdirSync(qaDir, { recursive: true });
+  execFileSync(process.execPath, ["-e", `
+    const sharp = require(${JSON.stringify(path.join(os.homedir(), ".cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/sharp"))});
+    const dir = process.argv[1];
+    Promise.all([
+      sharp({create:{width:1200,height:1200,channels:4,background:'#fff'}}).png().toFile(dir + '/IMG-01-main-product.png'),
+      sharp({create:{width:1200,height:1200,channels:4,background:'#eee'}}).png().toFile(dir + '/IMG-02-detail-structure.png')
+    ]).catch((e)=>{ console.error(e); process.exit(1); });
+  `, imageDir], { cwd: skillRoot, stdio: "inherit" });
+  fs.writeFileSync(path.join(qaDir, "marketing-quality-gate-report.json"), JSON.stringify({ status: "pass", findings: [] }));
+  fs.writeFileSync(path.join(qaDir, "copy-strategy-gate-report.json"), JSON.stringify({ status: "pass", findings: [] }));
+  fs.writeFileSync(path.join(qaDir, "image-set-export-gate-report.json"), JSON.stringify({ status: "pass", findings: [] }));
+  spawnSync(process.execPath, ["scripts/final-delivery-gate.mjs", "--run-dir", runDir], { cwd: skillRoot });
+  const missingOverview = readJson(path.join(qaDir, "final-delivery-gate-report.json"));
+  if (!missingOverview.findings.some((item) => item.type === "missing-delivery-overview")) {
+    throw new Error("final gate should require delivery overview for multi-image sets.");
+  }
+  run(process.execPath, [
+    "scripts/create-delivery-overview.mjs",
+    "--image-dir", imageDir,
+    "--out-dir", path.join(runDir, "overview"),
+    "--title", "Verify Overview",
+  ]);
+  run(process.execPath, ["scripts/final-delivery-gate.mjs", "--run-dir", runDir]);
+  const finalGate = readJson(path.join(qaDir, "final-delivery-gate-report.json"));
+  if (finalGate.status !== "pass") throw new Error("final gate should pass when overview and gates are present.");
 });
 
 record("marketing gate watermark fail", () => {

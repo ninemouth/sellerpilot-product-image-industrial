@@ -6,10 +6,11 @@ Fast generation mode must include:
 
 ```text
 final-images/  # independent generated image files
+overview/SET-OVERVIEW-contact-sheet.png  # required package overview for multi-image sets
 generation-summary.md  # concise product identity, visual strategy, prompt, and QA notes
 brief-intake/brief-intake-gate-report.json  # only when clarifications or assumptions are material
 generated-assets/generation-progress.json  # for multi-image sets and long-running generation
-optional-review-workspace/ or review-canvas.html  # only when review/revision is requested or needed
+optional-review-workspace/  # only when review/revision is requested or needed
 ```
 
 Fast mode may keep compact internal notes for source quality, identity lock, shot matrix, and QA, but it should not create the full industrial artifact tree unless needed.
@@ -22,6 +23,7 @@ brief-intake/brief-intake-gate-report.json
 01-goal-contract.yaml
 01-product-fact-sheet.yaml
 02-identity-lock.yaml
+source-understanding/source-product-understanding.json
 blueprint/02b-product-physical-truth.json
 03-product-feature-analysis.yaml
 04-audience-positioning-analysis.yaml
@@ -51,9 +53,10 @@ review-workspace/data/generation-tasks.json
 11-generated-images/  # only when Codex-native imagegen/image_gen, host app GPT generation, or deterministic rendering was requested
 generated-assets/generation-progress.json
 12-identity-consistency-report.json
-13-review-canvas.html
 14-marketing-quality-gate-report.md
 15-image-set-export-gate-report.md
+overview/SET-OVERVIEW-contact-sheet.png
+overview/delivery-overview-report.json
 16-qa-report.md
 17-revision-history.md
 18-export-package-summary.md
@@ -73,6 +76,7 @@ qa/image-set-export-gate-report.md
 qa/prompt-readiness-gate-report.md
 qa/prompt-layer-gate-report.json
 qa/product-physics-fact-gate-report.json
+qa/source-product-understanding-gate-report.json
 qa/qa-loop-routing-decision.json
 qa/final-delivery-gate-report.json
 failed-output-review.yaml

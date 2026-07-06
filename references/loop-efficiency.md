@@ -85,4 +85,4 @@ If a gate fails, report the failing gate and the smallest next action:
 - product identity drift -> regenerate only failed assets using stronger source-image reference, or ask for more source angles
 - repeated angle/detail/copy -> revise Visual Direction Brief and rerun only affected images
 - text/layout issue -> rerender layout only
-- review widget unavailable -> use local review canvas and state widget limitation
+- review widget unavailable -> use tldraw workspace JSON/completion payload/screenshot evidence and state widget limitation

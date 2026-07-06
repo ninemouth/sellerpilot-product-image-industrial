@@ -39,6 +39,7 @@ const now = new Date().toISOString();
 for (const dir of [
   "source-original",
   "source-enhanced",
+  "source-understanding",
   "brief-intake",
   "strategy",
   "research",
@@ -50,6 +51,7 @@ for (const dir of [
   "layout-drafts",
   "geometry",
   "final-images",
+  "overview",
   "review",
   "qa",
   "export",
@@ -63,6 +65,45 @@ writeIfMissing(path.join(outDir, "brief-intake", "brief-intake-gate-report.json"
   assumptions: [],
   risk_flags: [],
   task_analysis_additions: [],
+}, null, 2) + "\n");
+
+writeIfMissing(path.join(outDir, "source-understanding", "source-product-understanding.json"), JSON.stringify({
+  schema_version: "sellerpilot.source_product_understanding.v1",
+  status: "pending_codex_visual_and_ocr_review",
+  created_at: now,
+  source_image: null,
+  category,
+  image_metadata: {},
+  vision_ocr_pass: {
+    status: "not_run",
+    engine: "tesseract_when_available_plus_codex_visual_read",
+    raw_text: "",
+    warning: null,
+  },
+  codex_visual_product_read: {
+    status: "pending",
+    product_identity_summary: "",
+    observed_product_type: "",
+    observed_components: [],
+    observed_materials_or_finish: [],
+    observed_color_family: [],
+    observed_structure: [],
+    observed_function_or_use: [],
+    physical_size_cues_from_image: [],
+    scale_references: [],
+    uncertainty_notes: [],
+  },
+  text_understanding: {
+    visible_text_items: [],
+    text_derived_facts: [],
+    text_uncertain_or_needs_closeup: [],
+  },
+  facts_to_lock: {
+    identity_lock_fields: [],
+    physical_truth_fields: [],
+    geometry_lock_fields: [],
+    prompt_forbidden_changes: [],
+  },
 }, null, 2) + "\n");
 
 writeIfMissing(path.join(outDir, "00-task-context.yaml"), [

@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
+import { spawnSync } from "node:child_process";
 
 const require = createRequire(import.meta.url);
 
@@ -85,6 +86,7 @@ const manifest = {
   category: args.category || "",
   source_images: records,
   primary_identity_image: primary.enhanced_path,
+  source_product_understanding: createSourceUnderstanding(primary.enhanced_path),
   best_detail_sources: records.filter((item) => item.role === "detail").map((item) => item.enhanced_path),
   best_packaging_sources: records.filter((item) => ["packaging", "logo"].includes(item.role)).map((item) => item.enhanced_path),
   conflicts: [],
@@ -107,6 +109,26 @@ function collectImages(parsedArgs) {
     .filter((name) => /\.(png|jpe?g|webp)$/i.test(name))
     .sort()
     .map((name) => path.join(parsedArgs["image-dir"], name));
+}
+
+function createSourceUnderstanding(primaryImage) {
+  const script = path.join(path.dirname(new URL(import.meta.url).pathname), "create-source-product-understanding.mjs");
+  const understandingDir = path.join(outDir, "source-understanding");
+  const result = spawnSync(process.execPath, [
+    script,
+    "--image", primaryImage,
+    "--out-dir", understandingDir,
+    "--category", args.category || "",
+  ], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  const expected = path.join(understandingDir, "source-product-understanding.json");
+  if (result.status === 0 && fs.existsSync(expected)) return expected;
+  return {
+    status: "not_created",
+    reason: result.stderr || result.stdout || `create-source-product-understanding exited ${result.status}`,
+  };
 }
 
 function inferRole(filePath) {

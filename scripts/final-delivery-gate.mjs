@@ -33,6 +33,8 @@ if (!args["run-dir"]) usage();
 const runDir = path.resolve(args["run-dir"]);
 const qaDir = args["out-dir"] ? path.resolve(args["out-dir"]) : path.join(runDir, "qa");
 const finalImageDir = path.join(runDir, "final-images");
+const overviewReportPath = path.join(runDir, "overview", "delivery-overview-report.json");
+const sourceUnderstandingPath = path.join(runDir, "source-understanding", "source-product-understanding.json");
 fs.mkdirSync(qaDir, { recursive: true });
 
 const reports = loadGateReports(qaDir);
@@ -83,6 +85,18 @@ if (fs.existsSync(physicalTruthPath) && requiresPhysicalTruthGate(physicalTruthP
       gate_id: "final-delivery-gate",
       source_report: "product-physics-fact-gate-report.json",
       message: "product-physics-fact-gate-report.json is required when physical function/use/scale truth is locked before final delivery can pass.",
+    });
+  }
+}
+
+if (fs.existsSync(sourceUnderstandingPath) && requiresSourceUnderstandingGate(sourceUnderstandingPath)) {
+  if (!reports.some((item) => item.name === "source-product-understanding-gate-report.json")) {
+    findings.push({
+      severity: "fail",
+      type: "missing-required-gate-report",
+      gate_id: "final-delivery-gate",
+      source_report: "source-product-understanding-gate-report.json",
+      message: "source-product-understanding-gate-report.json is required when source image recognition, OCR text, dimensions, labels, or product facts are present.",
     });
   }
 }
@@ -140,7 +154,8 @@ if (requestPackPath) {
 }
 
 if (fs.existsSync(finalImageDir)) {
-  for (const name of fs.readdirSync(finalImageDir).filter((item) => /\.(png|jpe?g|webp)$/i.test(item))) {
+  const finalImageNames = fs.readdirSync(finalImageDir).filter((item) => /\.(png|jpe?g|webp)$/i.test(item));
+  for (const name of finalImageNames) {
     if (/\b(?:layout-)?draft\b|placeholder|wireframe|blocked/i.test(name)) {
       findings.push({
         severity: "fail",
@@ -149,6 +164,47 @@ if (fs.existsSync(finalImageDir)) {
         file: path.join(finalImageDir, name),
         message: `Draft, placeholder, wireframe, or blocked asset is present in final-images: ${name}.`,
       });
+    }
+  }
+  if (finalImageNames.length > 1 && !args["allow-missing-overview"]) {
+    if (!fs.existsSync(overviewReportPath)) {
+      findings.push({
+        severity: "fail",
+        type: "missing-delivery-overview",
+        gate_id: "final-delivery-gate",
+        source_report: "overview/delivery-overview-report.json",
+        message: "Multi-image sets must include overview/SET-OVERVIEW-contact-sheet.png plus delivery-overview-report.json for package review.",
+      });
+    } else {
+      try {
+        const overview = JSON.parse(fs.readFileSync(overviewReportPath, "utf8"));
+        if (!overview.overview_image || !fs.existsSync(overview.overview_image)) {
+          findings.push({
+            severity: "fail",
+            type: "missing-delivery-overview-image",
+            gate_id: "final-delivery-gate",
+            source_report: "overview/delivery-overview-report.json",
+            message: "Delivery overview report exists but overview_image is missing on disk.",
+          });
+        }
+        if (Number(overview.image_count || 0) !== finalImageNames.length) {
+          findings.push({
+            severity: "fail",
+            type: "stale-delivery-overview",
+            gate_id: "final-delivery-gate",
+            source_report: "overview/delivery-overview-report.json",
+            message: `Delivery overview covers ${overview.image_count || 0} images, but final-images contains ${finalImageNames.length}. Regenerate the overview.`,
+          });
+        }
+      } catch (error) {
+        findings.push({
+          severity: "fail",
+          type: "unreadable-delivery-overview-report",
+          gate_id: "final-delivery-gate",
+          source_report: "overview/delivery-overview-report.json",
+          message: error.message,
+        });
+      }
     }
   }
 }
@@ -247,6 +303,18 @@ function requiresPhysicalTruthGate(filePath) {
   } catch {
     const text = fs.readFileSync(filePath, "utf8");
     return /(function|install|screw|route|cable|clip|clamp|hold|press|lock|scale|dimension|mount|adhesive|magnet|waterproof|load-bearing|功能|安装|螺丝|固定|走线|线缆|夹|按压|尺寸|比例|承重|防水)/i.test(text);
+  }
+}
+
+function requiresSourceUnderstandingGate(filePath) {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(filePath, "utf8"));
+    const text = JSON.stringify(parsed).toLowerCase();
+    if (!parsed.source_image && !parsed.vision_ocr_pass?.raw_text && !parsed.text_understanding?.visible_text_items?.length) return false;
+    return /(source|ocr|visible_text|dimension|length|width|height|diameter|label|warning|model|install|function|material|weight|尺寸|文字|标签|型号|安装|功能|材质|重量)/i.test(text);
+  } catch {
+    const text = fs.readFileSync(filePath, "utf8");
+    return /(source_image|ocr|visible_text|dimension|length|width|height|diameter|label|warning|model|install|function|material|weight|尺寸|文字|标签|型号|安装|功能|材质|重量)/i.test(text);
   }
 }
 

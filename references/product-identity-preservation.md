@@ -10,7 +10,7 @@ In Codex chat/project contexts, the system `imagegen` skill / built-in `image_ge
 
 ## Product Identity Lock
 
-Create `identity-lock.yaml` after source image parsing and before scene/detail generation:
+Create `identity-lock.yaml` after source image parsing and Source Product Understanding, before scene/detail generation:
 
 ```yaml
 identity_lock:
@@ -47,6 +47,8 @@ identity_lock:
       source_geometry_ref: geometry/source-geometry.json
       generated_geometry_ref: geometry/generated-geometry.json
   micro_detail_lock:
+    source_product_understanding_ref: source-understanding/source-product-understanding.json
+    text_derived_facts_to_preserve: []
     visible_text_or_logo:
       status: clear|unclear|not_visible
       location:
@@ -90,6 +92,7 @@ identity_lock:
 - Do not generate small details from memory. Hardware, zipper, straps, accessories, texture, stitch direction, logos, and decorations must come from source evidence.
 - If a detail is not visible in the source, do not invent it. Mark it unknown and avoid closeup claims.
 - If a logo, trademark, product name, tag, engraving, charm face, or tiny printed text is visible but unclear, preserve its approximate placement, size, contrast, color, and shape while keeping it unreadable. Ask the user for a clearer closeup only when that micro-detail is commercially important or will be shown close.
+- If source-image text reveals dimensions, installation actions, compatibility, material, package contents, weight, warnings, or certifications, propagate those facts into Product Physical Truth Lock, geometry lock, copy, and prompt layers. Generated images must preserve the factual meaning and scale; do not silently change a visible 1.08 in product into a much larger object.
 - Never turn an unclear mark into a readable brand word, new monogram, new animal face, or new decorative pattern.
 - For closeups, prefer crop/enhance/composite from the source image when possible. Use generation only to clean or contextualize, not to redesign the detail.
 - Do not use competitor references as identity references. Competitors may inform differentiation only.

@@ -36,7 +36,7 @@ Optional:
   --chrome "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
   --allow-scene-layout-draft
 
-The script renders one 1200x1200 PNG per copy-json panel and a local review canvas.
+The script renders one 1200x1200 PNG per copy-json panel.
 Each panel may include "image", "image_path", "generated_asset_path", or
 "scene_asset_path" to use a generated scene/detail asset. Scene roles require a
 panel-specific generated/photo scene asset unless --allow-scene-layout-draft is set.`);
@@ -150,12 +150,6 @@ for (let i = 0; i < panels.length; i += 1) {
   imagePaths.push(out);
 }
 await browser.close();
-
-const canvasScript = path.join(path.dirname(new URL(import.meta.url).pathname), "create-review-canvas.mjs");
-if (fs.existsSync(canvasScript)) {
-  const { spawnSync } = await import("node:child_process");
-  spawnSync(process.execPath, [canvasScript, "--images", imagePaths.join(","), "--out", path.join(outDir, "review-canvas.html"), "--title", `${productName} ${platform} review canvas`], { stdio: "inherit" });
-}
 
 console.log(outDir);
 

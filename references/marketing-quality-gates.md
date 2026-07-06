@@ -29,7 +29,7 @@ For an 8-image Pinduoduo set, require these distinct roles:
 
 Fail the image set if:
 
-- The final delivery is a contact sheet, collage preview, or multi-panel overview instead of independent image files.
+- The final delivery is a contact sheet, collage preview, or multi-panel overview instead of independent image files. A separate `overview/SET-OVERVIEW-contact-sheet.png` is required for package review, but it must not replace or sit inside `final-images`.
 - More than three images use the same white-background product cutout as the primary visual.
 - Product subject is too small to inspect in main, scene, or decision images.
 - Scene images only show the same product cutout with a scene-related title.
@@ -85,4 +85,4 @@ When the user asks for actual images and includes scene images:
 
 Render a review widget when a current-session widget tool is available. The Creative Production moodboard review widget is acceptable as a gallery review surface, but it is not the same as a native infinite-canvas annotation tool.
 
-Always create the bundled local `review-canvas.html` as a durable fallback.
+When review/revision is expected, create the bundled tldraw workspace and auto-start the shared service so the user receives a ready session URL. Keep tldraw data JSON, completion JSON, and screenshot captures as durable review artifacts.

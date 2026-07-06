@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from "node:fs";
+import crypto from "node:crypto";
 import http from "node:http";
 import net from "node:net";
 import os from "node:os";
@@ -40,16 +41,17 @@ const logDir = path.join(sharedRoot, "logs");
 const host = "127.0.0.1";
 const waitMs = args["wait-ms"] ? Number(args["wait-ms"]) : 20000;
 
-if (!fs.existsSync(path.join(sharedRoot, "package.json"))) {
-  fs.mkdirSync(sharedRoot, { recursive: true });
-  fs.cpSync(templateDir, sharedRoot, { recursive: true });
-}
+const templateSync = syncSharedTemplate({
+  templateDir,
+  sharedRoot,
+  dryRun: Boolean(args["dry-run"]),
+});
 
 const existing = readJson(statePath);
 if (existing?.pid && processAlive(existing.pid)) {
   const base = existing.base_url || `http://${host}:${existing.port}/`;
   const url = sessionUrl(base, args["session-id"]);
-  if (await urlReady(url, 2500)) {
+  if (!templateSync.changed && await urlReady(url, 2500)) {
     console.log(JSON.stringify({
       status: "already_running",
       sharedRoot,
@@ -57,6 +59,7 @@ if (existing?.pid && processAlive(existing.pid)) {
       port: existing.port,
       url,
       statePath,
+      templateSync,
     }, null, 2));
     process.exit(0);
   }
@@ -78,6 +81,7 @@ if (args["dry-run"]) {
     port,
     url,
     statePath,
+    templateSync,
   }, null, 2));
   process.exit(0);
 }
@@ -128,6 +132,7 @@ if (!ready) {
     url,
     statePath,
     logs: state.logs,
+    templateSync,
     warning: state.warning,
   }, null, 2));
   process.exitCode = 1;
@@ -142,7 +147,74 @@ if (!ready) {
     port,
     url,
     statePath,
+    templateSync,
   }, null, 2));
+}
+
+function syncSharedTemplate({ templateDir: sourceDir, sharedRoot: destDir, dryRun }) {
+  const sourceHash = hashTemplate(sourceDir);
+  const markerPath = path.join(destDir, "data", "template-sync.json");
+  const existingMarker = readJson(markerPath);
+  const missingApp = !fs.existsSync(path.join(destDir, "package.json")) || !fs.existsSync(path.join(destDir, "src", "main.jsx"));
+  const changed = missingApp || existingMarker?.source_hash !== sourceHash;
+  const result = {
+    source_hash: sourceHash,
+    previous_hash: existingMarker?.source_hash || null,
+    changed,
+    dry_run: dryRun,
+  };
+  if (!changed || dryRun) return result;
+
+  fs.mkdirSync(destDir, { recursive: true });
+  for (const name of ["package.json", "package-lock.json", "index.html", "vite.config.js"]) {
+    const source = path.join(sourceDir, name);
+    if (fs.existsSync(source)) fs.copyFileSync(source, path.join(destDir, name));
+  }
+  for (const name of ["src"]) {
+    const source = path.join(sourceDir, name);
+    const dest = path.join(destDir, name);
+    fs.rmSync(dest, { recursive: true, force: true });
+    fs.cpSync(source, dest, { recursive: true });
+  }
+  fs.mkdirSync(path.join(destDir, "data"), { recursive: true });
+  fs.mkdirSync(path.join(destDir, "public", "sessions"), { recursive: true });
+  fs.writeFileSync(markerPath, JSON.stringify({
+    schema_version: "sellerpilot.tldraw_template_sync.v1",
+    source_hash: sourceHash,
+    synced_at: new Date().toISOString(),
+    source_dir: sourceDir,
+  }, null, 2));
+  result.synced = true;
+  return result;
+}
+
+function hashTemplate(dir) {
+  const hash = crypto.createHash("sha256");
+  for (const file of listTemplateFiles(dir)) {
+    hash.update(path.relative(dir, file));
+    hash.update("\0");
+    hash.update(fs.readFileSync(file));
+    hash.update("\0");
+  }
+  return hash.digest("hex");
+}
+
+function listTemplateFiles(dir) {
+  const found = [];
+  const stack = [dir];
+  while (stack.length) {
+    const current = stack.pop();
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const full = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        if (["node_modules", "data", "public", "logs"].includes(entry.name)) continue;
+        stack.push(full);
+      } else if (/\.(json|js|jsx|css|html)$/.test(entry.name)) {
+        found.push(full);
+      }
+    }
+  }
+  return found.sort();
 }
 
 function expandHome(value) {

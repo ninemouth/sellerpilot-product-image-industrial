@@ -4,7 +4,7 @@ Use review surfaces in this order:
 
 1. Native Codex/Sites, Figma/FigJam, or plugin widget when available and able to render the actual image assets.
 2. Local React + Vite + tldraw review workspace for a controlled infinite-canvas workflow.
-3. Single-file HTML review canvas as the durable fallback.
+3. Durable annotation JSON and screenshots from the tldraw workspace when an interactive server cannot be opened.
 
 ## tldraw Review Workspace
 
@@ -104,27 +104,6 @@ The capture JSON records whether a completion payload was present in browser sto
 - Use `start-tldraw-review-workspace.mjs` only as an isolated fallback. It still starts at most one server per workspace by reading `data/server-state.json`.
 - If a task only needs file artifacts or QA reports, pass `--no-auto-start` and create the workspace files without starting the server.
 
-## HTML Fallback
-
-This skill also includes a durable single-file local review-canvas tool:
-
-```bash
-node scripts/create-review-canvas.mjs \
-  --image-dir /abs/generated-images \
-  --out /abs/generated-images/review-canvas.html \
-  --title "商品图批注画布"
-```
-
-Capabilities:
-
-- Arrange generated images on a large scrollable canvas.
-- Drag image cards to group or reorder them.
-- Write per-image annotations.
-- Persist annotations in local browser `localStorage`.
-- Export annotations as `revision-annotations.json`.
-
-Use this tool after image generation or deterministic rendering. Treat exported annotations as structured input to the `revision` step and convert them into a Revision Brief.
-
 When precise image revision is expected, also create `review/review.html` with A-H editable regions:
 
 - A product subject
@@ -140,8 +119,8 @@ Use the A-H feedback export as structured input for the Revision Brief.
 
 ## Native Codex or Plugin Canvas
 
-- If a native Codex, Creative Production, or app widget review surface is available in the current session and can render the image assets, render it in addition to the local HTML canvas.
+- If a native Codex, Creative Production, or app widget review surface is available in the current session and can render the image assets, render it in addition to the tldraw workspace.
 - If a widget only receives local filesystem paths and shows placeholders, treat that widget route as failed. Do not present placeholder widgets as a successful review canvas.
 - Prefer widget-compatible URLs, uploaded asset IDs, or a saved run directory when the widget requires non-local image references.
-- Do not rely only on the widget. Always keep a tldraw workspace, `review-canvas.html`, or an annotation JSON file in the run directory so the review state is durable.
+- Do not rely only on the widget. Always keep a tldraw workspace files, annotation JSON, completion JSON, or screenshot capture in the run directory so the review state is durable.
 - A skill alone cannot guarantee opening a proprietary infinite-canvas UI. That requires a plugin/app/widget integration. This skill therefore ships the local canvas tool as the guaranteed fallback.

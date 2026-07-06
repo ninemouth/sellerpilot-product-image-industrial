@@ -25,7 +25,7 @@ Expected: Visual Director gate or marketing gate fails before final export; revi
 Expected: final image copy containing terms like `不虚标`, `以源图为准`, `示意`, `QA`, `风险`, or `待确认` fails marketing gate and is rewritten into buyer-facing copy.
 
 ## Case 9: native infinite canvas unavailable
-Expected: do not claim native widget success; create local `review-canvas.html` and report the widget limitation.
+Expected: do not claim native widget success; create the tldraw workspace files, keep annotation/completion JSON or screenshot evidence, and report the widget/server limitation.
 
 ## Case 10: product feature and audience analysis missing
 Expected: complete image generation must stop before visual direction and create `03-product-feature-analysis.yaml` and `04-audience-positioning-analysis.yaml`; shot matrix and copy must reference feature benefits, buyer motivations, objections, and scene priorities.
@@ -61,7 +61,7 @@ Expected: SHEIN, Temu, Mercado Libre, Shopee LatAm/Brazil, and Falabella request
 Expected: exported image files must use stable IDs plus English purpose slugs, such as `IMG-01-main-product.png`, `POSTER-01-campaign-poster.png`, and `DETAIL-03-product-solution.png`; plain `IMG-01.png` is not sufficient.
 
 ## Case 19: contact sheet or collage delivered as final
-Expected: fail export gate. Final ecommerce image delivery must include independent image files; a contact sheet can only be an optional preview.
+Expected: fail export gate when a contact sheet/collage is placed in `final-images`. Final ecommerce image delivery must include independent image files; the required `overview/SET-OVERVIEW-contact-sheet.png` is a separate package overview artifact only.
 
 ## Case 20: fake scene placeholder
 Expected: fail marketing gate when scene images use flat silhouettes, icon people, abstract UI blocks, or background shapes instead of real product-in-context scene assets.

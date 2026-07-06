@@ -1,6 +1,6 @@
 # Source Image Quality
 
-Run source-image preflight before product fact extraction and before generating scene images.
+Run source-image preflight before source product understanding, product fact extraction, and scene generation.
 
 If multiple source images are provided, first build a source image set manifest:
 
@@ -42,6 +42,30 @@ source-quality-report.json
 Use the enhanced image for product parsing, deterministic layouts, and GPT built-in image generation references. Do not treat enhancement as proof of new product facts.
 
 When multiple source images exist, enhance each user-owned source image, but keep role labels and evidence boundaries separate. Do not merge conflicting images into one invented product.
+
+## Source Product Understanding
+
+After enhancement, run source product understanding. The image may contain text, labels, tags, packaging, dimensions, warnings, installation callouts, model names, or scale cues that are product facts, not decorative pixels.
+
+```bash
+node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/create-source-product-understanding.mjs \
+  --image /abs/run/source-enhanced/source-enhanced.png \
+  --out-dir /abs/run/source-understanding \
+  --category "商品类目"
+```
+
+Then complete the Codex visual/OCR read and run the gate:
+
+```bash
+node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/source-product-understanding-gate.mjs \
+  --understanding /abs/run/source-understanding/source-product-understanding.json \
+  --identity-lock /abs/run/blueprint/02-identity-lock.yaml \
+  --physical-truth /abs/run/blueprint/02b-product-physical-truth.json \
+  --source-geometry /abs/run/geometry/source-geometry.json \
+  --out-dir /abs/run/qa
+```
+
+Use `references/source-product-understanding.md` for the full product-recognition and visible-text propagation rules.
 
 ## When To Generate Scene Assets
 
