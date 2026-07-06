@@ -43,6 +43,12 @@ button.primary {
   color: #ffffff;
 }
 
+button.active-tool {
+  border-color: #0e7c7b;
+  background: #dff5f1;
+  color: #084f4e;
+}
+
 .app-shell {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
@@ -115,6 +121,10 @@ h2 {
   width: min(420px, 44vw);
 }
 
+.priority-field {
+  width: 150px;
+}
+
 label {
   display: grid;
   gap: 5px;
@@ -149,6 +159,18 @@ textarea {
   border-bottom: 1px solid #d7e1ea;
   background: #f8fbfd;
   padding: 12px 18px;
+}
+
+.review-toolbar.collapsed {
+  display: none;
+}
+
+.drawing-toolbar {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(58px, auto);
+  gap: 6px;
+  align-items: end;
 }
 
 .comment-field {
@@ -274,10 +296,18 @@ textarea {
 
 .standards-panel {
   position: absolute;
+  cursor: crosshair;
+  touch-action: none;
+  pointer-events: auto;
+  user-select: none;
 }
 
 .standards-panel.selected {
   box-shadow: inset 0 0 0 3px rgba(14, 124, 123, 0.48);
+}
+
+.standards-panel.tool-select {
+  cursor: pointer;
 }
 
 .standard-chip {
@@ -291,6 +321,7 @@ textarea {
   font-size: 11px;
   font-weight: 900;
   text-transform: uppercase;
+  pointer-events: none;
 }
 
 .region-strip {
@@ -301,6 +332,7 @@ textarea {
   display: grid;
   grid-template-columns: repeat(8, minmax(0, 1fr));
   gap: 3px;
+  pointer-events: none;
 }
 
 .region-strip span {
@@ -319,6 +351,58 @@ textarea {
 .annotation-markers {
   position: absolute;
   inset: 0;
+  pointer-events: none;
+}
+
+.drawing-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.draw-shape {
+  fill: none;
+  stroke: #0e7c7b;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 2px 5px rgba(31, 49, 68, 0.22));
+}
+
+.draw-shape.p0 {
+  stroke: #c92a2a;
+}
+
+.draw-shape.p2 {
+  stroke: #596579;
+}
+
+.draw-shape.draft {
+  stroke-dasharray: 8 6;
+  opacity: 0.72;
+}
+
+g.draw-shape circle {
+  fill: #0e7c7b;
+  stroke: #ffffff;
+  stroke-width: 3;
+}
+
+g.draw-shape.p0 circle {
+  fill: #c92a2a;
+}
+
+g.draw-shape.p2 circle {
+  fill: #596579;
+}
+
+g.draw-shape text {
+  fill: #ffffff;
+  stroke: none;
+  font: 900 16px Arial, sans-serif;
 }
 
 .marker {
@@ -414,6 +498,15 @@ textarea {
 
   .compact-field {
     width: 100%;
+  }
+
+  .priority-field {
+    width: 100%;
+  }
+
+  .drawing-toolbar {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .review-toolbar {

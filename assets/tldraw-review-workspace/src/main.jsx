@@ -38,6 +38,14 @@ const PRIORITIES = [
   ["P2", "P2 polish"],
 ];
 
+const DRAW_TOOLS = [
+  ["pen", "Pen"],
+  ["box", "Box"],
+  ["arrow", "Arrow"],
+  ["note", "Note"],
+  ["select", "Select"],
+];
+
 function App() {
   const boardRef = useRef(null);
   const [manifest, setManifest] = useState(null);
@@ -49,6 +57,9 @@ function App() {
   const [comment, setComment] = useState("");
   const [status, setStatus] = useState("loading manifest");
   const [completion, setCompletion] = useState(null);
+  const [activeTool, setActiveTool] = useState("pen");
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [drawDraft, setDrawDraft] = useState(null);
 
   useEffect(() => {
     fetch(MANIFEST_URL)
@@ -101,25 +112,43 @@ function App() {
 
   const selectedAnnotations = annotations.filter((item) => item.image_id === selectedImageId);
 
-  const addAnnotation = () => {
-    if (!selectedImageId || !comment.trim()) return;
+  const addAnnotation = (overrides = {}) => {
+    const targetImageId = overrides.image_id || selectedImageId;
+    const targetImage = images.find((image) => image.id === targetImageId) || selectedImage;
+    const finalComment = (overrides.comment || comment || drawingFallbackComment(overrides.tool || activeTool)).trim();
+    if (!targetImageId || !finalComment) return;
     const item = {
       id: `ann-${Date.now()}`,
-      image_id: selectedImageId,
-      image_file: selectedImage?.copied_file || selectedImage?.file || "",
-      source_file: selectedImage?.file || "",
-      image_path: selectedImage?.path || "",
-      region: regionLabel,
-      issue_type: issueType,
-      priority,
+      image_id: targetImageId,
+      image_file: targetImage?.copied_file || targetImage?.file || "",
+      source_file: targetImage?.file || "",
+      image_path: targetImage?.path || "",
+      region: overrides.region || regionLabel,
+      issue_type: overrides.issue_type || issueType,
+      priority: overrides.priority || priority,
       comment: comment.trim(),
-      status: issueType === "keep" ? "closed" : "open",
+      status: (overrides.issue_type || issueType) === "keep" ? "closed" : "open",
       created_at: new Date().toISOString(),
       source: "sellerpilot-review-workspace",
+      draw_tool: overrides.tool || null,
+      drawing: overrides.drawing || null,
     };
+    item.comment = finalComment;
     setAnnotations((current) => [item, ...current]);
     setComment("");
     setStatus("annotation added");
+  };
+
+  const addDrawingAnnotation = ({ card, drawing, tool }) => {
+    const prompted = window.prompt("批注说明：这块区域希望如何修改？", drawingFallbackComment(tool));
+    const finalComment = (prompted || drawingFallbackComment(tool)).trim();
+    addAnnotation({
+      image_id: card.id,
+      comment: finalComment,
+      tool,
+      drawing,
+      issue_type: tool === "note" ? "modify" : issueType,
+    });
   };
 
   const closeAnnotation = (id) => {
@@ -186,6 +215,27 @@ function App() {
               ))}
             </select>
           </label>
+          <div className="drawing-toolbar" aria-label="Board annotation tools">
+            {DRAW_TOOLS.map(([value, label]) => (
+              <button
+                key={value}
+                className={activeTool === value ? "active-tool" : ""}
+                onClick={() => setActiveTool(value)}
+                title={`${label} annotation tool`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <label className="priority-field">
+            Priority
+            <select value={priority} onChange={(event) => setPriority(event.target.value)}>
+              {PRIORITIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>
+          </label>
+          <button onClick={() => setAdvancedOpen((value) => !value)}>
+            {advancedOpen ? "Hide Form" : "Form"}
+          </button>
           <button onClick={exportAnnotations}>Export JSON</button>
           <button onClick={exportCanvasState}>Export State</button>
           <button className="primary action-complete-review" onClick={completeReview}>Complete Review</button>
@@ -193,7 +243,7 @@ function App() {
       </header>
 
       <main className="workspace">
-        <section className="review-toolbar" aria-label="Direct image standard form">
+        <section className={`review-toolbar ${advancedOpen ? "open" : "collapsed"}`} aria-label="Advanced structured image standard form">
           <label>
             Region
             <select value={regionLabel} onChange={(event) => setRegionLabel(event.target.value)}>
@@ -220,7 +270,7 @@ function App() {
               placeholder="写批注：直接描述这张图的修改标准、风险、希望改成什么..."
             />
           </label>
-          <button className="primary" onClick={addAnnotation}>Add Standard</button>
+          <button className="primary" onClick={() => addAnnotation()}>Add Standard</button>
           <button onClick={clearAnnotations}>Clear</button>
         </section>
 
@@ -256,6 +306,11 @@ function App() {
                   card={card}
                   selected={card.id === selectedImageId}
                   annotations={annotations.filter((item) => item.image_id === card.id)}
+                  activeTool={activeTool}
+                  draft={drawDraft?.image_id === card.id ? drawDraft : null}
+                  onSelect={setSelectedImageId}
+                  onDraftChange={setDrawDraft}
+                  onAddDrawing={addDrawingAnnotation}
                 />
               ))}
             </div>
@@ -301,19 +356,72 @@ function ImageTile({ card, selected, onSelect }) {
   );
 }
 
-function StandardOverlay({ card, selected, annotations }) {
+function StandardOverlay({ card, selected, annotations, activeTool, draft, onSelect, onDraftChange, onAddDrawing }) {
   const openAnnotations = annotations.filter((item) => item.status !== "closed").slice(0, 4);
+  const drawingAnnotations = annotations.filter((item) => item.status !== "closed" && item.drawing);
+  const handlePointerDown = (event) => {
+    onSelect(card.id);
+    if (activeTool === "select") return;
+    const point = panelPoint(event.currentTarget, event);
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    onDraftChange({
+      image_id: card.id,
+      tool: activeTool,
+      start: point,
+      current: point,
+      points: [point],
+    });
+  };
+  const handlePointerMove = (event) => {
+    if (!draft || draft.image_id !== card.id) return;
+    const point = panelPoint(event.currentTarget, event);
+    onDraftChange({
+      ...draft,
+      current: point,
+      points: draft.tool === "pen" ? [...(draft.points || []), point] : draft.points,
+    });
+  };
+  const handlePointerUp = (event) => {
+    if (!draft || draft.image_id !== card.id) return;
+    const point = panelPoint(event.currentTarget, event);
+    const completed = {
+      ...draft,
+      current: point,
+      points: draft.tool === "pen" ? [...(draft.points || []), point] : draft.points,
+    };
+    onDraftChange(null);
+    if (!isMeaningfulDrawing(completed)) return;
+    onAddDrawing({
+      card,
+      tool: completed.tool,
+      drawing: drawingPayload(completed, card),
+    });
+  };
   return (
     <div
-      className={`standards-panel ${selected ? "selected" : ""}`}
+      className={`standards-panel ${selected ? "selected" : ""} tool-${activeTool}`}
       style={{ left: card.x, top: card.y, width: card.width, height: card.height }}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
     >
-      <div className="standard-chip">{selected ? "selected image" : "image standards"}</div>
+      <div className="standard-chip">{selected ? `${activeTool} tool` : "tap to annotate"}</div>
       <div className="region-strip">
         {REGIONS.map(([value, label]) => (
           <span key={value}>{label.split(" ")[0]}</span>
         ))}
       </div>
+      <svg className="drawing-layer" viewBox={`0 0 ${card.width} ${card.height}`} aria-hidden="true">
+        <defs>
+          <marker id={`arrow-${card.id}`} markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+            <path d="M0,0 L8,4 L0,8 z" fill="#0e7c7b" />
+          </marker>
+        </defs>
+        {drawingAnnotations.map((item) => (
+          <AnnotationShape key={item.id} annotation={item} card={card} markerId={`arrow-${card.id}`} />
+        ))}
+        {draft ? <AnnotationShape annotation={{ drawing: drawingPayload(draft, card), priority: "P1" }} card={card} markerId={`arrow-${card.id}`} draft /> : null}
+      </svg>
       <div className="annotation-markers">
         {openAnnotations.map((item, index) => (
           <span key={item.id} className={`marker ${item.priority.toLowerCase()}`} style={{ top: 72 + index * 34 }}>
@@ -323,6 +431,30 @@ function StandardOverlay({ card, selected, annotations }) {
       </div>
     </div>
   );
+}
+
+function AnnotationShape({ annotation, markerId, draft = false }) {
+  const drawing = annotation.drawing || {};
+  const className = `draw-shape ${annotation.priority?.toLowerCase() || "p1"} ${draft ? "draft" : ""}`;
+  if (drawing.tool === "pen") {
+    return <polyline className={className} points={(drawing.points || []).map((p) => `${p.x},${p.y}`).join(" ")} />;
+  }
+  if (drawing.tool === "box") {
+    const rect = normalizedRect(drawing.start, drawing.end);
+    return <rect className={className} x={rect.x} y={rect.y} width={rect.width} height={rect.height} rx="6" />;
+  }
+  if (drawing.tool === "arrow") {
+    return <line className={className} x1={drawing.start.x} y1={drawing.start.y} x2={drawing.end.x} y2={drawing.end.y} markerEnd={`url(#${markerId})`} />;
+  }
+  if (drawing.tool === "note") {
+    return (
+      <g className={className}>
+        <circle cx={drawing.start.x} cy={drawing.start.y} r="13" />
+        <text x={drawing.start.x} y={drawing.start.y + 4} textAnchor="middle">!</text>
+      </g>
+    );
+  }
+  return null;
 }
 
 function buildAnnotationsPayload({ manifest, annotations }) {
@@ -344,7 +476,7 @@ function buildCanvasStatePayload({ manifest, cards, boardSize }) {
       width: boardSize.width,
       height: boardSize.height,
       zoom_policy: "locked-no-independent-canvas-zoom",
-      layer_order: ["image-floor-layer", "standard-overlay-layer", "top-controls"],
+      layer_order: ["image-floor-layer", "drawing-layer", "standard-overlay-layer", "top-controls"],
     },
     fallback_layout: cards.map((card) => ({
       image_id: card.id,
@@ -421,6 +553,10 @@ async function captureReviewPng({ manifest, cards, annotations, boardSize }) {
     ctx.font = "700 12px Arial";
     ctx.fillText(card.copied_file || card.file, card.x + 16, card.y + card.height + 36);
 
+    const cardDrawings = annotations.filter((item) => item.image_id === card.id && item.status !== "closed" && item.drawing);
+    for (const item of cardDrawings) {
+      drawCanvasAnnotation(ctx, item, card);
+    }
     const cardNotes = annotations.filter((item) => item.image_id === card.id && item.status !== "closed").slice(0, 3);
     cardNotes.forEach((item, index) => {
       const y = card.y + 112 + index * 30;
@@ -452,6 +588,109 @@ async function captureReviewPng({ manifest, cards, annotations, boardSize }) {
     width: canvas.width,
     height: canvas.height,
   };
+}
+
+function panelPoint(element, event) {
+  const rect = element.getBoundingClientRect();
+  return {
+    x: clamp(Math.round(event.clientX - rect.left), 0, Math.round(rect.width)),
+    y: clamp(Math.round(event.clientY - rect.top), 0, Math.round(rect.height)),
+  };
+}
+
+function isMeaningfulDrawing(draft) {
+  if (draft.tool === "note") return true;
+  if (draft.tool === "pen") return (draft.points || []).length > 3;
+  const dx = Math.abs((draft.current?.x || 0) - (draft.start?.x || 0));
+  const dy = Math.abs((draft.current?.y || 0) - (draft.start?.y || 0));
+  return dx + dy > 8;
+}
+
+function drawingPayload(draft, card) {
+  const start = draft.start || { x: 0, y: 0 };
+  const end = draft.current || start;
+  return {
+    tool: draft.tool,
+    coordinate_space: "image_card",
+    card_width: card.width,
+    card_height: card.height,
+    start,
+    end,
+    points: (draft.points || []).slice(-240),
+  };
+}
+
+function drawingFallbackComment(tool) {
+  const labels = {
+    pen: "按画笔圈出的区域修改。",
+    box: "按框选区域修改。",
+    arrow: "按箭头指向的位置修改。",
+    note: "按标记位置修改。",
+    select: "按所选图片修改。",
+  };
+  return labels[tool] || "按画板标注修改。";
+}
+
+function normalizedRect(start, end) {
+  const x = Math.min(start.x, end.x);
+  const y = Math.min(start.y, end.y);
+  return {
+    x,
+    y,
+    width: Math.max(1, Math.abs(start.x - end.x)),
+    height: Math.max(1, Math.abs(start.y - end.y)),
+  };
+}
+
+function drawCanvasAnnotation(ctx, item, card) {
+  const drawing = item.drawing || {};
+  ctx.save();
+  ctx.strokeStyle = item.priority === "P0" ? "#c92a2a" : item.priority === "P2" ? "#596579" : "#0e7c7b";
+  ctx.fillStyle = ctx.strokeStyle;
+  ctx.lineWidth = 4;
+  ctx.globalAlpha = 0.94;
+  const offsetY = 56;
+  if (drawing.tool === "pen" && Array.isArray(drawing.points) && drawing.points.length) {
+    ctx.beginPath();
+    drawing.points.forEach((point, index) => {
+      const x = card.x + point.x;
+      const y = card.y + offsetY + point.y;
+      if (index === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+  } else if (drawing.tool === "box") {
+    const rect = normalizedRect(drawing.start, drawing.end);
+    ctx.strokeRect(card.x + rect.x, card.y + offsetY + rect.y, rect.width, rect.height);
+  } else if (drawing.tool === "arrow") {
+    drawArrow(ctx, card.x + drawing.start.x, card.y + offsetY + drawing.start.y, card.x + drawing.end.x, card.y + offsetY + drawing.end.y);
+  } else if (drawing.tool === "note") {
+    ctx.beginPath();
+    ctx.arc(card.x + drawing.start.x, card.y + offsetY + drawing.start.y, 14, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "900 16px Arial";
+    ctx.fillText("!", card.x + drawing.start.x - 3, card.y + offsetY + drawing.start.y + 6);
+  }
+  ctx.restore();
+}
+
+function drawArrow(ctx, x1, y1, x2, y2) {
+  const angle = Math.atan2(y2 - y1, x2 - x1);
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - 14 * Math.cos(angle - Math.PI / 6), y2 - 14 * Math.sin(angle - Math.PI / 6));
+  ctx.lineTo(x2 - 14 * Math.cos(angle + Math.PI / 6), y2 - 14 * Math.sin(angle + Math.PI / 6));
+  ctx.closePath();
+  ctx.fill();
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
 }
 
 function loadImage(src) {
