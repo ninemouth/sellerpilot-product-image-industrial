@@ -213,6 +213,7 @@ record("run skeleton and gates smoke", () => {
     "strategy/direction-selection.yaml",
     "research/platform-context-plan.md",
     "blueprint/02-identity-lock.yaml",
+    "blueprint/02b-product-physical-truth.json",
     "copy/copy-strategy.yaml",
     "geometry/source-geometry.json",
     "blueprint/07-graphic-design-direction.yaml",
@@ -244,6 +245,18 @@ record("strategy direction smoke", () => {
   const report = readJson(path.join(runDir, "strategy", "direction-options.json"));
   if (report.options.length < 2) throw new Error("strategy direction gate should create multiple options.");
   if (!report.selected_option_id) throw new Error("strategy direction gate should auto-select a route.");
+  run(process.execPath, [
+    "scripts/strategy-direction-handoff-gate.mjs",
+    "--run-dir", runDir,
+  ]);
+  const handoff = readJson(path.join(runDir, "strategy", "direction-user-handoff.json"));
+  if (handoff.status !== "ready") throw new Error("strategy handoff should be ready.");
+  if (!handoff.first_user_visible_message.includes("我会先给你 2-3 个商品图方向")) {
+    throw new Error("strategy handoff should produce first user-visible choices.");
+  }
+  if (!handoff.must_surface_before_formal_production) {
+    throw new Error("strategy handoff should be mandatory before formal production.");
+  }
 });
 
 record("platform context planner smoke", () => {
@@ -405,6 +418,107 @@ record("identity geometry gate smoke", () => {
   if (report.status !== "fail") throw new Error("identity geometry gate should reject shortened jersey.");
   if (!report.findings.some((item) => item.type === "apparel-length-shortened")) {
     throw new Error("identity geometry gate should report apparel-length-shortened.");
+  }
+});
+
+record("product physics fact gate smoke", () => {
+  const dir = tmpDir("sp-verify-physics-");
+  const factPath = path.join(dir, "physical-truth.json");
+  const panelsPath = path.join(dir, "panels.json");
+  fs.writeFileSync(factPath, JSON.stringify({
+    product_physical_truth: {
+      status: "locked",
+      product_type: "string light cable clip",
+      confirmed_functions: ["holds a string light cable against a surface"],
+      confirmed_user_actions: ["screw mount to wood", "place cable under clip"],
+      allowed_use_contexts: ["outdoor patio string light routing"],
+      scale_reference: { product_visual_scale_ratio: 0.42 },
+      forbidden_generated_functions: ["press to hold", "magnetic hold", "adhesive mount"],
+      unsupported_claims: ["snap lock"],
+    },
+  }, null, 2));
+  fs.writeFileSync(panelsPath, JSON.stringify([
+    {
+      id: "IMG-02",
+      image_role: "lifestyle detail",
+      title: "Outdoor string light routing",
+      function_claims: ["holds a string light cable against a surface"],
+      product_visual_scale_ratio: 0.82,
+    },
+    {
+      id: "IMG-03",
+      image_role: "installation steps",
+      title: "Simple Screw Installation",
+      installation_steps: ["Screw In", "Route Cable", "Press to Hold"],
+      product_visual_scale_ratio: 0.42,
+    },
+    {
+      id: "IMG-04",
+      image_role: "dimensions",
+      title: "Product Dimensions",
+      product_visual_scale_ratio: 0.40,
+    },
+  ], null, 2));
+  spawnSync(process.execPath, [
+    "scripts/product-physics-fact-gate.mjs",
+    "--fact-lock", factPath,
+    "--panels", panelsPath,
+    "--out-dir", path.join(dir, "qa"),
+  ], { cwd: skillRoot });
+  const report = readJson(path.join(dir, "qa", "product-physics-fact-gate-report.json"));
+  if (report.status !== "fail") throw new Error("product physics gate should fail invented functions and scale drift.");
+  if (!report.findings.some((item) => item.type === "invented-product-function" || item.type === "unsupported-physical-action")) {
+    throw new Error("product physics gate should catch invented/unsupported function.");
+  }
+  if (!report.findings.some((item) => item.type === "product-scale-drift")) {
+    throw new Error("product physics gate should catch product scale drift.");
+  }
+});
+
+record("prompt layer physical function smoke", () => {
+  const dir = tmpDir("sp-verify-physical-layer-");
+  const stackPath = path.join(dir, "stack.json");
+  fs.mkdirSync(path.join(dir, "qa"), { recursive: true });
+  const layers = {
+    execution_contract_layer: { provider: "gpt-built-in-image-generation", output_filename: "IMG-03-installation.png" },
+    product_identity_layer: { identity_lock_ref: "blueprint/02-identity-lock.yaml", must_preserve: ["clip shape"] },
+    fact_boundary_layer: { supported_claims: ["screw mount"] },
+    commerce_goal_layer: { buyer_question: "How do I install it?", image_job: "explain installation" },
+    context_layer: { platform: "Amazon", category: "cable clip" },
+    creative_concept_layer: { visual_concept: "clear installation infographic" },
+    photography_treatment_layer: { camera_angle: "front", lighting_direction: "soft studio" },
+    layout_copy_layer: { layout_intent: "three step install panels" },
+    negative_qa_layer: { negative_prompt: ["no invented features"], qa_expectations: { physical_truth: "strict" } },
+  };
+  fs.writeFileSync(stackPath, JSON.stringify({
+    prompt_layer_stack: {
+      prompt_layer_architect: {
+        decision_basis: {
+          image_role: "installation step: screw in, route cable, press to hold",
+          product_category: "string light cable clip",
+        },
+      },
+      layers,
+      conditional_layer_payloads: {
+        physical_function_layer: {
+          product_physical_truth_ref: "blueprint/02b-product-physical-truth.json",
+          confirmed_functions: [],
+          confirmed_user_actions: [],
+          forbidden_generated_functions: [],
+        },
+      },
+      layer_review: { generic_prompt_risk: "low" },
+    },
+  }, null, 2));
+  spawnSync(process.execPath, [
+    "scripts/prompt-layer-gate.mjs",
+    "--stack", stackPath,
+    "--out-dir", path.join(dir, "qa"),
+  ], { cwd: skillRoot });
+  const report = readJson(path.join(dir, "qa", "prompt-layer-gate-report.json"));
+  if (report.status !== "blocked") throw new Error("prompt layer gate should block thin physical function layer.");
+  if (!report.findings.some((item) => item.type === "thin-conditional-layer" && item.layer === "physical_function_layer")) {
+    throw new Error("prompt layer gate should flag thin physical function layer.");
   }
 });
 

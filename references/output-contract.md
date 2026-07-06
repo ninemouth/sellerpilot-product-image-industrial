@@ -22,6 +22,7 @@ brief-intake/brief-intake-gate-report.json
 01-goal-contract.yaml
 01-product-fact-sheet.yaml
 02-identity-lock.yaml
+blueprint/02b-product-physical-truth.json
 03-product-feature-analysis.yaml
 04-audience-positioning-analysis.yaml
 05-commerce-strategy-brief.yaml
@@ -40,6 +41,7 @@ layout-drafts/09-sketch-self-review.md
 11-final-personalized-prompt-delivery.md
 prompt-pack/12-prompt-layer-stack.json
 qa/prompt-layer-gate-report.md
+qa/product-physics-fact-gate-report.md
 qa/qa-loop-routing-decision.yaml
 qa/final-delivery-gate-report.md
 review-workspace/data/import-manifest.json
@@ -70,6 +72,7 @@ qa/image-set-export-gate-report.json
 qa/image-set-export-gate-report.md
 qa/prompt-readiness-gate-report.md
 qa/prompt-layer-gate-report.json
+qa/product-physics-fact-gate-report.json
 qa/qa-loop-routing-decision.json
 qa/final-delivery-gate-report.json
 failed-output-review.yaml

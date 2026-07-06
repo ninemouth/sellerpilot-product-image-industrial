@@ -82,6 +82,7 @@ Add these only when needed:
 - `scene_asset_layer`: required for scene, model, lifestyle, wearing, commute, cafe, street, date, travel, or tabletop scene roles.
 - `detail_evidence_layer`: required for macro/detail/craft/material/hardware/texture images.
 - `capacity_truth_layer`: required for capacity or storage images; block unsupported interior/capacity implications.
+- `physical_function_layer`: required for installation, routing, holding, locking, clipping, screw mounting, adhesive, magnet, waterproofing, load, cable, wire, fixtures, moving parts, or other physical function/use-step images.
 - `comparison_layer`: required for competitor-informed redesign, but must borrow patterns only.
 - `season_event_layer`: required for seasonal, holiday, gift, back-to-school, summer/winter, or campaign images.
 - `compliance_layer`: required for safety, children, pets, medical, certification, waterproof, fireproof, food-contact, or regulated claims.
@@ -121,6 +122,12 @@ failure_to_prompt_layer:
   unsupported_claim:
     revise_layer: fact_boundary_layer
     return_node: product-fact-sheet
+  invented_product_function:
+    revise_layer: physical_function_layer
+    return_node: product-physical-truth-lock
+  product_scale_drift:
+    revise_layer: physical_function_layer
+    return_node: visual-director
   no_commercial_task:
     revise_layer: commerce_goal_layer
     return_node: commerce-strategy-brief

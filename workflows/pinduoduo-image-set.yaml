@@ -8,12 +8,16 @@ steps:
   - input-normalizer
   - brief-intake-gate
   - create-run-skeleton
+  - strategy-direction-options-if-request-is-rough
+  - strategy-direction-user-handoff-before-formal-production-if-request-is-rough
+  - strategy-direction-selection-or-harness-auto-selection
   - goal-contract
   - source-image-set-manifest-if-multiple-images
   - source-image-quality-gate
   - source-image-enhancement-if-needed
   - product-image-parser
   - product-identity-lock
+  - product-physical-truth-lock-if-function-use-or-scale-sensitive
   - product-url-reader
   - product-fact-sheet
   - platform-spec-profile
@@ -51,6 +55,8 @@ steps:
   - anchor-batch-generation-loop-if-runtime-available
   - continue-missing-assets-only
   - identity-consistency-gate
+  - identity-geometry-gate-if-proportion-sensitive
+  - product-physics-fact-gate-if-function-use-or-scale-sensitive
   - marketing-diversity-gate
   - marketing-quality-gate
   - image-set-export-gate
@@ -68,6 +74,7 @@ default_outputs:
   - goal_contract
   - source_image_set_manifest
   - product_identity_lock
+  - product_physical_truth_lock_if_applicable
   - source_image_quality_report
   - product_feature_analysis
   - audience_positioning_analysis
@@ -91,6 +98,8 @@ default_outputs:
   - generation_execution_result_summary_if_runtime_generated
   - generated_or_rendered_images
   - identity_consistency_report
+  - identity_geometry_gate_report_if_applicable
+  - product_physics_fact_gate_report_if_applicable
   - review_canvas
   - tldraw_review_workspace_if_visual_review_needed
   - parsed_generation_tasks_if_annotations_provided

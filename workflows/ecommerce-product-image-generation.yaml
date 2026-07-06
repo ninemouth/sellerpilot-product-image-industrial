@@ -49,6 +49,7 @@ steps:
   - brief-intake-gate
   - create-run-skeleton
   - strategy-direction-options-if-request-is-rough
+  - strategy-direction-user-handoff-before-formal-production-if-request-is-rough
   - strategy-direction-selection-or-harness-auto-selection
   - goal-contract
   - source-image-set-manifest-if-multiple-images
@@ -56,6 +57,7 @@ steps:
   - source-image-enhancement-if-needed
   - product-image-parser
   - product-identity-lock
+  - product-physical-truth-lock-if-function-use-or-scale-sensitive
   - product-url-reader
   - product-fact-sheet
   - platform-spec-profile
@@ -94,6 +96,7 @@ steps:
   - continue-missing-assets-only
   - identity-consistency-gate
   - identity-geometry-gate-if-proportion-sensitive
+  - product-physics-fact-gate-if-function-use-or-scale-sensitive
   - layout-composition
   - marketing-quality-gate
   - image-set-export-gate
@@ -118,11 +121,13 @@ default_outputs:
   industrial_audit:
     - task_context
     - strategy_direction_options
+    - strategy_direction_user_handoff_if_request_is_rough
     - strategy_direction_selection
     - goal_contract
     - source_image_set_manifest
     - product_fact_sheet
     - product_identity_lock
+    - product_physical_truth_lock_if_applicable
     - product_feature_analysis
     - audience_positioning_analysis
     - source_image_quality_report
@@ -148,6 +153,7 @@ default_outputs:
     - generated_or_rendered_images
     - identity_consistency_report
     - identity_geometry_gate_report_if_applicable
+    - product_physics_fact_gate_report_if_applicable
     - review_canvas
     - tldraw_review_workspace_ready_url_if_visual_review_needed
     - parsed_generation_tasks_if_annotations_provided
@@ -187,7 +193,10 @@ identity_preservation_policy:
   forbid_text_only_final_product_generation: true
   require_side_by_side_identity_review: true
   require_geometry_lock_for_apparel_and_proportion_sensitive_products: true
+  require_physical_truth_lock_for_function_use_and_scale_sensitive_products: true
   fail_apparel_if_normal_jersey_or_shirt_becomes_crop_top: true
+  fail_if_generated_images_invent_product_functions: true
+  fail_if_product_scale_drifts_across_set_without_rationale: true
   regenerate_only_failed_identity_assets: true
 source_image_policy:
   build_manifest_when_multiple_sources: true

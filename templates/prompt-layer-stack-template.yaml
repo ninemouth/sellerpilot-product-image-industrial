@@ -10,6 +10,7 @@ prompt_layer_stack:
       scene_complexity:
       identity_risk:
       claim_risk:
+      physical_function_risk:
       layout_complexity:
       runtime_generation_available:
     mandatory_layers:
@@ -44,6 +45,7 @@ prompt_layer_stack:
       uncertain_facts: []
       prohibited_claims: []
       user_confirmation_required: []
+      physical_truth_lock_ref:
     commerce_goal_layer:
       buyer_question:
       conversion_intent:
@@ -99,7 +101,14 @@ prompt_layer_stack:
         max_prompt_revisions:
         max_generation_attempts:
         revise_only_failed_layer: true
-  conditional_layer_payloads: {}
+  conditional_layer_payloads:
+    physical_function_layer:
+      product_physical_truth_ref:
+      confirmed_functions: []
+      confirmed_user_actions: []
+      forbidden_generated_functions: []
+      scale_reference: {}
+      negative_qa: []
   layer_review:
     status: pending
     missing_layers: []

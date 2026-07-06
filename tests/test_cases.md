@@ -152,3 +152,12 @@ Expected: for a source jersey with normal length and lower hem, a generated mode
 
 ## Case 47: review workspace layer and completion contract
 Expected: the review workspace has no left sidebar. Generated images are the bottom `image-floor-layer`; A-H standards and annotation markers are the upper `standard-overlay-layer`; the image file list is a top dropdown; the direct modification form uses image standard fields; the board has a locked no-independent-zoom policy; `Complete Review` creates a screenshot-oriented completion payload that Codex can capture with `capture-review-session.mjs`.
+
+## Case 48: rough request must show direction handoff first
+Expected: a rough request such as `帮我把这件球衣做一套商品图` or `帮我把这个灯串固定夹做一套商品图` runs `strategy-direction-gate.mjs` and then `strategy-direction-handoff-gate.mjs` before formal production. The first visible response includes 2-3 buyer-facing directions plus the harness-selected fallback. If the user does not choose, the selected route is recorded in `strategy/direction-selection.yaml` and the handoff message is saved to `strategy/direction-user-handoff.md`.
+
+## Case 49: physical function and scale gate blocks invented use
+Expected: for a physical product such as a cable/string-light clip, the skill creates `blueprint/02b-product-physical-truth.json` before installation/use/dimension images. `product-physics-fact-gate.mjs` fails if panels invent functions like unsupported `Press to Hold`, snap locks, adhesive/magnetic mounting, waterproof electrical behavior, or if the same product appears materially larger/smaller across images without explicit zoom/crop rationale.
+
+## Case 50: prompt stack requires physical function layer
+Expected: when prompt layer decision basis mentions installation, cable routing, screw mounting, holding, pressing, locking, clipping, waterproofing, load, or similar physical function, `prompt-layer-gate.mjs` requires a non-thin `physical_function_layer` with confirmed functions, confirmed user actions, forbidden generated functions, scale reference, and negative QA.

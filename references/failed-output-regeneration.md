@@ -21,6 +21,8 @@ failed_output_review:
     - generic_photography_style
     - unclear_micro_detail_or_invented_mark
     - unsupported_capacity_or_dimension
+    - invented_product_function
+    - product_scale_drift
     - platform_fit_weak
   keep_assets: []
   regenerate_assets: []
@@ -44,6 +46,8 @@ Fail the output if any of these are true:
 - Scene images are just the source cutout with background shapes, icons, or labels.
 - Capacity images imply an opened/interior bag when no source evidence shows interior structure.
 - Measurement images use vague arrows without confirmed numeric dimensions when dimensions are available.
+- Installation or function images show unsupported actions such as press-to-hold, snap lock, adhesive/magnetic mounting, load-bearing, waterproof electrical behavior, extra moving parts, or compatibility not supported by the physical truth lock.
+- Product size visibly changes across images in a way that makes the same product look materially larger/smaller without a deliberate zoom/crop rationale.
 - The set only changes headings while keeping essentially the same product composition.
 
 ## Regeneration Strategy
@@ -60,6 +64,8 @@ Regenerate the smallest failing unit:
 - Generic photography failure -> return to `commercial-photography-treatment`, choose a master-level archetype and specify lens/light/body/scene/product placement before regenerating affected assets.
 - Unclear micro-detail failure -> return to `product-identity-lock`; ask for a closeup only when commercially important, otherwise preserve placement/shape/contrast as an unreadable mark.
 - Identity drift -> tighten Product Identity Lock and regenerate only the failed image.
+- Invented product function -> return to `product-physical-truth-lock`, remove unsupported mechanisms from prompt/layout, and regenerate only affected assets.
+- Product scale drift -> return to `visual-director` and layout/generation framing, normalize product coverage, and rerender only affected images.
 
 ## Product Coverage Heuristic
 

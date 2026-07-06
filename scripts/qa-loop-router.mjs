@@ -250,6 +250,7 @@ function failureCategory(type) {
   if (/scene|photography|cutout/.test(type)) return "photography_scene";
   if (/micro-detail|logo|trademark|engraving|readable-micro|brand-mark/.test(type)) return "micro_detail";
   if (/source|blur|clutter|color-cast|resolution-source/.test(type)) return "source_quality";
+  if (/physical|function|scale-drift|unsupported-physical-action|invented-product-function/.test(type)) return "physical_truth";
   if (/claim|fact|capacity|invented|unsupported/.test(type)) return "product_truth";
   if (/identity|identity-lock|missing-identity-lock/.test(type)) return "identity";
   if (/prompt-readiness|final-prompt|generic-prompt/.test(type)) return "prompt_readiness";
@@ -274,6 +275,11 @@ function returnNode(type) {
     "missing-product-truth": "product-fact-sheet",
     "unsupported-claim": "product-fact-sheet",
     "capacity-unsupported": "product-fact-sheet",
+    "physical-truth-lock-missing": "product-physical-truth-lock",
+    "unsupported-function-claim": "product-physical-truth-lock",
+    "unsupported-physical-action": "product-physical-truth-lock",
+    "invented-product-function": "product-physical-truth-lock",
+    "product-scale-drift": "visual-director",
     "missing-identity-lock": "product-identity-lock",
     "identity-drift": "personalized-prompt-delivery",
     "geometry-ratio-drift": "identity-geometry-lock",
@@ -287,6 +293,7 @@ function returnNode(type) {
     "missing-conditional-layer": "prompt-layer-stack",
     "unresolved-layer-conflict": "prompt-layer-stack",
     "thin-layer": "prompt-layer-stack",
+    "thin-conditional-layer": "prompt-layer-stack",
     "platform-fit-missing": "platform-category-web-research",
     "research-overlay-missing": "platform-category-profile-overlay",
     "no-commercial-task": "commerce-strategy-brief",
@@ -337,6 +344,7 @@ function fallbackReturnNode(type) {
   const map = {
     source_quality: "source-image-enhancement",
     product_truth: "product-fact-sheet",
+    physical_truth: "product-physical-truth-lock",
     identity: "product-identity-lock",
     identity_geometry: "identity-geometry-lock",
     prompt_readiness: "prompt-readiness-gate",
@@ -358,7 +366,7 @@ function fallbackReturnNode(type) {
 function blockedStatus(primary, findings) {
   if (/runtime/.test(primary.type)) return "blocked_runtime_unavailable";
   if (primary.user_input_required) return "blocked_user_input_required";
-  if (/unsupported-claim|capacity-unsupported|missing-product-truth/.test(primary.type)) return "blocked_user_input_required";
+  if (/unsupported-claim|capacity-unsupported|missing-product-truth|physical-truth-lock-missing/.test(primary.type)) return "blocked_user_input_required";
   if (findings.some((item) => /retry-budget-exhausted/.test(item.type))) return "blocked_retry_budget_exhausted";
   return null;
 }
@@ -375,6 +383,7 @@ function nextAction(type, node) {
     "final-prompt-not-written": "Write final personalized prompt requests from approved layer stack.",
     "missing-mandatory-layer": "Complete mandatory prompt layer stack before final request delivery.",
     "missing-conditional-layer": "Add the required conditional prompt layer selected by the Prompt Layer Architect Brain.",
+    "thin-conditional-layer": "Fill the required conditional prompt layer with source-backed details before final prompt delivery.",
     "source-cutout-used-as-scene": "Create or execute a true scene asset request; do not use source cutout as final scene.",
     "missing-scene-asset": "Create panel-specific generated/photo scene asset, then rerun scene and marketing gates.",
     "scene-is-layout-placeholder": "Replace layout placeholder with true generated/photo scene asset.",
@@ -391,6 +400,11 @@ function nextAction(type, node) {
     "geometry-class-drift": "Restore source geometry class such as garment length, hem position, sleeve length, neckline, or silhouette.",
     "apparel-length-shortened": "Regenerate the affected apparel image; preserve original garment length and hem position, avoiding crop-top drift.",
     "forbidden-geometry-change": "Remove the forbidden geometry change from the prompt and regenerate only the affected asset.",
+    "physical-truth-lock-missing": "Create a source-backed product physical truth lock before showing function, installation, or scale-sensitive images.",
+    "unsupported-function-claim": "Remove unsupported product function claims or add source evidence before prompt/layout work.",
+    "unsupported-physical-action": "Remove unsupported physical actions such as press/lock/adhesive/magnet/waterproof/load-bearing unless source evidence confirms them.",
+    "invented-product-function": "Return to product physical truth lock and delete invented use steps or product capabilities from affected panels.",
+    "product-scale-drift": "Normalize product visual scale across affected images or record an explicit composition reason before rerendering layout.",
     "thin-copy-strategy": "Rewrite copy strategy with buyer question, conversion intent, objection, and research basis.",
     "unverified-hotword-use": "Run current platform/category research or remove unverified hot/search terms.",
     "missing-current-research-basis": "Run platform context and category research before final copy.",
@@ -408,6 +422,7 @@ function rerunFrom(node) {
   const map = {
     "source-image-enhancement": ["source-image-enhancement-if-needed", "product-image-parser", "product-identity-lock", "prompt-layer-gate"],
     "product-fact-sheet": ["product-fact-sheet", "commerce-strategy-brief", "prompt-layer-gate"],
+    "product-physical-truth-lock": ["product-physical-truth-lock", "product-feature-analysis", "prompt-layer-gate", "product-physics-fact-gate"],
     "product-identity-lock": ["product-identity-lock", "prompt-layer-gate", "identity-consistency-gate"],
     "identity-geometry-lock": ["identity-geometry-lock", "prompt-layer-gate", "personalized-prompt-delivery", "identity-geometry-gate"],
     "platform-category-web-research": ["platform-category-web-research", "platform-category-profile-overlay", "commerce-strategy-brief"],

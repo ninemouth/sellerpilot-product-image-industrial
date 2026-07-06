@@ -4,7 +4,7 @@ Use this reference after Brief Intake Gate and before formal production whenever
 
 ## Rule
 
-Generate 2-3 production directions before final prompt/image production. Present them briefly to the user when the interaction allows it. If the user has no clear preference or does not answer, let the harness select the best route and record the decision.
+Generate 2-3 production directions before final prompt/image production. For rough, ambiguous, or commercially open-ended requests, the first visible response must present these directions briefly to the user plus the harness-selected fallback route. If the user has no clear preference or does not answer, let the harness select the best route and record the decision.
 
 Use:
 
@@ -15,6 +15,13 @@ node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/stra
   --category "球衣"
 ```
 
+Then create the user-visible handoff:
+
+```bash
+node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/strategy-direction-handoff-gate.mjs \
+  --run-dir /abs/run
+```
+
 ## Direction Types
 
 - `conversion_direct`: best for rough requests, value-forward platforms, fast decision images, and short benefit copy.
@@ -23,7 +30,7 @@ node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/stra
 
 ## User Interaction
 
-Show directions as buyer-facing choices, not workflow jargon. Keep options short:
+Show directions as buyer-facing choices, not workflow jargon. Keep options short and send them before formal production:
 
 1. What each direction tries to sell.
 2. What the image set will feel like.
@@ -39,6 +46,8 @@ Write:
 strategy/direction-options.json
 strategy/direction-options.md
 strategy/direction-selection.yaml
+strategy/direction-user-handoff.json
+strategy/direction-user-handoff.md
 ```
 
 Downstream commerce strategy, visual direction, copy strategy, prompt layers, and QA should reference the selected direction.

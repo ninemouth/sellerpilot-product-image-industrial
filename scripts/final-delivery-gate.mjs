@@ -74,6 +74,19 @@ if (fs.existsSync(sourceGeometryPath) && requiresGeometryGate(sourceGeometryPath
   }
 }
 
+const physicalTruthPath = path.join(runDir, "blueprint", "02b-product-physical-truth.json");
+if (fs.existsSync(physicalTruthPath) && requiresPhysicalTruthGate(physicalTruthPath)) {
+  if (!reports.some((item) => item.name === "product-physics-fact-gate-report.json")) {
+    findings.push({
+      severity: "fail",
+      type: "missing-required-gate-report",
+      gate_id: "final-delivery-gate",
+      source_report: "product-physics-fact-gate-report.json",
+      message: "product-physics-fact-gate-report.json is required when physical function/use/scale truth is locked before final delivery can pass.",
+    });
+  }
+}
+
 for (const item of reports) {
   const status = normalizeStatus(item.report.status);
   if (["fail", "blocked", "needs_visual_review"].includes(status)) {
@@ -221,6 +234,19 @@ function requiresGeometryGate(filePath) {
   } catch {
     const text = fs.readFileSync(filePath, "utf8");
     return /(apparel|clothing|shirt|jersey|dress|pants|shoe|bag|服装|衣|球衣|裙|裤|鞋|包|版型|下摆|袖)/i.test(text);
+  }
+}
+
+function requiresPhysicalTruthGate(filePath) {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(filePath, "utf8"));
+    const root = parsed.product_physical_truth || parsed;
+    if (/pending|unknown|not_run/i.test(String(root.status || ""))) return false;
+    const text = JSON.stringify(root).toLowerCase();
+    return /(function|install|screw|route|cable|clip|clamp|hold|press|lock|scale|dimension|mount|adhesive|magnet|waterproof|load-bearing|功能|安装|螺丝|固定|走线|线缆|夹|按压|尺寸|比例|承重|防水)/i.test(text);
+  } catch {
+    const text = fs.readFileSync(filePath, "utf8");
+    return /(function|install|screw|route|cable|clip|clamp|hold|press|lock|scale|dimension|mount|adhesive|magnet|waterproof|load-bearing|功能|安装|螺丝|固定|走线|线缆|夹|按压|尺寸|比例|承重|防水)/i.test(text);
   }
 }
 

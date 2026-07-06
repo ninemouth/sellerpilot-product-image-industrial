@@ -73,7 +73,7 @@ For normal chat, do not create every artifact listed in the full output contract
 
 1. Resolve the skill root to `/Users/yang/.codex/skills/sellerpilot-product-image-industrial`. Read `/Users/yang/.codex/skills/sellerpilot-product-image-industrial/AGENTS.md` before running a production image workflow. Do not search only the current workspace for `AGENTS.md`.
 2. Run the Brief Intake Gate. If required information is missing, ask at most three high-value questions and record the assumptions. If no material gap exists, continue without interrupting the user.
-2a. When the user request is rough or commercially open-ended, load `references/strategy-direction-routing.md` and create 2-3 production direction options before formal production. Present the choices briefly when useful. If the user has no clear preference, continue with the harness-selected `selected_option_id` and record the reason in `strategy/direction-selection.yaml`.
+2a. When the user request is rough or commercially open-ended, load `references/strategy-direction-routing.md`, create 2-3 production direction options, and run `strategy-direction-handoff-gate.mjs` before formal production. The first visible response to the user must include the short direction choices plus the harness-selected fallback. Do not skip this just because enough facts exist to generate. If the user has no clear preference, continue with the harness-selected `selected_option_id`, record the reason in `strategy/direction-selection.yaml`, and keep the user-visible handoff in `strategy/direction-user-handoff.md`.
 3. Use `workflows/ecommerce-product-image-generation.yaml` as the default master workflow for complete product image generation. Then load the closest platform-specific workflow/profile only for extra constraints:
    - `amazon-image-set.yaml` for Amazon listing image sets, including Amazon US 7 image sets.
    - `pinduoduo-image-set.yaml` for 拼多多 7-9 图套图, user-specified image counts, and Chinese conversion image sets.
@@ -84,6 +84,7 @@ For normal chat, do not create every artifact listed in the full output contract
    - Other supported platform profiles such as 京东/JD, 抖音/Douyin, SHEIN, Temu, Mercado Libre, Shopee LatAm/Brazil, Falabella, Ozon, Etsy, and Wildberries/WB use the master workflow plus their `platform-profiles/*.yaml` baseline and a run-level platform/category overlay.
 4. Run source image quality preflight. If the user provides multiple images, build a source image set manifest and enhance each user-owned source image before parsing/generation. If photos are low quality, cluttered, dark, small, or handheld, enhance them with the bundled scripts before parsing/generation.
 5. Create a Product Identity Lock from all source/enhanced images before generation. Lock silhouette, proportions, color family, material appearance, hardware, closure, straps/handles, accessories, logo/markings, and distinctive details. If no source image exists, do not call generated images identity-preserving.
+5a. For physical products, load `references/product-physical-truth.md`. Create `blueprint/02b-product-physical-truth.json` before shot matrix or prompt work whenever the set shows installation, use steps, scale, cable/strap routing, moving parts, fixtures, fasteners, load, waterproofing, or product function. Lock confirmed functions, confirmed user actions, forbidden generated functions, and scale reference. Do not show invented use mechanisms such as unsupported press locks, adhesive/magnetic mounting, waterproof electrical behavior, extra moving parts, or inconsistent product size across images. Run `product-physics-fact-gate.mjs` before final delivery when physical function or scale appears in the image set.
 6. Load only the relevant baseline platform profile from `platform-profiles/`.
 7. Run platform/category research with web search when the target platform/category tone is unclear, recent, or conversion-critical. Treat platform YAML as a baseline, not complete live truth. Load `references/contextual-platform-research.md` when season, climate, holiday, region, trend, or marketing language matters. Create `research/platform-context-plan.json` and a run-level platform/category overlay from current research.
 8. Run bestseller design mining when marketing enhancement, click appeal, category differentiation, or "爆品" learning is required. Borrow patterns, not assets, layouts, copy, or brand style.
@@ -146,6 +147,13 @@ node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/stra
 Use the strategy direction gate when the user request is rough. It creates 2-3 production directions, records the selected direction, and allows the harness to continue autonomously when the user has no explicit preference.
 
 ```bash
+node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/strategy-direction-handoff-gate.mjs \
+  --run-dir /abs/run
+```
+
+Use the strategy direction handoff gate immediately after `strategy-direction-gate.mjs`. It writes `strategy/direction-user-handoff.md` and `strategy/direction-user-handoff.json`; the Markdown contains the first user-visible message that must be sent before formal production for rough/open requests.
+
+```bash
 node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/platform-context-planner.mjs \
   --run-dir /abs/run \
   --platform "拼多多" \
@@ -205,6 +213,15 @@ node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/copy
 ```
 
 Use the copy strategy gate before marketing QA. It blocks thin buyer strategy, unsupported claims, unverified hot words, and copy that ignores required season/climate/holiday/regional context.
+
+```bash
+node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/product-physics-fact-gate.mjs \
+  --fact-lock /abs/run/blueprint/02b-product-physical-truth.json \
+  --panels /abs/run/blueprint/panels.json \
+  --out-dir /abs/run/qa
+```
+
+Use the product physics fact gate before final delivery whenever images show physical function, installation, use steps, routing, scale, dimensions, fixtures, fasteners, or mechanisms. It blocks unsupported function claims, invented product actions, and product scale drift across the image set.
 
 ```bash
 node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/identity-geometry-gate.mjs \
@@ -374,7 +391,9 @@ Fast generation mode should provide:
 - Independent final image files when image generation is requested
 - Exported image filenames with stable IDs and English purpose slugs, such as `IMG-01-main-product-cafe-commute.png`
 - Selected strategy direction when the user request was rough, including whether the user chose it or the harness selected it
+- First user-visible direction handoff when the request was rough/open, before formal production begins
 - Concise product identity notes and source-image quality/enhancement note
+- Concise product physical truth notes when function, installation, use steps, dimensions, or scale affected the image set
 - Concise visual strategy / shot matrix summary
 - Concise platform/category/season/region context summary when it affected strategy or copy
 - Final prompt/request summary sufficient for review
@@ -386,6 +405,7 @@ Industrial audit mode should provide the complete workflow artifacts:
 - Product Fact Sheet
 - Source Image Set Manifest when multiple source images are provided
 - Product Identity Lock
+- Product Physical Truth Lock for function/use/scale-sensitive products
 - Product Feature Analysis
 - Audience Positioning Analysis
 - Goal Contract
@@ -412,6 +432,7 @@ Industrial audit mode should provide the complete workflow artifacts:
 - Platform/Category Profile Overlay
 - Bestseller Design Mining Report when marketing enhancement is requested
 - Copy Strategy Gate Report
+- Product Physics Fact Gate Report for physical function/use/scale-sensitive products
 - Marketing Quality Gate Report
 - Identity Geometry Gate Report for apparel or proportion-sensitive products
 - Prompt Readiness Gate Report
@@ -434,6 +455,7 @@ Read these skill references as needed:
 - `references/workflow-routing.md` for package file routing and workflow selection.
 - `references/output-contract.md` for required artifacts and compact schemas.
 - `references/strategy-direction-routing.md` for rough user requests, direction options, and harness autonomous selection.
+- `references/product-physical-truth.md` for physical product functions, installation/use steps, scale consistency, and forbidden generated mechanisms.
 - `references/industrial-upgrade-goal-plan.md` for the goal-driven industrial upgrade model, role collaboration, phases, and Definition of Done.
 - `references/sketch-to-final-production.md` for thumbnail sketches, scene sketches, layout wireframes, and prompt-readiness gates.
 - `references/prompt-layering-subloop.md` for the Prompt Layer Architect Brain, mandatory base layers, conditional layers, and prompt-layer failure routing.

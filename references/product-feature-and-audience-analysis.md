@@ -65,6 +65,8 @@ Rules:
 - Confirm only what is visible or supported by URL/spec evidence.
 - Convert traits into shopper-relevant implications, but never overclaim material, capacity, durability, waterproofing, brand, certification, or included accessories.
 - Feature analysis must feed the Visual Director shot matrix. If a feature cannot be visualized, do not force it into final image copy.
+- For physical products, separate "observable structure" from "confirmed function". Do not turn a visible clip, screw hole, strap, hook, button, cable, or opening into a use claim unless `blueprint/02b-product-physical-truth.json` supports that action.
+- Installation, routing, holding, locking, pressing, clamping, waterproofing, load-bearing, magnet, adhesive, and compatibility claims must be backed by product facts or marked as forbidden/unknown before prompt work.
 
 ## Audience Positioning Analysis
 

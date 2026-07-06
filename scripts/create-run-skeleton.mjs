@@ -318,6 +318,34 @@ writeIfMissing(path.join(outDir, "geometry", "generated-geometry.json"), JSON.st
   images: [],
 }, null, 2) + "\n");
 
+writeIfMissing(path.join(outDir, "blueprint", "02b-product-physical-truth.json"), JSON.stringify({
+  product_physical_truth: {
+    status: "pending_evidence",
+    product_type: category,
+    evidence_sources: [],
+    confirmed_functions: [],
+    confirmed_user_actions: [],
+    allowed_use_contexts: [],
+    required_installation_or_use_sequence: [],
+    scale_reference: {
+      source_image_id: "",
+      product_visual_scale_ratio: null,
+      product_bbox_height_pct: null,
+      product_area_pct: null,
+      notes: "",
+    },
+    physical_constraints: [],
+    forbidden_generated_functions: [
+      "inventing extra moving parts",
+      "inventing adhesive, magnet, lock, clamp, waterproof, load-bearing, or electrical features without evidence",
+      "showing an installation step not supported by the product structure",
+      "changing product size scale across the image set without an explicit scale/composition reason",
+    ],
+    unsupported_claims: [],
+    unknowns: [],
+  },
+}, null, 2) + "\n");
+
 writeIfMissing(path.join(outDir, "blueprint", "03-product-feature-analysis.yaml"), [
   "product_feature_analysis:",
   `  category: ${JSON.stringify(category)}`,
@@ -631,6 +659,7 @@ writeIfMissing(path.join(outDir, "prompt-pack", "12-prompt-layer-stack.json"), J
         scene_complexity: null,
         identity_risk: null,
         claim_risk: null,
+        physical_function_risk: null,
         layout_complexity: null,
         runtime_generation_available: null,
       },
@@ -672,6 +701,7 @@ writeIfMissing(path.join(outDir, "prompt-pack", "12-prompt-layer-stack.json"), J
         uncertain_facts: [],
         prohibited_claims: [],
         user_confirmation_required: [],
+        physical_truth_lock_ref: "blueprint/02b-product-physical-truth.json",
       },
       commerce_goal_layer: {
         buyer_question: null,
@@ -762,7 +792,16 @@ writeIfMissing(path.join(outDir, "prompt-pack", "12-prompt-layer-stack.json"), J
         },
       },
     },
-    conditional_layer_payloads: {},
+    conditional_layer_payloads: {
+      physical_function_layer: {
+        product_physical_truth_ref: "blueprint/02b-product-physical-truth.json",
+        confirmed_functions: [],
+        confirmed_user_actions: [],
+        forbidden_generated_functions: [],
+        scale_reference: {},
+        negative_qa: [],
+      },
+    },
     layer_review: {
       status: "pending",
       missing_layers: [],

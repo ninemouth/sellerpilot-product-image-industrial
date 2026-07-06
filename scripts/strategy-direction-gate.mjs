@@ -128,7 +128,7 @@ function readTextIfExists(file) {
 }
 
 function extractYamlScalar(text, key) {
-  const match = text.match(new RegExp(`^\\s*${escapeRegex(key)}:\\s*(.*)$`, "m"));
+  const match = text.match(new RegExp(`^[ \\t]*${escapeRegex(key)}:[ \\t]*(.*)$`, "m"));
   if (!match) return "";
   return match[1].replace(/^["']|["']$/g, "").trim();
 }

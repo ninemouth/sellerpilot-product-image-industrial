@@ -35,6 +35,8 @@ Intent -> Normalize -> Brief Intake Gate -> Source Photo Preflight/Enhance -> Pr
 18. 多图套图必须使用 generation pacing：先生成少量 anchor batch 做身份/场景/方向检查，再继续缺失图；不得在未检查方向前串行消耗整套 8 张高成本生成。
 19. 最终成品默认绝对禁止水印、平台套图角标、AI/系统标记、`拼多多女包套图`、`SellerPilot`、`Codex` 等非买家沟通信息；平台只作为设计约束，不默认可见品牌/水印。只有用户明确要求添加某个精确可见水印/标记，并在 `watermark_authorization` 中记录 exact text、位置、用途、适用图片后，才允许进入设计、prompt 和最终成品。
 20. 微细节必须锁定：商标、吊牌、五金刻字、小字、纹理、走线、拉链齿、挂件表情等若源图不清晰，不得脑补成可读品牌或新图案；需要近拍时先问用户，否则按“保留位置/形状/不可读标记”生成。
+21. 当用户需求粗略或商业方向开放时，正式生产前必须先给用户可见的 2-3 个方向选择，并说明 harness 默认选择；用户不选时再按默认方向继续，不得跳过这个 first handoff。
+22. 物理商品必须锁定真实功能、使用/安装动作、禁用生造机制和尺度参考；不得生造按压锁定、磁吸、胶粘、防水、承重、额外活动部件、兼容性或不一致尺寸比例。
 
 ## Default Workflow
 
@@ -42,15 +44,17 @@ Fast generation mode uses this compact workflow unless the user requests a full 
 
 - input-normalizer
 - brief-intake-gate
+- strategy-direction-options/user-handoff-if-rough
 - source-photo-preflight/enhance-if-needed
 - product-identity-lock
+- product-physical-truth-lock-if-function/use/scale-sensitive
 - platform/category baseline plus targeted research when useful
 - feature/audience/scene trigger summary
 - graphic-design-direction summary
 - visual-director shot matrix
 - prompt-layer mini plan
 - Codex-native imagegen/image_gen anchor batch execution
-- focused identity/marketing/export QA
+- focused identity/physical-function/marketing/export QA
 - continue missing/failed assets only
 - optional shared tldraw review session
 
@@ -60,6 +64,7 @@ Industrial audit mode uses the full workflow:
 - product-image-parser
 - product-url-reader
 - product-fact-sheet
+- product-physical-truth-lock
 - platform-spec-profile
 - audience-persona
 - market-research
@@ -77,6 +82,8 @@ Industrial audit mode uses the full workflow:
 - gpt-built-in-image-generation-request-pack
 - generation-runtime-execution-boundary
 - identity-consistency-gate
+- identity-geometry-gate
+- product-physics-fact-gate
 - marketing-quality-gate
 - image-set-export-gate
 - qa-loop-router
@@ -103,6 +110,7 @@ Industrial audit mode 完成必须包含：
 
 - Product Fact Sheet
 - Product Feature Analysis
+- Product Physical Truth Lock
 - Audience Positioning Analysis
 - Commerce Strategy Brief
 - Creative Direction Brief
@@ -114,6 +122,7 @@ Industrial audit mode 完成必须包含：
 - Localized Copy Pack
 - Prompt Layer Stack
 - Prompt Layer Gate Report
+- Product Physics Fact Gate Report（当涉及功能/安装/尺度）
 - GPT built-in image generation request pack when fallback/audit evidence is needed
 - Final personalized generation prompts
 - 生成结果记录（仅当 Codex/runtime/host 实际执行生图）
