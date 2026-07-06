@@ -178,7 +178,11 @@ record("run skeleton and gates smoke", () => {
   const required = [
     "00-task-context.yaml",
     "01-goal-contract.yaml",
+    "strategy/direction-selection.yaml",
+    "research/platform-context-plan.md",
     "blueprint/02-identity-lock.yaml",
+    "copy/copy-strategy.yaml",
+    "geometry/source-geometry.json",
     "blueprint/07-graphic-design-direction.yaml",
     "prompt-pack/10-generation-request-pack.yaml",
     "prompt-pack/12-prompt-layer-stack.json",
@@ -187,6 +191,51 @@ record("run skeleton and gates smoke", () => {
   for (const file of required) {
     if (!fs.existsSync(path.join(runDir, file))) throw new Error(`run skeleton missing ${file}`);
   }
+});
+
+record("strategy direction smoke", () => {
+  const runDir = path.join(tmpDir("sp-verify-strategy-"), "run");
+  run(process.execPath, [
+    "scripts/create-run-skeleton.mjs",
+    "--out-dir", runDir,
+    "--platform", "拼多多",
+    "--category", "球衣",
+    "--product-name", "测试球衣",
+  ]);
+  run(process.execPath, [
+    "scripts/strategy-direction-gate.mjs",
+    "--run-dir", runDir,
+    "--platform", "拼多多",
+    "--category", "球衣",
+    "--season", "summer",
+  ]);
+  const report = readJson(path.join(runDir, "strategy", "direction-options.json"));
+  if (report.options.length < 2) throw new Error("strategy direction gate should create multiple options.");
+  if (!report.selected_option_id) throw new Error("strategy direction gate should auto-select a route.");
+});
+
+record("platform context planner smoke", () => {
+  const runDir = path.join(tmpDir("sp-verify-context-"), "run");
+  run(process.execPath, [
+    "scripts/create-run-skeleton.mjs",
+    "--out-dir", runDir,
+    "--platform", "拼多多",
+    "--category", "球衣",
+  ]);
+  run(process.execPath, [
+    "scripts/platform-context-planner.mjs",
+    "--run-dir", runDir,
+    "--platform", "拼多多",
+    "--category", "球衣",
+    "--season", "summer",
+    "--climate", "hot-humid",
+    "--region", "华南",
+  ]);
+  const report = readJson(path.join(runDir, "research", "platform-context-plan.json"));
+  const plan = report.platform_category_profile_overlay;
+  if (!plan.baseline_yaml_interpretability?.readable_as_baseline) throw new Error("platform profile should be readable as baseline.");
+  if (!plan.web_research_required) throw new Error("dynamic platform context should require current research.");
+  if (!Array.isArray(plan.query_plan) || !plan.query_plan.length) throw new Error("platform context planner should create query plan.");
 });
 
 record("blocked scaffold smoke", () => {
@@ -255,6 +304,76 @@ record("marketing gate watermark fail", () => {
   ], { cwd: skillRoot });
   const report = readJson(path.join(dir, "qa", "marketing-quality-gate-report.json"));
   if (report.status !== "fail") throw new Error("marketing gate should reject platform-pack labels.");
+});
+
+record("copy strategy gate smoke", () => {
+  const dir = tmpDir("sp-verify-copy-");
+  const contextPath = path.join(dir, "platform-context-plan.json");
+  fs.writeFileSync(contextPath, JSON.stringify({
+    platform_category_profile_overlay: {
+      web_research_required: true,
+      dynamic_context: { season: "summer", climate: "hot-humid", region: "华南" },
+    },
+  }, null, 2));
+  const panelsPath = path.join(dir, "panels.json");
+  fs.writeFileSync(panelsPath, JSON.stringify([
+    {
+      id: "IMG-01",
+      title: "全网最低 爆卖球衣",
+      buyer_question: "为什么现在买",
+      conversion_intent: "click",
+      copy_strategy: "使用热词但没有证据",
+    },
+  ], null, 2));
+  spawnSync(process.execPath, [
+    "scripts/copy-strategy-gate.mjs",
+    "--copy-json", panelsPath,
+    "--platform-context", contextPath,
+    "--out-dir", path.join(dir, "qa"),
+  ], { cwd: skillRoot });
+  const report = readJson(path.join(dir, "qa", "copy-strategy-gate-report.json"));
+  if (report.status !== "fail") throw new Error("copy strategy gate should reject unsupported/unresearched copy.");
+});
+
+record("identity geometry gate smoke", () => {
+  const dir = tmpDir("sp-verify-geometry-");
+  const sourcePath = path.join(dir, "source-geometry.json");
+  const generatedPath = path.join(dir, "generated-geometry.json");
+  fs.writeFileSync(sourcePath, JSON.stringify({
+    geometry_lock: {
+      product_type: "sports jersey",
+      garment_length_class: "normal jersey length",
+      hem_position: "below waist / upper hip",
+      collar_to_hem_ratio: 1.0,
+      shoulder_width_to_body_length_ratio: 0.72,
+      sleeve_length_class: "short sleeve",
+      forbidden_geometry_changes: ["shortening a normal jersey/shirt into a crop top"],
+    },
+  }, null, 2));
+  fs.writeFileSync(generatedPath, JSON.stringify({
+    images: [{
+      index: 1,
+      geometry: {
+        garment_length_class: "cropped",
+        hem_position: "above waist",
+        collar_to_hem_ratio: 0.68,
+        shoulder_width_to_body_length_ratio: 0.96,
+        sleeve_length_class: "short sleeve",
+        detected_changes: "crop top",
+      },
+    }],
+  }, null, 2));
+  spawnSync(process.execPath, [
+    "scripts/identity-geometry-gate.mjs",
+    "--source-geometry", sourcePath,
+    "--generated-geometry", generatedPath,
+    "--out-dir", path.join(dir, "qa"),
+  ], { cwd: skillRoot });
+  const report = readJson(path.join(dir, "qa", "identity-geometry-gate-report.json"));
+  if (report.status !== "fail") throw new Error("identity geometry gate should reject shortened jersey.");
+  if (!report.findings.some((item) => item.type === "apparel-length-shortened")) {
+    throw new Error("identity geometry gate should report apparel-length-shortened.");
+  }
 });
 
 record("scene renderer boundary", () => {

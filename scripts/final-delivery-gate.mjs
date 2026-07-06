@@ -48,7 +48,7 @@ if (!allowMissingGates) {
       message: "No qa/*-report.json files were found. Final delivery requires upstream gate evidence.",
     });
   }
-  for (const requiredName of ["marketing-quality-gate-report.json", "image-set-export-gate-report.json"]) {
+  for (const requiredName of ["marketing-quality-gate-report.json", "copy-strategy-gate-report.json", "image-set-export-gate-report.json"]) {
     if (!reports.some((item) => item.name === requiredName)) {
       findings.push({
         severity: "fail",
@@ -58,6 +58,19 @@ if (!allowMissingGates) {
         message: `${requiredName} is required before final ecommerce image delivery can pass.`,
       });
     }
+  }
+}
+
+const sourceGeometryPath = path.join(runDir, "geometry", "source-geometry.json");
+if (fs.existsSync(sourceGeometryPath) && requiresGeometryGate(sourceGeometryPath)) {
+  if (!reports.some((item) => item.name === "identity-geometry-gate-report.json")) {
+    findings.push({
+      severity: "fail",
+      type: "missing-required-gate-report",
+      gate_id: "final-delivery-gate",
+      source_report: "identity-geometry-gate-report.json",
+      message: "identity-geometry-gate-report.json is required for apparel or proportion-sensitive products before final delivery can pass.",
+    });
   }
 }
 
@@ -197,6 +210,18 @@ function loadGateReports(dir) {
         };
       }
     });
+}
+
+function requiresGeometryGate(filePath) {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(filePath, "utf8"));
+    const text = JSON.stringify(parsed).toLowerCase();
+    if (/"status"\s*:\s*"pending_annotation"/.test(JSON.stringify(parsed))) return false;
+    return /(apparel|clothing|shirt|jersey|dress|pants|shoe|bag|服装|衣|球衣|裙|裤|鞋|包|版型|下摆|袖)/i.test(text);
+  } catch {
+    const text = fs.readFileSync(filePath, "utf8");
+    return /(apparel|clothing|shirt|jersey|dress|pants|shoe|bag|服装|衣|球衣|裙|裤|鞋|包|版型|下摆|袖)/i.test(text);
+  }
 }
 
 function normalizeStatus(status) {

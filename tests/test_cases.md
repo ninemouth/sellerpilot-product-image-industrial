@@ -137,3 +137,15 @@ Expected: after `create-tldraw-review-workspace.mjs` creates a review workspace,
 
 ## Case 42: project-level default entrypoint
 Expected: a Codex Project that wants SellerPilot product image work can keep an `AGENTS.md` at the project root pointing to `/Users/yang/.codex/skills/sellerpilot-product-image-industrial`. Natural language requests inside that Project should use this skill by default, store run artifacts under `runs/<run-id>/`, final images under `outputs/`, and launch the tldraw review canvas with `open-tldraw-review-session.mjs` when visual revision is next.
+
+## Case 43: rough user request gets strategy options
+Expected: a broad request like `帮我把这件球衣做一套商品图` creates `strategy/direction-options.json`, `strategy/direction-options.md`, and `strategy/direction-selection.yaml` with 2-3 buyer-facing directions. If the user does not choose, the harness records `selected_option_id` and continues from that route.
+
+## Case 44: platform profile memory is baseline only
+Expected: platform YAML is treated as stable baseline memory, not complete live truth. `platform-context-planner.mjs` writes baseline interpretability, refresh cadence, dynamic season/climate/holiday/region fields, `web_research_required`, and query plan into `research/platform-context-plan.json` and `research/platform-category-profile-overlay.yaml`.
+
+## Case 45: marketing copy uses current context and evidence
+Expected: copy strategy records buyer question, conversion intent, purchase objection, platform/category/season/region basis, and evidence for risky claims or hot words. `copy-strategy-gate.mjs` fails unsupported claims, unverified hot words, and copy that ignores required dynamic context.
+
+## Case 46: apparel geometry drift catches shortened jersey
+Expected: for a source jersey with normal length and lower hem, a generated model image marked cropped/above-waist fails `identity-geometry-gate.mjs` with `apparel-length-shortened` or `geometry-class-drift`. The QA router should regenerate only the failed image with stricter geometry lock, not the full set.

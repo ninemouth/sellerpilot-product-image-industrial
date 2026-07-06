@@ -29,6 +29,23 @@ identity_lock:
     accessory_or_decoration:
     logo_or_markings:
     distinctive_details: []
+  geometry_lock:
+    status: pending|locked|not_applicable
+    product_height_to_width_ratio:
+    product_length_class:
+    silhouette_class:
+    apparel:
+      enabled: true|false
+      garment_length_class:
+      hem_position:
+      collar_to_hem_ratio:
+      shoulder_width_to_body_length_ratio:
+      sleeve_length_class:
+      sleeve_length_to_body_length_ratio:
+      fit_class:
+      forbidden_geometry_changes: []
+      source_geometry_ref: geometry/source-geometry.json
+      generated_geometry_ref: geometry/generated-geometry.json
   micro_detail_lock:
     visible_text_or_logo:
       status: clear|unclear|not_visible
@@ -69,6 +86,7 @@ identity_lock:
 - Use source image or enhanced source image as the primary identity reference for every generated product-bearing image.
 - Prepare every final product-bearing image as a GPT built-in image generation request. In Codex, execute it through the system `imagegen` skill / built-in `image_gen` tool when available; in non-Codex hosts, hand it to the host execution layer.
 - Scene and model images may change background, lighting, crop, and pose, but must preserve the locked product identity.
+- For apparel, preserve geometry: garment length class, hemline position, neckline shape, shoulder/body proportions, sleeve length, and fit class. Do not shorten a normal jersey/shirt into a crop top unless the source or user explicitly supports it.
 - Do not generate small details from memory. Hardware, zipper, straps, accessories, texture, stitch direction, logos, and decorations must come from source evidence.
 - If a detail is not visible in the source, do not invent it. Mark it unknown and avoid closeup claims.
 - If a logo, trademark, product name, tag, engraving, charm face, or tiny printed text is visible but unclear, preserve its approximate placement, size, contrast, color, and shape while keeping it unreadable. Ask the user for a clearer closeup only when that micro-detail is commercially important or will be shown close.
@@ -101,6 +119,7 @@ Fail an image if:
 - closeup detail does not match the source or cannot be traced to source evidence.
 - unclear micro-detail becomes invented readable text, a new logo, or a changed engraving/pattern.
 - a generated product appears as a similar generic product rather than the submitted product.
+- apparel length, hem position, neckline shape, sleeve length, or silhouette changes from the source geometry.
 
 When identity fails:
 

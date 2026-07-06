@@ -40,12 +40,15 @@ for (const dir of [
   "source-original",
   "source-enhanced",
   "brief-intake",
+  "strategy",
   "research",
   "research/references",
   "blueprint",
+  "copy",
   "prompt-pack",
   "generated-assets",
   "layout-drafts",
+  "geometry",
   "final-images",
   "review",
   "qa",
@@ -106,13 +109,58 @@ writeIfMissing(path.join(outDir, "01-goal-contract.yaml"), [
   "",
 ].join("\n"));
 
+writeIfMissing(path.join(outDir, "strategy", "direction-selection.yaml"), [
+  "direction_selection:",
+  "  status: pending",
+  "  selected_option_id:",
+  "  selected_reason:",
+  "  policy:",
+  "    show_options_before_formal_production: true",
+  "    continue_if_user_has_no_preference: true",
+  "    harness_autonomous_selection_allowed: true",
+  "  options: []",
+  "",
+].join("\n"));
+
+writeIfMissing(path.join(outDir, "strategy", "direction-options.md"), [
+  "# Strategy Direction Options",
+  "",
+  "- Status: pending",
+  "- Present 2-3 buyer-facing production directions before formal generation when the user request is rough.",
+  "- If the user does not choose, record the harness-selected direction and continue.",
+  "",
+].join("\n"));
+
+writeIfMissing(path.join(outDir, "research", "platform-context-plan.md"), [
+  "# Platform Context Plan",
+  "",
+  "- Status: pending",
+  "- Platform YAML is a stable baseline, not complete live truth.",
+  "- Refresh category visual norms, seasonal/climate/holiday/regional context, and marketing hot words before conversion-oriented copy.",
+  "",
+].join("\n"));
+
 writeIfMissing(path.join(outDir, "research", "platform-category-profile-overlay.yaml"), [
   "platform_category_profile_overlay:",
   `  platform: ${JSON.stringify(platform)}`,
   `  category: ${JSON.stringify(category)}`,
   "  locale:",
+  "  region:",
   `  research_date: ${JSON.stringify(now.slice(0, 10))}`,
   "  baseline_profile:",
+  "  baseline_yaml_interpretability:",
+  "    status:",
+  "    readable_as_baseline:",
+  "    missing_recommended_sections: []",
+  "  dynamic_context:",
+  "    season:",
+  "    climate:",
+  "    holiday:",
+  "    regional_trend_scope:",
+  "    marketing_trend_intent:",
+  "  research_cadence: []",
+  "  web_research_required:",
+  "  query_plan: []",
   "  official_constraints:",
   "    dimensions:",
   "    image_count:",
@@ -190,6 +238,27 @@ writeIfMissing(path.join(outDir, "blueprint", "02-identity-lock.yaml"), [
   "    accessory_or_decoration:",
   "    logo_or_markings:",
   "    distinctive_details: []",
+  "  geometry_lock:",
+  "    status: pending",
+  "    product_height_to_width_ratio:",
+  "    product_length_class:",
+  "    silhouette_class:",
+  "    apparel:",
+  "      enabled: false",
+  "      garment_length_class:",
+  "      hem_position:",
+  "      collar_to_hem_ratio:",
+  "      shoulder_width_to_body_length_ratio:",
+  "      sleeve_length_class:",
+  "      sleeve_length_to_body_length_ratio:",
+  "      fit_class:",
+  "      forbidden_geometry_changes:",
+  "        - shortening a normal jersey/shirt into a crop top",
+  "        - moving hemline upward without source evidence",
+  "        - changing sleeve length class",
+  "        - changing neckline shape",
+  "      source_geometry_ref: geometry/source-geometry.json",
+  "      generated_geometry_ref: geometry/generated-geometry.json",
   "  micro_detail_lock:",
   "    visible_text_or_logo:",
   "      status: not_visible",
@@ -221,6 +290,33 @@ writeIfMissing(path.join(outDir, "blueprint", "02-identity-lock.yaml"), [
   "  detail_checklist: []",
   "",
 ].join("\n"));
+
+writeIfMissing(path.join(outDir, "geometry", "source-geometry.json"), JSON.stringify({
+  geometry_lock: {
+    status: "pending_annotation",
+    product_type: category,
+    product_height_to_width_ratio: null,
+    product_length_class: null,
+    silhouette_class: null,
+    garment_length_class: null,
+    hem_position: null,
+    collar_to_hem_ratio: null,
+    shoulder_width_to_body_length_ratio: null,
+    sleeve_length_class: null,
+    sleeve_length_to_body_length_ratio: null,
+    fit_class: null,
+    forbidden_geometry_changes: [
+      "shortening a normal jersey/shirt into a crop top",
+      "moving hemline upward without source evidence",
+      "changing sleeve length class",
+      "changing neckline shape",
+    ],
+  },
+}, null, 2) + "\n");
+
+writeIfMissing(path.join(outDir, "geometry", "generated-geometry.json"), JSON.stringify({
+  images: [],
+}, null, 2) + "\n");
 
 writeIfMissing(path.join(outDir, "blueprint", "03-product-feature-analysis.yaml"), [
   "product_feature_analysis:",
@@ -279,6 +375,8 @@ writeIfMissing(path.join(outDir, "blueprint", "05-commerce-strategy-brief.yaml")
   "  run_goal:",
   `  product_category: ${JSON.stringify(category)}`,
   `  platform: ${JSON.stringify(platform)}`,
+  "  selected_direction_ref: strategy/direction-selection.yaml",
+  "  platform_context_ref: research/platform-context-plan.json",
   "  locale:",
   "  season_or_occasion:",
   "  commercial_objective:",
@@ -292,6 +390,26 @@ writeIfMissing(path.join(outDir, "blueprint", "05-commerce-strategy-brief.yaml")
   "  image_set_architecture: []",
   "  unsupported_or_risky_claims: []",
   "  notes: []",
+  "",
+].join("\n"));
+
+writeIfMissing(path.join(outDir, "copy", "copy-strategy.yaml"), [
+  "copy_strategy:",
+  `  platform: ${JSON.stringify(platform)}`,
+  `  category: ${JSON.stringify(category)}`,
+  "  direction_ref: strategy/direction-selection.yaml",
+  "  platform_context_ref: research/platform-context-plan.json",
+  "  web_research_basis: []",
+  "  hotword_policy: use_only_source_backed_platform_category_terms",
+  "  seasonal_or_regional_context:",
+  "    season:",
+  "    climate:",
+  "    holiday:",
+  "    region:",
+  "  panels: []",
+  "  loop_review:",
+  "    copy_strategy_gate_status: pending",
+  "    marketing_quality_gate_status: pending",
   "",
 ].join("\n"));
 
@@ -433,6 +551,9 @@ writeIfMissing(path.join(outDir, "prompt-pack", "10-generation-request-pack.yaml
   "  identity_lock_ref: blueprint/02-identity-lock.yaml",
   "  goal_contract_ref: 01-goal-contract.yaml",
   "  commerce_strategy_ref: blueprint/05-commerce-strategy-brief.yaml",
+  "  direction_selection_ref: strategy/direction-selection.yaml",
+  "  platform_context_ref: research/platform-context-plan.json",
+  "  copy_strategy_ref: copy/copy-strategy.yaml",
   "  creative_direction_ref: blueprint/06-creative-direction-brief.yaml",
   "  graphic_design_direction_ref: blueprint/07-graphic-design-direction.yaml",
   "  photography_treatment_ref: blueprint/08-photography-treatment.yaml",
@@ -567,6 +688,10 @@ writeIfMissing(path.join(outDir, "prompt-pack", "12-prompt-layer-stack.json"), J
         audience: null,
         price_band: null,
         season_or_occasion: null,
+        region: null,
+        climate: null,
+        holiday: null,
+        trend_basis_ref: "research/platform-context-plan.json",
         marketplace_tone: null,
       },
       creative_concept_layer: {
@@ -617,6 +742,7 @@ writeIfMissing(path.join(outDir, "prompt-pack", "12-prompt-layer-stack.json"), J
         },
       },
       layout_copy_layer: {
+        copy_strategy_ref: "copy/copy-strategy.yaml",
         layout_intent: null,
         product_area: null,
         text_area: null,
@@ -721,6 +847,31 @@ writeIfMissing(path.join(outDir, "qa", "marketing-quality-gate-report.md"), [
   "- Repeated detail findings:",
   "- Buyer-facing copy findings:",
   "- Scene authenticity findings:",
+  "- Smallest next action:",
+  "",
+].join("\n"));
+
+writeIfMissing(path.join(outDir, "qa", "copy-strategy-gate-report.md"), [
+  "# Copy Strategy Gate Report",
+  "",
+  "- Status: pending",
+  "- Platform context used:",
+  "- Current research basis:",
+  "- Hotword evidence:",
+  "- Unsupported claims:",
+  "- Buyer benefit clarity:",
+  "- Smallest next action:",
+  "",
+].join("\n"));
+
+writeIfMissing(path.join(outDir, "qa", "identity-geometry-gate-report.md"), [
+  "# Identity Geometry Gate Report",
+  "",
+  "- Status: pending",
+  "- Source geometry annotated:",
+  "- Generated geometry annotated:",
+  "- Proportion drift:",
+  "- Apparel length/hem/sleeve drift:",
   "- Smallest next action:",
   "",
 ].join("\n"));

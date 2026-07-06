@@ -4,7 +4,8 @@ version: 1.5.0
 goal: >
   Run the platform-agnostic SellerPilot ecommerce image production loop:
   normalize inputs, improve weak source photos, research the target
-  platform/category, direct visual shots and buyer-facing copy, prepare GPT
+  platform/category plus current season/climate/holiday/region context, offer strategy
+  directions for rough requests, direct visual shots and buyer-facing copy, prepare GPT
   built-in image generation prompts, execute through Codex-native imagegen/image_gen
   when available, let host runtime boundaries generate only needed assets otherwise, QA the set, collect
   review annotations, and package exports. Treat final prompts as personalized
@@ -47,6 +48,8 @@ steps:
   - input-normalizer
   - brief-intake-gate
   - create-run-skeleton
+  - strategy-direction-options-if-request-is-rough
+  - strategy-direction-selection-or-harness-auto-selection
   - goal-contract
   - source-image-set-manifest-if-multiple-images
   - source-image-quality-gate
@@ -56,6 +59,7 @@ steps:
   - product-url-reader
   - product-fact-sheet
   - platform-spec-profile
+  - platform-context-planner
   - platform-category-web-research
   - platform-category-profile-overlay
   - bestseller-design-mining-if-marketing-enhancement
@@ -75,6 +79,7 @@ steps:
   - visual-director
   - scene-asset-production-if-scene-roles
   - buyer-facing-copy-director
+  - copy-strategy-gate
   - image-set-blueprint
   - blueprint-gate
   - gpt-built-in-image-generation-policy
@@ -88,6 +93,7 @@ steps:
   - anchor-batch-generation-loop-if-runtime-available
   - continue-missing-assets-only
   - identity-consistency-gate
+  - identity-geometry-gate-if-proportion-sensitive
   - layout-composition
   - marketing-quality-gate
   - image-set-export-gate
@@ -111,6 +117,8 @@ default_outputs:
     - review_canvas_if_requested_or_needed
   industrial_audit:
     - task_context
+    - strategy_direction_options
+    - strategy_direction_selection
     - goal_contract
     - source_image_set_manifest
     - product_fact_sheet
@@ -119,6 +127,7 @@ default_outputs:
     - audience_positioning_analysis
     - source_image_quality_report
     - platform_category_research_brief
+    - platform_context_plan
     - platform_category_profile_overlay
     - bestseller_design_mining_report
     - commerce_strategy_brief
@@ -138,10 +147,12 @@ default_outputs:
     - generation_execution_result_summary_if_runtime_generated
     - generated_or_rendered_images
     - identity_consistency_report
+    - identity_geometry_gate_report_if_applicable
     - review_canvas
     - tldraw_review_workspace_if_visual_review_needed
     - parsed_generation_tasks_if_annotations_provided
     - region_review_html
+    - copy_strategy_gate_report
     - marketing_quality_gate_report
     - image_set_export_gate_report
     - qa_loop_routing_decision
@@ -175,6 +186,8 @@ identity_preservation_policy:
   block_final_generation_if_required_image_references_unavailable: true
   forbid_text_only_final_product_generation: true
   require_side_by_side_identity_review: true
+  require_geometry_lock_for_apparel_and_proportion_sensitive_products: true
+  fail_apparel_if_normal_jersey_or_shirt_becomes_crop_top: true
   regenerate_only_failed_identity_assets: true
 source_image_policy:
   build_manifest_when_multiple_sources: true
@@ -183,12 +196,17 @@ source_image_policy:
   stop_on_conflicting_product_sources: true
 platform_policy:
   platform_yaml_is_baseline: true
+  platform_yaml_is_not_complete_live_truth: true
   require_run_level_overlay_for_conversion_critical_runs: true
+  require_context_plan_for_season_climate_holiday_region_or_hotword_copy: true
   promote_only_stable_or_official_findings_to_global_profile: true
 market_research_policy:
   mine_bestseller_patterns_without_copying: true
   require_pattern_not_asset_borrowing: true
   require_rejected_patterns_and_risks: true
+  refresh_category_visual_norms_for_conversion_runs: true
+  refresh_season_climate_holiday_region_context_when_relevant: true
+  require_evidence_for_hot_words_and_search_terms: true
 export_policy:
   contact_sheet_preview_is_not_final_delivery: true
   require_independent_export_files: true
@@ -203,6 +221,7 @@ visual_director_requirements:
   require_true_scene_asset_for_scene_roles: true
   forbid_layout_renderer_only_scene_roles: true
   require_buyer_facing_copy: true
+  require_copy_strategy_gate_before_marketing_gate: true
   forbid_internal_review_language_in_final_images: true
   forbid_watermark_or_platform_pack_label_in_final_images: true
   watermark_default_decision: prohibited_unless_user_explicitly_requests_exact_mark

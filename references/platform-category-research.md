@@ -1,6 +1,6 @@
 # Platform And Category Research
 
-Use web research when platform tone, category norms, ad placement behavior, or current image constraints matter. This is required for new platforms, unclear categories, or conversion-oriented image sets.
+Use web research when platform tone, category norms, ad placement behavior, current image constraints, season, climate, holiday, regional trend, or marketing copy language matters. This is required for new platforms, unclear categories, conversion-oriented image sets, and any run that uses current hot words.
 
 ## Research Order
 
@@ -16,6 +16,8 @@ Use web research when platform tone, category norms, ad placement behavior, or c
 - What shopper context matters for this platform and category?
 - What camera angles, lighting, scene tropes, and product-view conventions are common for this category on the target platform?
 - What buyer-facing language patterns are natural for the platform/category, and which internal or over-technical phrases should be avoided?
+- What season, climate, holiday, regional, sports, school, work, or gifting context is current for this product?
+- Which platform/category hot words appear current, and what evidence supports using or avoiding them?
 - What claims or visual elements are risky?
 - What common category tropes should be followed or differentiated from?
 
@@ -26,6 +28,7 @@ Write a compact research brief into the run directory:
 ```text
 platform-category-research.md
 platform-category-profile-overlay.yaml
+platform-context-plan.json
 ```
 
 Include:

@@ -11,6 +11,13 @@
 - Product Image Orchestrator Agent：负责总控调度
 - Skill Runtime：将商品理解、平台规范、视觉策略、文案本地化、Codex 原生 GPT 内置生图、QA、修订、导出拆成可维护 Skill；请求包只作为 fallback 或 audit 证据
 
+## 新增收敛能力
+
+- 粗略需求方向选择：正式生产前生成 2-3 个方向，用户可选；无偏好时 harness 自动选择并记录。
+- 动态平台上下文：平台 YAML 只作为稳定基线；当前品类、时令、气候、节假日、区域趋势、营销热词按 run 生成 freshness/query plan。
+- 文案策略 loop：最终图片文案必须有买家问题、转化意图、研究依据和事实支撑；热词/夸张 claims 没有证据会被 gate 阻断。
+- 身份几何一致性：服装、包鞋等比例敏感商品必须锁定长度、下摆、袖长、领口、轮廓等几何约束；例如正常球衣不能漂移成 crop top。
+
 ## 用法
 
 1. 将本目录安装到 Codex skills 目录。

@@ -1,6 +1,6 @@
 # Dynamic Platform Category Profile
 
-Use this reference whenever platform fit matters. Platform YAML files are stable baselines, not complete live truth.
+Use this reference whenever platform fit matters. Platform YAML files are stable baselines, not complete live truth. For current category, season, climate, holiday, region, or marketing-language decisions, also load `references/contextual-platform-research.md`.
 
 ## Rule
 
@@ -17,7 +17,7 @@ Do not mutate the global platform profile during a run unless the new finding is
 Use three layers:
 
 1. **Baseline platform profile**: stable constraints, tone, image roles, known risks.
-2. **Category overlay**: current category norms, visual tropes, buyer language, common scenes, detail conventions.
+2. **Dynamic run context**: current category norms, visual tropes, buyer language, season, climate, holiday, region, common scenes, detail conventions, and trend hypotheses.
 3. **Run decision**: what this product should follow, differentiate from, or avoid.
 
 ## Overlay Schema
@@ -27,8 +27,22 @@ platform_category_profile_overlay:
   platform:
   category:
   locale:
+  region:
   research_date:
   baseline_profile:
+  baseline_yaml_interpretability:
+    status:
+    readable_as_baseline:
+    missing_recommended_sections: []
+  dynamic_context:
+    season:
+    climate:
+    holiday:
+    regional_trend_scope:
+    marketing_trend_intent:
+  research_cadence: []
+  web_research_required:
+  query_plan: []
   official_constraints:
     dimensions:
     image_count:

@@ -73,6 +73,7 @@ For normal chat, do not create every artifact listed in the full output contract
 
 1. Resolve the skill root to `/Users/yang/.codex/skills/sellerpilot-product-image-industrial`. Read `/Users/yang/.codex/skills/sellerpilot-product-image-industrial/AGENTS.md` before running a production image workflow. Do not search only the current workspace for `AGENTS.md`.
 2. Run the Brief Intake Gate. If required information is missing, ask at most three high-value questions and record the assumptions. If no material gap exists, continue without interrupting the user.
+2a. When the user request is rough or commercially open-ended, load `references/strategy-direction-routing.md` and create 2-3 production direction options before formal production. Present the choices briefly when useful. If the user has no clear preference, continue with the harness-selected `selected_option_id` and record the reason in `strategy/direction-selection.yaml`.
 3. Use `workflows/ecommerce-product-image-generation.yaml` as the default master workflow for complete product image generation. Then load the closest platform-specific workflow/profile only for extra constraints:
    - `amazon-image-set.yaml` for Amazon listing image sets, including Amazon US 7 image sets.
    - `pinduoduo-image-set.yaml` for 拼多多 7-9 图套图, user-specified image counts, and Chinese conversion image sets.
@@ -84,20 +85,22 @@ For normal chat, do not create every artifact listed in the full output contract
 4. Run source image quality preflight. If the user provides multiple images, build a source image set manifest and enhance each user-owned source image before parsing/generation. If photos are low quality, cluttered, dark, small, or handheld, enhance them with the bundled scripts before parsing/generation.
 5. Create a Product Identity Lock from all source/enhanced images before generation. Lock silhouette, proportions, color family, material appearance, hardware, closure, straps/handles, accessories, logo/markings, and distinctive details. If no source image exists, do not call generated images identity-preserving.
 6. Load only the relevant baseline platform profile from `platform-profiles/`.
-7. Run platform/category research with web search when the target platform/category tone is unclear, recent, or conversion-critical. Treat platform YAML as a baseline, then create a run-level platform/category overlay from current research.
+7. Run platform/category research with web search when the target platform/category tone is unclear, recent, or conversion-critical. Treat platform YAML as a baseline, not complete live truth. Load `references/contextual-platform-research.md` when season, climate, holiday, region, trend, or marketing language matters. Create `research/platform-context-plan.json` and a run-level platform/category overlay from current research.
 8. Run bestseller design mining when marketing enhancement, click appeal, category differentiation, or "爆品" learning is required. Borrow patterns, not assets, layouts, copy, or brand style.
 9. Run Product Feature Analysis and Audience Positioning Analysis. Convert confirmed traits into buyer-relevant benefits, detail-shot opportunities, scene triggers, buyer motivations, purchase objections, aesthetic preferences, and copy voice. Keep unsupported claims out of final image copy.
+9a. Load `references/copy-strategy-loop.md` before final image text or prompt delivery. Plan copy from product truth plus platform/category/season/region research, run `copy-strategy-gate.mjs`, and revise only failed copy fields before marketing QA.
 10. Create a goal contract, commerce strategy brief, creative direction brief, graphic design direction brief, and photography treatment before prompt delivery. Each image needs a buyer question, commercial task, and success/failure criteria.
 11. Create sketches or layout wireframes before final generation prompts. Load `references/sketch-to-final-production.md` for complete image sets, scene-heavy work, or any run where final quality matters.
 12. Create a Graphic Design Direction Brief and Visual Direction Brief before full image generation. A design director must define typography hierarchy, safe zones, overlay style, text density, mobile legibility, set-level layout variation, and the visible-mark decision. Default visible-mark decision is absolute prohibition: no watermark, platform-pack label, system mark, or arbitrary corner mark unless the user explicitly requested that exact mark and the run records `watermark_authorization` with exact text, placement, purpose, and image scope before prompt/layout work. A visual director must define the shot matrix, camera angles, crops, lighting, scene logic, prop/model context, buyer-facing copy intent, and A-H editable regions for every image. Do not allow final image copy to sound like internal QA notes.
 13. If the user asks for 场景图, 上身图, 模特图, lifestyle, outfit, commute, cafe, street, or `含场景图`, load `references/scene-asset-production.md`. Scene roles require real generated/photo scene assets; a product cutout on a decorative layout is not a final scene image.
 14. Load `references/prompt-layering-subloop.md`, `references/personalized-prompt-delivery.md`, and `references/gpt-built-in-image-generation-policy.md` before final product-bearing image generation. Use the Prompt Layer Architect Brain to decide mandatory and conditional layers, then prepare a personalized built-in image generation request with source image references when available, identity locks, commercial intent, photography treatment, layout intent, QA expectations, and retry policy. If the current Codex/runtime surface exposes the system `imagegen` skill and built-in `image_gen` tool, execute the request through that native path. If it cannot execute required image-reference generation, stop at request pack/layout draft and mark final generation blocked.
+14a. For apparel, bags, shoes, furniture, tools, and other proportion-sensitive products, load `references/identity-geometry-lock.md`. Create or update `geometry/source-geometry.json` before generation and run `identity-geometry-gate.mjs` on generated assets before final delivery. Apparel must preserve garment length, hem position, collar-to-hem ratio, sleeve length class, neckline shape, and silhouette; a normal jersey must not become a crop top unless supported by source/user input.
 15. For multi-image sets, use generation pacing: generate and QA a small anchor batch first, then continue with only missing/failed assets. Do not spend a full run serially generating all images before checking identity, scene direction, and role diversity.
 15a. When the user provides prior generated outputs and asks to continue, audit, optimize, or revise them, load `references/failed-output-regeneration.md` first. Classify failures such as watermark/platform-pack labels, weak graphic design, generic photography treatment, unclear micro-detail handling, identity drift, fake scenes, or repeated layouts; keep approved assets and rerun only the smallest affected upstream node.
 16. Load the risk and QA references before writing final outputs:
    - `policies/risk-boundaries.md`
    - `policies/qa-checklist.md`
-17. Use the workflow steps as a gated loop, not as decorative labels. Generate only missing assets, rerender only failed layouts, and stop early when product identity drifts.
+17. Use the workflow steps as a gated loop, not as decorative labels. Generate only missing assets, rerender only failed layouts, and stop early when product identity, geometry, or copy strategy drifts.
 18. Run export and output-failure gates before final delivery. Do not present contact sheets, collage previews, fake scene placeholders, or visually unreadable drafts as final ecommerce images.
 19. Produce the mode-appropriate Definition of Done. Fast mode should end with actual generated images and a concise QA summary; industrial audit mode should produce the full artifact package.
 
@@ -131,6 +134,28 @@ node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/brie
 ```
 
 Use the brief intake gate to decide whether to ask high-value user questions before planning/generation. It should not block low-risk requests.
+
+```bash
+node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/strategy-direction-gate.mjs \
+  --run-dir /abs/run \
+  --platform "拼多多" \
+  --category "球衣" \
+  --season "summer"
+```
+
+Use the strategy direction gate when the user request is rough. It creates 2-3 production directions, records the selected direction, and allows the harness to continue autonomously when the user has no explicit preference.
+
+```bash
+node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/platform-context-planner.mjs \
+  --run-dir /abs/run \
+  --platform "拼多多" \
+  --category "球衣" \
+  --region "华南" \
+  --season "summer" \
+  --climate "hot-humid"
+```
+
+Use the platform context planner before conversion-oriented planning and copy. It reads the baseline platform YAML, reports whether it is sufficient as stable memory, creates a freshness/query plan, and writes dynamic platform/category/season/region context into the run overlay.
 
 ```bash
 node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/build-source-image-set.mjs \
@@ -171,6 +196,24 @@ node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/mark
 ```
 
 Use the marketing gate before final export to catch repeated camera angles, repeated source images, thin scene direction, and internal-facing copy such as `不虚标`, `以源图为准`, `QA`, or `风险` in final image text.
+
+```bash
+node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/copy-strategy-gate.mjs \
+  --copy-json /abs/run/blueprint/panels.json \
+  --platform-context /abs/run/research/platform-context-plan.json \
+  --out-dir /abs/run/qa
+```
+
+Use the copy strategy gate before marketing QA. It blocks thin buyer strategy, unsupported claims, unverified hot words, and copy that ignores required season/climate/holiday/regional context.
+
+```bash
+node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/identity-geometry-gate.mjs \
+  --source-geometry /abs/run/geometry/source-geometry.json \
+  --generated-geometry /abs/run/geometry/generated-geometry.json \
+  --out-dir /abs/run/qa
+```
+
+Use the identity geometry gate for apparel and other proportion-sensitive products. It catches product length, hem position, sleeve length, neckline, silhouette, and ratio drift such as turning a normal jersey into a crop top.
 
 ```bash
 node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/prompt-readiness-gate.mjs \
@@ -320,8 +363,10 @@ Fast generation mode should provide:
 
 - Independent final image files when image generation is requested
 - Exported image filenames with stable IDs and English purpose slugs, such as `IMG-01-main-product-cafe-commute.png`
+- Selected strategy direction when the user request was rough, including whether the user chose it or the harness selected it
 - Concise product identity notes and source-image quality/enhancement note
 - Concise visual strategy / shot matrix summary
+- Concise platform/category/season/region context summary when it affected strategy or copy
 - Final prompt/request summary sufficient for review
 - Focused QA summary covering product identity, scene reality, visual diversity, platform fit, and buyer-facing copy
 - Review canvas only when the user asks for review, a gate fails, or revision feedback is expected
@@ -334,6 +379,7 @@ Industrial audit mode should provide the complete workflow artifacts:
 - Product Feature Analysis
 - Audience Positioning Analysis
 - Goal Contract
+- Strategy Direction Options and Direction Selection when the request is rough or open-ended
 - Commerce Strategy Brief
 - Creative Direction Brief
 - Graphic Design Direction Brief
@@ -352,9 +398,12 @@ Industrial audit mode should provide the complete workflow artifacts:
 - tldraw Review Workspace and parsed Generation Tasks when visual review is needed
 - Source Image Quality Report
 - Platform/Category Research Brief when research is required
+- Platform Context Plan with freshness cadence, season, climate, holiday, region, and trend query plan when relevant
 - Platform/Category Profile Overlay
 - Bestseller Design Mining Report when marketing enhancement is requested
+- Copy Strategy Gate Report
 - Marketing Quality Gate Report
+- Identity Geometry Gate Report for apparel or proportion-sensitive products
 - Prompt Readiness Gate Report
 - Prompt Layer Gate Report
 - QA Loop Routing Decision
@@ -374,11 +423,15 @@ Read these skill references as needed:
 
 - `references/workflow-routing.md` for package file routing and workflow selection.
 - `references/output-contract.md` for required artifacts and compact schemas.
+- `references/strategy-direction-routing.md` for rough user requests, direction options, and harness autonomous selection.
 - `references/industrial-upgrade-goal-plan.md` for the goal-driven industrial upgrade model, role collaboration, phases, and Definition of Done.
 - `references/sketch-to-final-production.md` for thumbnail sketches, scene sketches, layout wireframes, and prompt-readiness gates.
 - `references/prompt-layering-subloop.md` for the Prompt Layer Architect Brain, mandatory base layers, conditional layers, and prompt-layer failure routing.
 - `references/personalized-prompt-delivery.md` for final personalized generation prompt standards and handoff format.
 - `references/gpt-built-in-image-generation-policy.md` for the Codex-native imagegen/image_gen execution boundary, request schema, fallback limits, and blocked-generation behavior.
+- `references/contextual-platform-research.md` for platform YAML memory, refresh cadence, season/climate/holiday/region, and trend query planning.
+- `references/copy-strategy-loop.md` for buyer-facing copy planning, hotword evidence, and copy QA loops.
+- `references/identity-geometry-lock.md` for apparel/product geometry locks and proportion drift routing.
 - `references/risk-and-qa.md` for non-negotiable safety, compliance, and review rules.
 - `references/review-canvas.md` for annotation canvas behavior and native-widget fallback policy.
 - `references/main-detail-production-structure.md` for IMG/POSTER/DETAIL numbering, main image/detail page structure, and A-H editable region revision.

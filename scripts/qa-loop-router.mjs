@@ -190,6 +190,7 @@ function compareFindings(a, b) {
     source_quality: 1,
     product_truth: 2,
     identity: 3,
+    identity_geometry: 3,
     prompt_layer: 4,
     prompt_readiness: 5,
     platform_market: 6,
@@ -245,6 +246,7 @@ function imageIndexFromFile(file) {
 
 function failureCategory(type) {
   if (/source-cutout-used-as-scene/.test(type)) return "identity";
+  if (/geometry|hem-position|garment-length|sleeve-length|neckline|silhouette|crop-top|apparel-length/.test(type)) return "identity_geometry";
   if (/scene|photography|cutout/.test(type)) return "photography_scene";
   if (/micro-detail|logo|trademark|engraving|readable-micro|brand-mark/.test(type)) return "micro_detail";
   if (/source|blur|clutter|color-cast|resolution-source/.test(type)) return "source_quality";
@@ -252,6 +254,7 @@ function failureCategory(type) {
   if (/identity|identity-lock|missing-identity-lock/.test(type)) return "identity";
   if (/prompt-readiness|final-prompt|generic-prompt/.test(type)) return "prompt_readiness";
   if (/mandatory-layer|conditional-layer|layer-conflict|thin-layer/.test(type)) return "prompt_layer";
+  if (/hotword|buyer-benefit|buyer-facing-copy|copy-strategy|thin-copy|marketing-claim|dynamic-context/.test(type)) return "layout_copy";
   if (/copy|text|layout|readable|watermark|platform-pack/.test(type)) return "layout_copy";
   if (/platform|research-overlay|profile/.test(type)) return "platform_market";
   if (/commercial|buyer-question|architecture|strategy/.test(type)) return "strategy";
@@ -273,6 +276,10 @@ function returnNode(type) {
     "capacity-unsupported": "product-fact-sheet",
     "missing-identity-lock": "product-identity-lock",
     "identity-drift": "personalized-prompt-delivery",
+    "geometry-ratio-drift": "identity-geometry-lock",
+    "geometry-class-drift": "identity-geometry-lock",
+    "apparel-length-shortened": "identity-geometry-lock",
+    "forbidden-geometry-change": "identity-geometry-lock",
     "prompt-readiness-marker-missing": "prompt-readiness-gate",
     "final-prompt-not-written": "personalized-prompt-delivery",
     "generic-prompt-risk": "prompt-layer-stack",
@@ -298,6 +305,13 @@ function returnNode(type) {
     "repeated-crop-or-composition": "visual-director",
     "repeated-primary-image": "visual-director",
     "internal-copy": "localized-copy-pack",
+    "missing-buyer-facing-copy": "localized-copy-pack",
+    "thin-copy-strategy": "localized-copy-pack",
+    "weak-buyer-benefit": "localized-copy-pack",
+    "unsupported-marketing-claim": "product-fact-sheet",
+    "unverified-hotword-use": "platform-category-web-research",
+    "missing-current-research-basis": "platform-category-web-research",
+    "dynamic-context-not-used": "localized-copy-pack",
     "watermark-or-platform-pack-label": "graphic-design-direction",
     "unauthorized-visible-watermark-mark": "graphic-design-direction",
     "unclear-micro-detail": "product-identity-lock",
@@ -324,6 +338,7 @@ function fallbackReturnNode(type) {
     source_quality: "source-image-enhancement",
     product_truth: "product-fact-sheet",
     identity: "product-identity-lock",
+    identity_geometry: "identity-geometry-lock",
     prompt_readiness: "prompt-readiness-gate",
     prompt_layer: "prompt-layer-stack",
     platform_market: "platform-category-web-research",
@@ -350,7 +365,7 @@ function blockedStatus(primary, findings) {
 
 function statusForNode(node, type) {
   if (/layout|copy|export/.test(node)) return /export/.test(node) ? "return_to_node" : "rerender_layout_only";
-  if (/generation-request|scene-asset/.test(node) || /identity-drift/.test(type)) return "regenerate_failed_assets_only";
+  if (/generation-request|scene-asset|identity-geometry/.test(node) || /identity-drift|geometry/.test(type)) return "regenerate_failed_assets_only";
   return "return_to_node";
 }
 
@@ -372,6 +387,14 @@ function nextAction(type, node) {
     "unclear-micro-detail": "Update Product Identity Lock with micro-detail status and ask for closeup only if the detail must be readable.",
     "invented-logo-or-trademark": "Remove invented brand/logo direction and lock unclear marks as unreadable shape-only details.",
     "invented-readable-micro-text": "Remove invented readable micro text and preserve only source-backed exact text or unreadable marks.",
+    "geometry-ratio-drift": "Tighten product geometry lock and regenerate only affected assets with source-reference proportions.",
+    "geometry-class-drift": "Restore source geometry class such as garment length, hem position, sleeve length, neckline, or silhouette.",
+    "apparel-length-shortened": "Regenerate the affected apparel image; preserve original garment length and hem position, avoiding crop-top drift.",
+    "forbidden-geometry-change": "Remove the forbidden geometry change from the prompt and regenerate only the affected asset.",
+    "thin-copy-strategy": "Rewrite copy strategy with buyer question, conversion intent, objection, and research basis.",
+    "unverified-hotword-use": "Run current platform/category research or remove unverified hot/search terms.",
+    "missing-current-research-basis": "Run platform context and category research before final copy.",
+    "dynamic-context-not-used": "Either use the required season/climate/holiday/region context in buyer-facing copy or record why it is irrelevant.",
     "bad-filename": "Rename exports with stable ID plus English purpose slug.",
     "wrong-image-count": "Export the required independent image count.",
     "draft-exported-as-final": "Remove draft assets from final-images; generate or package only final approved assets.",
@@ -386,6 +409,7 @@ function rerunFrom(node) {
     "source-image-enhancement": ["source-image-enhancement-if-needed", "product-image-parser", "product-identity-lock", "prompt-layer-gate"],
     "product-fact-sheet": ["product-fact-sheet", "commerce-strategy-brief", "prompt-layer-gate"],
     "product-identity-lock": ["product-identity-lock", "prompt-layer-gate", "identity-consistency-gate"],
+    "identity-geometry-lock": ["identity-geometry-lock", "prompt-layer-gate", "personalized-prompt-delivery", "identity-geometry-gate"],
     "platform-category-web-research": ["platform-category-web-research", "platform-category-profile-overlay", "commerce-strategy-brief"],
     "commerce-strategy-brief": ["commerce-strategy-brief", "image-set-architecture", "prompt-layer-gate"],
     "creative-direction-brief": ["creative-direction-brief", "commercial-photography-treatment", "prompt-layer-gate"],
@@ -396,7 +420,7 @@ function rerunFrom(node) {
     "scene-asset-production": ["scene-asset-production-if-scene-roles", "prompt-layer-gate", "personalized-prompt-delivery", "identity-consistency-gate", "marketing-quality-gate"],
     "generation-request-pack": ["generation-request-pack-if-fallback-or-audit-needed", "generation-runtime-execution-boundary", "identity-consistency-gate"],
     "layout-wireframes": ["layout-wireframes", "layout-composition", "marketing-quality-gate"],
-    "localized-copy-pack": ["localized-copy-pack", "layout-composition", "marketing-quality-gate"],
+    "localized-copy-pack": ["localized-copy-pack", "copy-strategy-gate", "layout-composition", "marketing-quality-gate"],
     "visual-director": ["visual-director", "image-set-blueprint", "prompt-layer-gate"],
     "export-packaging": ["export-packaging", "image-set-export-gate"],
   };
@@ -418,6 +442,7 @@ function retryBudget(node) {
     "source-image-enhancement": 1,
     "product-fact-sheet": 2,
     "product-identity-lock": 2,
+    "identity-geometry-lock": 2,
     "platform-category-web-research": 1,
     "commerce-strategy-brief": 2,
     "creative-direction-brief": 2,
