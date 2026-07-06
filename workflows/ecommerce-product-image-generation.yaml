@@ -17,7 +17,7 @@ execution_modes:
     default_for:
       - short_chat_image_requests
       - single_image_generation
-      - standard_image_sets
+      - low_risk_drafts
     create_full_run_skeleton: false
     create_review_workspace_by_default: false
     outputs:
@@ -27,6 +27,40 @@ execution_modes:
       - compact_visual_strategy
       - focused_qa_summary
       - optional_review_workspace_if_requested_or_failed
+  quality_production:
+    default_for:
+      - standard_multi_image_sets
+      - high_quality_final_assets
+      - scene_heavy_requests
+      - product_identity_sensitive_goods
+      - physical_function_or_scale_sensitive_goods
+      - conversion_critical_platform_category_runs
+    create_full_run_skeleton: compact
+    create_review_workspace_by_default: false
+    outputs:
+      - final_images
+      - final_images_manifest
+      - delivery_overview_contact_sheet
+      - compact_source_understanding
+      - product_identity_lock
+      - triggered_physical_or_geometry_locks
+      - visual_director_shot_matrix
+      - anchor_batch_qa_decision
+      - relevant_qa_reports_only
+      - final_delivery_gate
+  revision_repair:
+    default_for:
+      - user_annotations
+      - failed_output_regeneration
+      - comparison_screenshot_feedback
+      - targeted_revision_requests
+    create_full_run_skeleton: false
+    create_review_workspace_by_default: when_annotations_needed
+    outputs:
+      - failed_output_review
+      - parsed_revision_tasks
+      - affected_assets_only
+      - focused_regression_qa
   industrial_audit:
     default_for:
       - explicit_industrial_workflow
@@ -45,6 +79,7 @@ execution_modes:
     write_verbose_work_artifacts: true
 steps:
   - resolve-skill-root
+  - production-mode-router
   - input-normalizer
   - brief-intake-gate
   - create-run-skeleton

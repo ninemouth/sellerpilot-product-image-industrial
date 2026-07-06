@@ -318,6 +318,51 @@ record("skill update checker smoke", () => {
   }
 });
 
+record("production mode router smoke", () => {
+  const dir = tmpDir("sp-verify-mode-router-");
+  const qualityDir = path.join(dir, "quality");
+  run(process.execPath, [
+    "scripts/production-mode-router.mjs",
+    "--out-dir", qualityDir,
+    "--user-text", "为拼多多女包生成8图高质量套图，包含场景图",
+    "--image-count", "8",
+    "--quality-target", "high",
+    "--has-source-image", "true",
+    "--scene-requested", "true",
+  ]);
+  const quality = readJson(path.join(qualityDir, "production-mode-router-report.json"));
+  if (quality.selected_mode !== "quality_production") {
+    throw new Error(`multi-image high-quality set should route to quality_production, got ${quality.selected_mode}`);
+  }
+  if (!quality.execution_policy.required_quality_path.includes("anchor-batch-imagegen")) {
+    throw new Error("quality production should require anchor batch pacing.");
+  }
+
+  const fastDir = path.join(dir, "fast");
+  run(process.execPath, [
+    "scripts/production-mode-router.mjs",
+    "--out-dir", fastDir,
+    "--user-text", "快速生成一张草稿主图",
+    "--image-count", "1",
+    "--fast", "true",
+  ]);
+  const fast = readJson(path.join(fastDir, "production-mode-router-report.json"));
+  if (fast.selected_mode !== "fast_generation") {
+    throw new Error(`single speed-first draft should route to fast_generation, got ${fast.selected_mode}`);
+  }
+
+  const auditDir = path.join(dir, "audit");
+  run(process.execPath, [
+    "scripts/production-mode-router.mjs",
+    "--out-dir", auditDir,
+    "--user-text", "生成工业级完整审计包和 gate report",
+  ]);
+  const audit = readJson(path.join(auditDir, "production-mode-router-report.json"));
+  if (audit.selected_mode !== "industrial_audit") {
+    throw new Error(`industrial evidence request should route to industrial_audit, got ${audit.selected_mode}`);
+  }
+});
+
 record("brief intake smoke", () => {
   const outDir = path.join(tmpDir("sp-verify-brief-"), "brief");
   run(process.execPath, [

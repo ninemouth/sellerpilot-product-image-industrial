@@ -2,6 +2,33 @@
 
 Use a gated loop so generation does not waste time producing full sets before source, platform, and role assumptions are validated.
 
+## Mode Principle
+
+Do not make every request `fast_generation`. The goal is high-quality final ecommerce imagery with the least wasted work.
+
+- Use `fast_generation` for single-image, low-risk, quick-turn drafts or explicit speed-first requests.
+- Use `quality_production` for normal multi-image ecommerce sets, high-quality final assets, scene-heavy output, physical-function/scale-sensitive products, or conversion-critical platform/category work.
+- Use `revision_repair` for user annotations, comparison screenshots, or rejected outputs.
+- Use `industrial_audit` only when the user asks for full reports, migration evidence, gate records, or deep debugging.
+
+## Quality Production Loop
+
+Quality production mode runs the full quality-critical path without generating the full industrial artifact pack.
+
+1. Resolve skill root and run the cache-first update awareness check.
+2. Select production mode with `production-mode-router.mjs`.
+3. Run Brief Intake Gate. Ask only high-value questions; otherwise record assumptions and continue.
+4. Build Source Product Understanding/OCR and Product Identity Lock before visual planning.
+5. Trigger physical truth, geometry, micro-detail, or platform research only when the product/request contains those risk signals.
+6. Create strategy direction options when the user request is rough/open, then continue with the harness-selected option if the user has no preference.
+7. Build a compact feature/audience/commerce strategy and Visual Director shot matrix.
+8. Run prompt-layer planning and copy strategy checks before image generation.
+9. Generate an anchor batch through Codex-native `imagegen` / `image_gen`: main identity/hero, highest-risk scene or scale shot, and one detail when identity risk is high.
+10. QA the anchor batch for identity, physical truth, scene realism, copy, and visual direction.
+11. Continue only missing/approved remaining assets after anchor QA passes.
+12. Run relevant final gates only: identity, geometry/physics when triggered, copy, marketing, export, overview, final delivery.
+13. Start tldraw only when review, failed gate markup, or revision feedback is the next action.
+
 ## Fast Loop
 
 1. Resolve skill root and load local rules.

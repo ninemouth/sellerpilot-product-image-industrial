@@ -37,7 +37,7 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
 
 This check is non-blocking. If it reports `current`, continue silently. If it reports `update_available`, briefly tell the user the installed skill appears behind GitHub and offer to update before or after the current run. If it reports `unknown_*`, timed out, or uses stale cache, continue the image workflow and mention it only when the user asks about version freshness. Do not auto-install or overwrite a skill without explicit user authorization.
 
-For speed-sensitive chat generation, use fast generation mode and do not expand into the full industrial artifact set unless the user asks for it or a gate failure requires it. Avoid starting tldraw until visual review is requested, a gate fails and needs markup, or revision feedback is expected. Use cached platform/profile memory unless the platform/category/season/region/trend question is current or conversion-critical.
+For speed-sensitive chat generation, use the lightest mode that can still protect final image quality. Do not treat `fast_generation` as the universal default for ecommerce finals. Use `quality_production` for normal multi-image sets, high-quality final assets, scene-heavy requests, physical-function/scale-sensitive products, or conversion-critical platform/category work. Avoid starting tldraw until visual review is requested, a gate fails and needs markup, or revision feedback is expected. Use cached platform/profile memory unless the platform/category/season/region/trend question is current or conversion-critical.
 
 ## User Request Contract
 
@@ -77,15 +77,18 @@ When asking, state the current working assumptions and continue automatically if
 
 Choose the lightest mode that satisfies the user's request:
 
-- **Fast generation mode (default for chat):** Use for short requests such as "生成一张图", "做 8 图套图", or "含场景图" unless the user asks for a full audit package. Run compact product/source analysis, source-photo enhancement if needed, source product understanding/OCR pass, identity lock, platform/category baseline plus targeted research only when useful, visual shot matrix, concise prompt layer planning, Codex-native image generation, focused QA, delivery overview contact sheet, and final image export. Required user-facing outputs are final images, saved paths, concise generation summary, identity/QA notes, set overview image, and optional tldraw review session only when requested or needed for revision.
+- **Fast generation mode:** Use for single-image, low-risk, quick-turn requests, early direction tests, or draft outputs where the user explicitly prioritizes speed. It still requires source understanding, identity lock, concise visual direction, Codex-native image generation, focused QA, and export, but it skips full research briefs, full run skeletons, always-on tldraw, and verbose gate packages by default.
+- **Quality production mode (default for final ecommerce image sets):** Use for normal multi-image套图, high-quality final assets, scene-heavy images, product identity/proportion-sensitive goods, physical-function/scale-sensitive goods, or conversion-critical platform/category work. This is the main quality/speed balance mode: run the complete quality-critical path, use anchor batch pacing, run only relevant gates, reuse approved assets, create the required overview, and avoid full industrial audit artifacts unless needed.
+- **Revision repair mode:** Use when the user provides failed outputs, comparison screenshots, tldraw annotations, or asks to modify an existing set. Parse feedback, route to the earliest failed node, and regenerate/rerender only affected assets.
 - **Industrial audit mode:** Use when the user asks for 工业级完整 workflow, 可迁移到 SellerPilot, 审计, gate reports, review records, or development evidence. Produce the full run skeleton, research briefs, prompt packs, gate reports, QA routing records, review workspace, and export package.
 - **Debug/development mode:** Use only while improving this skill. Keep selftests, intermediate fixtures, verbose gate JSON, and experimental work under `work/` or an explicit temp/debug directory. Do not let debug artifacts affect normal chat generation.
 
-For normal chat, do not create every artifact listed in the full output contract. Create only the artifacts needed to generate, QA, and deliver the requested images. Escalate from fast mode to industrial audit mode only when a gate fails repeatedly, source identity is ambiguous, runtime generation is unavailable, or the user asks for the full package.
+For normal chat, do not create every artifact listed in the full output contract. Create only the artifacts needed to generate, QA, and deliver the requested images. Escalate from fast or quality production mode to industrial audit mode only when a gate fails repeatedly, source identity is ambiguous, runtime generation is unavailable, or the user asks for the full package.
 
 ## Execution Flow
 
 1. Resolve the skill root to `${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial`. Read `${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/AGENTS.md` before running a production image workflow. Do not search only the current workspace for `AGENTS.md`.
+1a. Select the production mode with `production-mode-router.mjs` when the request is not explicitly a tiny single-image task. Default high-quality ecommerce套图 to `quality_production`, not `fast_generation`; use `industrial_audit` only when the user wants full evidence or migration artifacts.
 2. Run the Brief Intake Gate. If required information is missing, ask at most three high-value questions and record the assumptions. If no material gap exists, continue without interrupting the user.
 2a. When the user request is rough or commercially open-ended, load `references/strategy-direction-routing.md`, create 2-3 production direction options, and run `strategy-direction-handoff-gate.mjs` before formal production. The first visible response to the user must include the short direction choices plus the harness-selected fallback. Do not skip this just because enough facts exist to generate. If the user has no clear preference, continue with the harness-selected `selected_option_id`, record the reason in `strategy/direction-selection.yaml`, and keep the user-visible handoff in `strategy/direction-user-handoff.md`.
 3. Use `workflows/ecommerce-product-image-generation.yaml` as the default master workflow for complete product image generation. Then load the closest platform-specific workflow/profile only for extra constraints:
@@ -147,6 +150,17 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
 ```
 
 Use this as a lightweight, cache-first freshness check in Codex usage. It compares the installed release metadata or local git commit against the configured GitHub branch when the cache is stale. It must not block generation; report update availability as a concise note and continue unless the user chooses to update.
+
+```bash
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/production-mode-router.mjs \
+  --out-dir /abs/run/mode \
+  --user-text "为拼多多女包生成8图高质量套图" \
+  --image-count 8 \
+  --quality-target high \
+  --has-source-image true
+```
+
+Use this before substantial production to choose `fast_generation`, `quality_production`, `revision_repair`, `industrial_audit`, or `debug_development`. The router optimizes for final image quality first, then removes artifacts and services that are not needed for that mode.
 
 ```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/brief-intake-gate.mjs \
@@ -452,6 +466,20 @@ Fast generation mode should provide:
 - Final prompt/request summary sufficient for review
 - Focused QA summary covering product identity, scene reality, visual diversity, platform fit, and buyer-facing copy
 - tldraw review session only when the user asks for review, a gate fails, or revision feedback is expected
+
+Quality production mode should provide:
+
+- Independent final image files when image generation is requested
+- Required delivery overview image at `overview/SET-OVERVIEW-contact-sheet.png` for multi-image sets
+- Run-scoped `export/final-images-manifest.json`
+- Selected strategy direction when the request was rough/open
+- Source Product Understanding/OCR facts that affect identity, scale, function, or copy
+- Product Identity Lock and physical/geometry locks when triggered
+- Compact feature/audience/commerce strategy sufficient to drive shot choices
+- Visual director shot matrix and prompt-layer decisions
+- Anchor batch QA decision before continuing the full set
+- Relevant QA reports only: identity, physical/geometry if triggered, copy, marketing, export, final delivery
+- tldraw review session only when requested, failed, or revision feedback is expected
 
 Industrial audit mode should provide the complete workflow artifacts:
 
