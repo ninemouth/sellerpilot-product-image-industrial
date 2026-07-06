@@ -169,6 +169,34 @@ test ! -e ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industria
 
 如果信息足够，skill 会继续推进；如果缺少会影响质量或真实性的关键信息，它只会问 1-3 个高价值问题。低风险缺口会用明确假设继续。
 
+## 运行模式
+
+这个 skill 不是永远使用 fast generation mode。它会根据任务目标选择最轻但能保护图片质量的模式：
+
+- `fast_generation`：单张、低风险、草稿或用户明确要求快速时使用。
+- `quality_production`：高质量商品套图和最终成品的默认模式。它会保留源图理解、身份锁、视觉导演、prompt layer、anchor batch、关键 QA 和总览图，但不会默认生成完整工业审计包。
+- `revision_repair`：用户给出批注、截图对比或要求修改已有图片时使用，只重跑受影响资产。
+- `industrial_audit`：用户要求完整 workflow、迁移 SellerPilot、gate report、审计证据或开发验证时使用。
+- `debug_development`：开发、自测、回归验证时使用。
+
+可以手动查看某个请求会进入哪个模式：
+
+```bash
+npm run route:mode -- \
+  --out-dir /tmp/sellerpilot-mode-demo \
+  --user-text "为拼多多女包生成8图高质量套图，包含场景图" \
+  --image-count 8 \
+  --quality-target high \
+  --has-source-image true \
+  --scene-requested true
+```
+
+高质量多图套图应该返回：
+
+```text
+selected_mode: quality_production
+```
+
 ## 推荐输入
 
 效果最好时，给 Codex：
@@ -185,15 +213,20 @@ test ! -e ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industria
 
 ## 输出通常包含
 
-Fast generation mode 默认输出：
+`quality_production` 默认输出：
 
 - 独立的最终图片文件。
 - 稳定 ID + 英文用途 slug 的文件名。
-- 商品身份锁和源图理解摘要。
-- 镜头矩阵或场景策略摘要。
-- QA 结论。
 - 多图套图的 `overview/SET-OVERVIEW-contact-sheet.png` 总览图。
+- 当前任务的 `export/final-images-manifest.json`，用于证明没有跨任务混图。
+- 商品身份锁和源图理解摘要，包括源图文字/OCR 提供的尺寸、型号、功能、标签等事实线索。
+- 必要时的物理功能锁、几何比例锁或微细节锁。
+- 镜头矩阵、场景策略、文案策略和 prompt layer 摘要。
+- Anchor batch QA 结论，以及后续只补齐缺失/失败图片的说明。
+- 相关 QA 结论：身份、物理/几何、文案、营销、导出、最终交付。
 - 需要批注时的 tldraw review session。
+
+`fast_generation` 会输出更精简的成品、摘要和 QA；它主要用于单图、草稿或明确速度优先的任务。
 
 Industrial audit mode 会额外输出完整的 fact sheet、策略、prompt layer、gate report、QA loop routing、修订历史和导出包摘要。
 
@@ -209,6 +242,22 @@ Industrial audit mode 会额外输出完整的 fact sheet、策略、prompt laye
 
 ```bash
 npm run verify
+```
+
+检查当前安装版是否落后于 GitHub：
+
+```bash
+npm run check:update -- --cache-ttl-hours 24 --timeout-ms 1500
+```
+
+选择生产模式：
+
+```bash
+npm run route:mode -- \
+  --out-dir /tmp/sellerpilot-mode-demo \
+  --user-text "为拼多多女包生成8图高质量套图" \
+  --image-count 8 \
+  --quality-target high
 ```
 
 创建任务目录：
@@ -242,6 +291,40 @@ node scripts/qa-loop-router.mjs --run-dir runs/demo-amazon-bag
 ```bash
 npm run sync -- --source "$PWD"
 ```
+
+## 更新感知和自动更新边界
+
+这个 skill 支持“自动感知是否需要更新”，但不会在未获授权时自动覆盖安装目录。
+
+正常 Codex 使用中，skill 会优先用缓存做轻量更新检查：
+
+```bash
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/check-skill-update.mjs \
+  --cache-ttl-hours 24 \
+  --timeout-ms 1500
+```
+
+可能返回：
+
+- `current`：当前安装版和 GitHub `main` 一致，继续工作。
+- `update_available`：安装版落后于 GitHub，可以选择先更新或当前任务结束后更新。
+- `unknown_local_revision` / `unknown_remote_revision`：无法确认版本，例如网络不可达、没有 release metadata 或远端超时。此时不应阻塞出图。
+
+为什么不完全自动更新：
+
+- Codex skill 是本地能力目录，覆盖前应该备份并验证。
+- 用户可能正在使用本地开发版或临时改动版。
+- 自动更新可能改变当前任务行为，尤其是长任务或正在修订的图片生产流程。
+
+推荐更新流程仍然是：
+
+```bash
+git pull
+npm run verify
+npm run sync -- --source "$PWD"
+```
+
+`npm run sync` 会备份旧安装版、同步当前源码、验证开发目录和安装目录一致，并写入 `.sellerpilot-skill-release.json`。后续 `check:update` 会用这个 release metadata 判断本地安装版是否落后于 GitHub。
 
 ## QA 和防循环机制
 

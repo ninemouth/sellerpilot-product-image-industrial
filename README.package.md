@@ -18,12 +18,14 @@
 - 文案策略 loop：最终图片文案必须有买家问题、转化意图、研究依据和事实支撑；热词/夸张 claims 没有证据会被 gate 阻断。
 - 身份几何一致性：服装、包鞋等比例敏感商品必须锁定长度、下摆、袖长、领口、轮廓等几何约束；例如正常球衣不能漂移成 crop top。
 - 画布自动启动：需要视觉审核时创建 tldraw workspace 后默认启动/复用共享服务并返回 ready URL；自测或纯归档才传 `--no-auto-start`。
+- 模式路由：单图草稿走 `fast_generation`；高质量套图和最终成品默认走 `quality_production`；批注修订走 `revision_repair`；完整审计/迁移证据才走 `industrial_audit`。
+- 更新感知：安装版会写入 release metadata，可用 `check-skill-update.mjs` 轻量判断是否落后于 GitHub；只提示可更新，不在未授权时自动覆盖。
 
 ## 用法
 
 1. 将本目录安装到 Codex skills 目录。
 2. 日常在 Codex chat/project 中使用 `$sellerpilot-product-image-industrial` 或自然语言商品图请求触发。
-3. 普通生图默认走 fast generation mode；完整审计/迁移证据才走 industrial audit mode。
+3. 普通高质量套图默认走 quality production mode；单图草稿或明确速度优先才走 fast generation mode；完整审计/迁移证据才走 industrial audit mode。
 4. 不要求用户指定生图工具、模型名或运行边界。
 
 ## 开发与发布收敛
