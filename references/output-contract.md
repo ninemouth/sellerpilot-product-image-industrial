@@ -11,6 +11,7 @@ overview/SET-OVERVIEW-contact-sheet.png  # required package overview for multi-i
 generation-summary.md  # concise product identity, visual strategy, prompt, and QA notes
 brief-intake/brief-intake-gate-report.json  # only when clarifications or assumptions are material
 generated-assets/generation-progress.json  # for multi-image sets and long-running generation
+qa/qa-loop-state.json                     # persisted retry signatures and loop guard state
 optional-review-workspace/  # only when review/revision is requested or needed
 ```
 
@@ -80,6 +81,7 @@ qa/prompt-layer-gate-report.json
 qa/product-physics-fact-gate-report.json
 qa/source-product-understanding-gate-report.json
 qa/qa-loop-routing-decision.json
+qa/qa-loop-state.json
 qa/final-delivery-gate-report.json
 failed-output-review.yaml
 ```
@@ -400,8 +402,18 @@ loop_decision:
   rerun_from: []
   do_not_rerun: []
   retry_budget:
+  retry_attempts_used:
+  retry_attempts_remaining:
+  retry_signature:
   blocked_reason:
   user_input_required:
+loop_guard:
+  status:
+  signature:
+  attempt_count:
+  max_attempts:
+  remaining_attempts:
+  state_path:
 ```
 
 Minimum Image Set Blueprint fields:
@@ -484,3 +496,4 @@ For GPT built-in image generation, separate:
 - Region-based `review.html` with A-H editable regions when actual images are generated.
 - Prompt readiness gate showing whether final prompt delivery is blocked, ready with risks, or ready.
 - QA loop routing decision showing the return node, smallest next action, rerun scope, do-not-rerun scope, retry budget, blocked reason, and user-input-required state.
+- QA loop state showing persisted retry signatures; once the same failure exceeds budget, final delivery must stay blocked until the user supplies better evidence, confirms facts, or changes direction.

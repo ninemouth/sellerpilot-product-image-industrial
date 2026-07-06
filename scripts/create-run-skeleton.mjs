@@ -924,6 +924,19 @@ writeIfMissing(path.join(outDir, "qa", "qa-loop-routing-decision.yaml"), [
   "",
 ].join("\n"));
 
+writeIfMissing(path.join(outDir, "qa", "qa-loop-state.json"), JSON.stringify({
+  schema_version: "sellerpilot.qa_loop_state.v1",
+  created_at: now,
+  updated_at: now,
+  signatures: {},
+  history: [],
+  policy: {
+    retry_budget_is_enforced_by_qa_loop_router: true,
+    final_delivery_gate_report_is_not_a_root_cause_report: true,
+    stop_on_retry_budget_exhaustion: true,
+  },
+}, null, 2) + "\n");
+
 writeIfMissing(path.join(outDir, "qa", "final-delivery-gate-report.md"), [
   "# Final Delivery Gate Report",
   "",

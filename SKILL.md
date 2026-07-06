@@ -305,6 +305,8 @@ node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/qa-l
 
 Use the QA loop router after any gate failure or warning. It reads gate reports from `/abs/run/qa`, outputs one routing decision, and tells the workflow which upstream node to return to, what to rerun, what not to rerun, whether user input is required, and what retry budget applies.
 
+The router is also the executable loop guard. It persists repeated failure signatures in `qa/qa-loop-state.json`, ignores `final-delivery-gate-report.json` as a root-cause input, and changes the decision to `blocked_retry_budget_exhausted` when the same failure exceeds its retry budget. When this happens, stop automatic regeneration and ask for better source evidence, user confirmation, or a changed production direction before any more image generation.
+
 ```bash
 node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/create-identity-consistency-review.mjs \
   --source /abs/source.png \

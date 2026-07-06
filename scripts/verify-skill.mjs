@@ -254,6 +254,7 @@ record("run skeleton and gates smoke", () => {
     "blueprint/07-graphic-design-direction.yaml",
     "prompt-pack/10-generation-request-pack.yaml",
     "prompt-pack/12-prompt-layer-stack.json",
+    "qa/qa-loop-state.json",
     "qa/final-delivery-gate-report.md",
   ];
   for (const file of required) {
@@ -437,6 +438,86 @@ record("blocked scaffold smoke", () => {
   spawnSync(process.execPath, ["scripts/final-delivery-gate.mjs", "--run-dir", runDir], { cwd: skillRoot });
   const finalGate = readJson(path.join(runDir, "qa", "final-delivery-gate-report.json"));
   if (finalGate.status !== "fail") throw new Error("final delivery should fail unresolved scaffold.");
+});
+
+record("qa loop retry budget guard smoke", () => {
+  const runDir = path.join(tmpDir("sp-verify-qa-loop-budget-"), "run");
+  const qaDir = path.join(runDir, "qa");
+  run(process.execPath, [
+    "scripts/create-run-skeleton.mjs",
+    "--out-dir", runDir,
+    "--platform", "拼多多",
+    "--category", "女包",
+  ]);
+  fs.writeFileSync(path.join(qaDir, "marketing-quality-gate-report.json"), JSON.stringify({
+    status: "fail",
+    findings: [{
+      severity: "fail",
+      type: "source-cutout-used-as-scene",
+      image_index: 2,
+      message: "Scene role used the source cutout instead of a real generated/photo scene asset.",
+    }],
+  }, null, 2));
+  run(process.execPath, ["scripts/qa-loop-router.mjs", "--run-dir", runDir]);
+  let decision = readJson(path.join(qaDir, "qa-loop-routing-decision.json"));
+  if (decision.loop_decision.status !== "regenerate_failed_assets_only") {
+    throw new Error(`first QA route should allow failed-asset regeneration, got ${decision.loop_decision.status}`);
+  }
+  if (decision.loop_decision.retry_attempts_used !== 1) throw new Error("first QA route should record retry attempt 1.");
+  run(process.execPath, ["scripts/qa-loop-router.mjs", "--run-dir", runDir]);
+  decision = readJson(path.join(qaDir, "qa-loop-routing-decision.json"));
+  if (decision.loop_decision.retry_attempts_used !== 2) throw new Error("second QA route should record retry attempt 2.");
+  const exhausted = spawnSync(process.execPath, ["scripts/qa-loop-router.mjs", "--run-dir", runDir], { cwd: skillRoot });
+  if (exhausted.status === 0) throw new Error("third identical QA route should exhaust retry budget and exit non-zero.");
+  decision = readJson(path.join(qaDir, "qa-loop-routing-decision.json"));
+  if (decision.loop_decision.status !== "blocked_retry_budget_exhausted") {
+    throw new Error(`expected blocked_retry_budget_exhausted, got ${decision.loop_decision.status}`);
+  }
+  if (!decision.loop_decision.user_input_required) throw new Error("retry budget exhaustion should require user input or direction change.");
+  const state = readJson(path.join(qaDir, "qa-loop-state.json"));
+  const entries = Object.values(state.signatures || {});
+  if (!entries.some((item) => item.status === "exhausted" && item.attempt_count === 3 && item.max_attempts === 2)) {
+    throw new Error("qa-loop-state should persist exhausted attempt count.");
+  }
+});
+
+record("qa loop ignores final gate self-loop smoke", () => {
+  const runDir = path.join(tmpDir("sp-verify-qa-loop-final-"), "run");
+  const qaDir = path.join(runDir, "qa");
+  run(process.execPath, [
+    "scripts/create-run-skeleton.mjs",
+    "--out-dir", runDir,
+    "--platform", "Amazon",
+    "--category", "cable clip",
+  ]);
+  fs.writeFileSync(path.join(qaDir, "copy-strategy-gate-report.json"), JSON.stringify({
+    status: "fail",
+    findings: [{
+      severity: "fail",
+      type: "internal-copy",
+      image_index: 1,
+      message: "Final image copy contains internal QA wording.",
+    }],
+  }, null, 2));
+  fs.writeFileSync(path.join(qaDir, "final-delivery-gate-report.json"), JSON.stringify({
+    status: "fail",
+    findings: [{
+      severity: "critical",
+      type: "qa-loop-not-closed",
+      message: "QA loop decision is not closed.",
+    }],
+  }, null, 2));
+  run(process.execPath, ["scripts/qa-loop-router.mjs", "--run-dir", runDir]);
+  const decision = readJson(path.join(qaDir, "qa-loop-routing-decision.json"));
+  if (decision.reports_seen.includes("final-delivery-gate-report.json")) {
+    throw new Error("qa-loop-router should not treat final-delivery-gate-report.json as a root-cause report.");
+  }
+  if (decision.loop_decision.primary_failure_type !== "internal-copy") {
+    throw new Error(`expected upstream internal-copy root cause, got ${decision.loop_decision.primary_failure_type}`);
+  }
+  if (decision.loop_decision.return_node === "qa-loop-router") {
+    throw new Error("qa-loop-router should not route final delivery symptoms back to itself when upstream evidence exists.");
+  }
 });
 
 record("export gate pass and draft fail", () => {

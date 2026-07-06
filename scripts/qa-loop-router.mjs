@@ -41,7 +41,7 @@ const findings = collectFindings(reports);
 const actionable = findings.filter((item) => ["critical", "fail", "warn"].includes(item.severity));
 const ranked = actionable.sort(compareFindings);
 const primary = ranked[0] || null;
-const decision = buildDecision({ runDir, reports, findings, primary });
+const decision = applyRetryGuard(buildDecision({ runDir, reports, findings, primary }), qaDir);
 
 fs.writeFileSync(path.join(qaDir, "qa-loop-routing-decision.json"), JSON.stringify(decision, null, 2));
 fs.writeFileSync(path.join(qaDir, "qa-loop-routing-decision.yaml"), toYaml(decision));
@@ -54,6 +54,7 @@ function loadReports(dir) {
   return fs.readdirSync(dir)
     .filter((name) => /-report\.json$/.test(name))
     .filter((name) => !/^qa-loop-routing-decision\.json$/.test(name))
+    .filter((name) => name !== "final-delivery-gate-report.json")
     .map((name) => {
       const file = path.join(dir, name);
       try {
@@ -74,6 +75,167 @@ function loadReports(dir) {
         };
       }
     });
+}
+
+function applyRetryGuard(decision, qaDirPath) {
+  const loop = decision.loop_decision || {};
+  const retryableStatuses = new Set(["return_to_node", "regenerate_failed_assets_only", "rerender_layout_only"]);
+  const statePath = path.join(qaDirPath, "qa-loop-state.json");
+  const state = loadRetryState(statePath);
+
+  state.schema_version = "sellerpilot.qa_loop_state.v1";
+  state.updated_at = new Date().toISOString();
+  state.signatures ||= {};
+  state.history ||= [];
+
+  if (loop.status === "continue") {
+    state.last_decision = {
+      status: loop.status,
+      primary_failure_type: null,
+      updated_at: state.updated_at,
+    };
+    writeRetryState(statePath, state);
+    decision.loop_guard = {
+      status: "not_counted",
+      reason: "No actionable QA failure.",
+      state_path: statePath,
+    };
+    return decision;
+  }
+
+  if (!retryableStatuses.has(loop.status) || !loop.primary_failure_type || !loop.return_node) {
+    state.last_decision = {
+      status: loop.status,
+      primary_failure_type: loop.primary_failure_type || null,
+      return_node: loop.return_node || null,
+      counted: false,
+      updated_at: state.updated_at,
+    };
+    writeRetryState(statePath, state);
+    decision.loop_guard = {
+      status: "not_counted",
+      reason: `Status ${loop.status || "unknown"} is not a retryable generation/layout loop.`,
+      state_path: statePath,
+    };
+    return decision;
+  }
+
+  const signature = retrySignature(loop);
+  const maxAttempts = Number.isFinite(Number(loop.retry_budget)) ? Number(loop.retry_budget) : retryBudget(loop.return_node);
+  const existing = state.signatures[signature] || {
+    signature,
+    primary_failure_type: loop.primary_failure_type,
+    failure_category: loop.failure_category || null,
+    return_node: loop.return_node,
+    failed_gate: loop.failed_gate || null,
+    failed_images: loop.failed_images || [],
+    first_seen_at: state.updated_at,
+    attempt_count: 0,
+    max_attempts: maxAttempts,
+    status: "retryable",
+  };
+
+  existing.attempt_count = Number(existing.attempt_count || 0) + 1;
+  existing.max_attempts = maxAttempts;
+  existing.last_seen_at = state.updated_at;
+  existing.last_status = loop.status;
+  existing.failed_images = loop.failed_images || [];
+  existing.failed_gate = loop.failed_gate || existing.failed_gate || null;
+  existing.remaining_attempts = Math.max(0, maxAttempts - existing.attempt_count);
+  existing.status = existing.attempt_count > maxAttempts ? "exhausted" : "retryable";
+  state.signatures[signature] = existing;
+  state.last_decision = {
+    status: existing.status,
+    primary_failure_type: loop.primary_failure_type,
+    return_node: loop.return_node,
+    signature,
+    attempt_count: existing.attempt_count,
+    max_attempts: maxAttempts,
+    updated_at: state.updated_at,
+  };
+  state.history.push({
+    checked_at: state.updated_at,
+    signature,
+    status: existing.status,
+    primary_failure_type: loop.primary_failure_type,
+    return_node: loop.return_node,
+    failed_images: loop.failed_images || [],
+    attempt_count: existing.attempt_count,
+    max_attempts: maxAttempts,
+  });
+  if (state.history.length > 100) state.history = state.history.slice(-100);
+
+  loop.retry_attempts_used = existing.attempt_count;
+  loop.retry_attempts_remaining = existing.remaining_attempts;
+  loop.retry_signature = signature;
+  decision.loop_guard = {
+    status: existing.status,
+    signature,
+    attempt_count: existing.attempt_count,
+    max_attempts: maxAttempts,
+    remaining_attempts: existing.remaining_attempts,
+    state_path: statePath,
+  };
+
+  if (existing.status === "exhausted") {
+    loop.status = "blocked_retry_budget_exhausted";
+    loop.blocked_reason = `Retry budget exhausted for ${loop.primary_failure_type} at ${loop.return_node}: ${existing.attempt_count}/${maxAttempts} repeated QA-loop decisions. Stop regenerating and request better source evidence, user choice, or a changed production direction.`;
+    loop.user_input_required = true;
+    loop.smallest_next_action = `Stop the automatic generation loop for ${loop.primary_failure_type}. Ask for the missing source/product/context input or change the upstream strategy before any more generation.`;
+    loop.do_not_rerun = unique([...(loop.do_not_rerun || []), "automatic-generation-loop", "full-image-set-generation"]);
+    decision.findings.push({
+      severity: "critical",
+      type: "retry-budget-exhausted",
+      gate_id: "qa-loop-router",
+      source_report: "qa-loop-state.json",
+      return_node: loop.return_node,
+      failure_category: loop.failure_category,
+      message: loop.blocked_reason,
+      user_input_required: true,
+    });
+  }
+
+  writeRetryState(statePath, state);
+  return decision;
+}
+
+function retrySignature(loop) {
+  return [
+    loop.return_node || "unknown-node",
+    loop.primary_failure_type || "unknown-failure",
+    loop.failed_gate || "unknown-gate",
+    ...(loop.failed_images || []).map((item) => `image-${item}`).sort(),
+  ].join("|");
+}
+
+function loadRetryState(file) {
+  if (!fs.existsSync(file)) {
+    return {
+      schema_version: "sellerpilot.qa_loop_state.v1",
+      created_at: new Date().toISOString(),
+      signatures: {},
+      history: [],
+    };
+  }
+  try {
+    const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+    if (!parsed || typeof parsed !== "object") throw new Error("state is not an object");
+    parsed.signatures ||= {};
+    parsed.history ||= [];
+    return parsed;
+  } catch (error) {
+    return {
+      schema_version: "sellerpilot.qa_loop_state.v1",
+      created_at: new Date().toISOString(),
+      recovered_from_unreadable_state: error.message,
+      signatures: {},
+      history: [],
+    };
+  }
+}
+
+function writeRetryState(file, state) {
+  fs.writeFileSync(file, JSON.stringify(state, null, 2));
 }
 
 function collectFindings(reports) {
@@ -456,20 +618,27 @@ function retryBudget(node) {
   const map = {
     "source-image-enhancement": 1,
     "product-fact-sheet": 2,
+    "product-physical-truth-lock": 2,
     "product-identity-lock": 2,
     "identity-geometry-lock": 2,
     "platform-category-web-research": 1,
+    "platform-category-profile-overlay": 1,
     "commerce-strategy-brief": 2,
+    "image-set-architecture": 2,
     "creative-direction-brief": 2,
+    "audience-positioning-analysis": 2,
     "commercial-photography-treatment": 2,
     "graphic-design-direction": 2,
+    "prompt-readiness-gate": 2,
     "prompt-layer-stack": 3,
     "personalized-prompt-delivery": 3,
     "scene-asset-production": 2,
     "generation-request-pack": 2,
     "layout-wireframes": 3,
     "localized-copy-pack": 2,
+    "visual-director": 2,
     "export-packaging": 2,
+    "generation-runtime-execution-boundary": 0,
   };
   return map[node] ?? 1;
 }
@@ -522,7 +691,22 @@ function toMarkdown(decision) {
     `- Failed images: ${d.failed_images.length ? d.failed_images.join(", ") : "none"}`,
     `- Smallest next action: ${d.smallest_next_action}`,
     `- Retry budget: ${d.retry_budget ?? "n/a"}`,
+    `- Retry attempts used: ${d.retry_attempts_used ?? "n/a"}`,
+    `- Retry attempts remaining: ${d.retry_attempts_remaining ?? "n/a"}`,
     `- User input required: ${d.user_input_required}`,
+  ];
+  if (decision.loop_guard) {
+    lines.push(
+      "",
+      "## Loop Guard",
+      "",
+      `- Status: ${decision.loop_guard.status}`,
+      `- Signature: ${decision.loop_guard.signature || "n/a"}`,
+      `- Attempts: ${decision.loop_guard.attempt_count ?? "n/a"} / ${decision.loop_guard.max_attempts ?? "n/a"}`,
+      `- State path: ${decision.loop_guard.state_path || "n/a"}`,
+    );
+  }
+  lines.push(
     "",
     "## Rerun From",
     "",
@@ -534,7 +718,7 @@ function toMarkdown(decision) {
     "",
     "## Findings",
     "",
-  ];
+  );
   if (!decision.findings.length) lines.push("- None");
   for (const item of decision.findings) {
     lines.push(`- [${item.severity}] ${item.gate_id}/${item.type}: ${item.message || ""}`);

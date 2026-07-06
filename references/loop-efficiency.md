@@ -42,11 +42,13 @@ Fast mode should not create the full industrial run skeleton, every research art
 ## Retry Budget
 
 - Maximum 2 generation attempts per scene role unless the user asks to continue.
+- `qa-loop-router.mjs` must enforce retry budgets through `qa/qa-loop-state.json`; retry budgets are not advisory prose.
 - Stop early when product identity drifts too far from the source image.
 - If identity fails, regenerate only the failed product-bearing asset with a tighter identity lock. Do not regenerate approved assets.
 - Do not regenerate text-heavy infographics when only scene imagery failed.
 - Reuse approved assets across revisions.
 - Do not regenerate a full set when only the shot matrix or buyer-facing copy fails; fix the brief and rerun the smallest affected assets.
+- If the same QA failure signature exceeds its budget, stop automatic generation and request better source evidence, product fact confirmation, or a changed direction before continuing.
 
 ## Generation Pacing
 
@@ -86,3 +88,5 @@ If a gate fails, report the failing gate and the smallest next action:
 - repeated angle/detail/copy -> revise Visual Direction Brief and rerun only affected images
 - text/layout issue -> rerender layout only
 - review widget unavailable -> use tldraw workspace JSON/completion payload/screenshot evidence and state widget limitation
+
+Do not treat `final-delivery-gate-report.json` as the root-cause report for another QA routing pass. Final delivery is an aggregator; fix the underlying upstream gate or existing QA loop decision instead.

@@ -29,6 +29,7 @@ Intent -> Normalize -> Brief Intake Gate -> Source Photo Preflight/Enhance -> So
 12. 最终 generation prompt 不是起点，必须由前置商品事实、平台/品类调研、人群定位、商业策略、摄影处理、草图/线框和自审结果共同生成。
 13. Prompt Layer Architect Brain 必须决定每张图的必备层与条件层；缺少强制层或触发条件层时，不得进入最终生图。
 14. 任一 gate 失败后必须运行统一 QA Loop Router，返回最早责任节点，只重跑受影响资产或布局，不得默认整套重做。
+14a. QA Loop Router 必须执行硬性循环保护：同一失败签名超过 retry budget 后进入 `blocked_retry_budget_exhausted`，停止自动生图/重渲染；`final-delivery-gate-report.json` 只能作为最终聚合结果，不得被当作下一轮 QA 的根因报告。
 15. Image Set Export Gate 只证明文件数量、命名、比例等技术导出条件；最终是否可交付必须以 Final Delivery Gate 聚合结果为准。
 16. 视觉审核优先使用可读写 JSON 的本地 tldraw 工作台；原生 Codex/Sites/Figma/FigJam 能真实渲染资产时可并行使用；不再默认生成旧 HTML review canvas。
 17. 收到用户文字和图片后必须先做 Brief Intake Gate：只有高价值缺口才问 1-3 个问题；低风险缺口用明确假设继续，不得要求用户填写内部 workflow 信息。

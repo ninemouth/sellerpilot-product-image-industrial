@@ -6,6 +6,8 @@ Use this reference after any gate report fails or warns. The QA loop router turn
 
 Do not respond to failed QA by regenerating everything. Classify the failure, return to the earliest responsible node, fix the smallest artifact, rerun downstream gates only, and stop when retry budget or required input blocks progress.
 
+`qa-loop-router.mjs` is the executable loop guard. It writes `qa/qa-loop-state.json`, counts repeated failure signatures, and changes the routing decision to `blocked_retry_budget_exhausted` once the signature exceeds its retry budget. A failure signature is based on return node, failure type, failed gate, and failed image indexes.
+
 ## Gate Standards
 
 Each gate report should emit:
@@ -59,6 +61,8 @@ failure_taxonomy:
   delivery:
     examples: [upstream-gate-not-passed, qa-loop-not-closed]
 ```
+
+Delivery failures are final aggregation symptoms, not root production failures. `qa-loop-router.mjs` must ignore `final-delivery-gate-report.json` when selecting the primary root cause. If final delivery fails, route from the underlying upstream gate report or the existing QA loop decision, not from `final-delivery-gate-report.json` itself.
 
 ## Return Node Matrix
 
@@ -144,6 +148,8 @@ retry_budget_defaults:
 - `blocked_runtime_unavailable`: GPT built-in generation runtime or required image-reference capability missing.
 - `blocked_retry_budget_exhausted`: repeated attempts failed; stop and report required next input.
 
+When `blocked_retry_budget_exhausted` appears, do not regenerate more assets automatically. Ask for the missing source image/detail, product fact confirmation, direction change, or human acceptance of a blocked state.
+
 ## User Input Required
 
 Set `user_input_required: true` when:
@@ -170,8 +176,13 @@ loop_decision:
   rerun_from: []
   do_not_rerun: []
   retry_budget:
+  retry_attempts_used:
+  retry_attempts_remaining:
+  retry_signature:
   blocked_reason:
   user_input_required:
 ```
+
+The router should also output `loop_guard` with the state path, signature, attempt count, max attempts, and remaining attempts.
 
 Approved upstream artifacts should not be regenerated unless the router names them as affected.
