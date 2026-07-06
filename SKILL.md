@@ -276,7 +276,7 @@ node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/crea
   --title "商品图审核工作台"
 ```
 
-This creates a React + Vite + tldraw workspace with copied image assets, `data/import-manifest.json`, `data/annotations.json`, `data/canvas-state.json`, and `data/generation-tasks.json`. By default it also starts or reuses the shared tldraw service and returns a ready session URL. Use it when the user needs a true infinite-canvas review workflow with arrows, drawings, spatial notes, image cards, and exportable JSON feedback.
+This creates a React + Vite review workspace with copied image assets, `data/import-manifest.json`, `data/annotations.json`, `data/canvas-state.json`, `data/review-completion.json`, and `data/generation-tasks.json`. By default it also starts or reuses the shared tldraw service and returns a ready session URL. The review plane must render generated product images as the bottom floor layer, with A-H standards, issue markers, and revision annotations floating above the images. Do not use a left sidebar. Put the image file list in the top dropdown, keep the review board from zooming independently, and if any scaling is introduced it must scale images and standards together.
 
 The workspace and shared canvas service are started automatically when visual review is needed. Use `--no-auto-start` only for selftests, file-only artifact generation, or explicitly non-interactive audit archives.
 
@@ -322,6 +322,16 @@ node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/pars
   --out /abs/run/review-workspace/data/generation-tasks.json \
   --run-dir /abs/run
 ```
+
+After the user clicks `Complete Review`, capture the current browser session when Codex needs screenshot evidence back in the conversation:
+
+```bash
+node /Users/yang/.codex/skills/sellerpilot-product-image-industrial/scripts/capture-review-session.mjs \
+  --url http://127.0.0.1:5190/?session=run-or-chat-id \
+  --out-dir /abs/run/review-workspace/captures
+```
+
+The completion button creates a screenshot-oriented `review-completion.json` browser payload and PNG. Parse either `annotations.json` or the completion payload with `parse-canvas-annotations.mjs`, then continue only the affected revision tasks.
 
 Durable fallback when a React/tldraw workspace is too heavy for the current environment:
 

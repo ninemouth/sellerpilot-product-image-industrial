@@ -20,9 +20,9 @@ function parseArgs(argv) {
 
 function usage() {
   console.error(`Usage:
-node scripts/parse-canvas-annotations.mjs --annotations /abs/annotations.json --out /abs/generation-tasks.json [--run-dir /abs/run]
+node scripts/parse-canvas-annotations.mjs --annotations /abs/annotations-or-review-completion.json --out /abs/generation-tasks.json [--run-dir /abs/run]
 
-Converts tldraw review annotations into SellerPilot generation/revision tasks.`);
+Converts review workspace annotations or Complete Review handoff payloads into SellerPilot generation/revision tasks.`);
   process.exit(2);
 }
 
@@ -33,7 +33,9 @@ const annotationsPath = path.resolve(args.annotations);
 const outPath = path.resolve(args.out);
 const runDir = args["run-dir"] ? path.resolve(args["run-dir"]) : "";
 const input = JSON.parse(fs.readFileSync(annotationsPath, "utf8"));
-const annotations = Array.isArray(input.annotations) ? input.annotations : [];
+const annotations = readAnnotations(input);
+const reviewScreenshot = input.review_screenshot || input.screenshot || null;
+const canvasState = input.canvas_state || null;
 
 const tasks = annotations
   .filter((annotation) => String(annotation.status || "open") !== "closed")
@@ -71,6 +73,9 @@ const output = {
   created_at: new Date().toISOString(),
   run_dir: runDir,
   source_annotations: annotationsPath,
+  source_schema_version: input.schema_version || "",
+  review_screenshot: normalizeScreenshot(reviewScreenshot),
+  canvas_state_summary: summarizeCanvasState(canvasState),
   task_count: tasks.length,
   tasks,
   grouped_summary: {
@@ -128,4 +133,35 @@ function rerunScope(issue) {
 function imageIndexFromFile(file) {
   const match = String(file || "").match(/(?:IMG|POSTER|DETAIL)-(\d{2})/i);
   return match ? `IMG-${match[1]}` : "";
+}
+
+function readAnnotations(input) {
+  if (Array.isArray(input.annotations)) return input.annotations;
+  if (Array.isArray(input.review?.annotations)) return input.review.annotations;
+  if (Array.isArray(input.payload?.annotations)) return input.payload.annotations;
+  return [];
+}
+
+function normalizeScreenshot(value) {
+  if (!value) return null;
+  if (typeof value === "string") return { path: value };
+  return {
+    filename: value.filename || "",
+    path: value.path || value.file || "",
+    width: value.width || null,
+    height: value.height || null,
+    mime_type: value.mime_type || "",
+    has_data_url: typeof value.data_url === "string" && value.data_url.startsWith("data:image/"),
+  };
+}
+
+function summarizeCanvasState(value) {
+  if (!value) return null;
+  const board = value.board || value.canvas_state?.board || {};
+  return {
+    schema_version: value.schema_version || "",
+    zoom_policy: board.zoom_policy || "",
+    layer_order: Array.isArray(board.layer_order) ? board.layer_order : [],
+    fallback_layout_count: Array.isArray(value.fallback_layout) ? value.fallback_layout.length : 0,
+  };
 }

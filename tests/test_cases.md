@@ -88,7 +88,7 @@ Expected: if 8 square PNG files exist but marketing gate fails for missing scene
 Expected: `image-set-export-gate.mjs` fails by default when files in `final-images` contain `layout-draft`, `draft`, `placeholder`, `wireframe`, or `blocked` in the filename. Draft assets belong in layout/review artifacts, not final ecommerce exports.
 
 ## Case 28: tldraw review workspace
-Expected: `create-tldraw-review-workspace.mjs` creates a React + Vite + tldraw workspace, copies image assets into `public/imported-images`, writes `data/import-manifest.json`, and provides `data/annotations.json`, `data/canvas-state.json`, and `data/generation-tasks.json` for Codex-readable review handoff. Local file URLs should not be required for browser image rendering.
+Expected: `create-tldraw-review-workspace.mjs` creates a React + Vite review workspace, copies image assets into `public/imported-images`, writes `data/import-manifest.json`, and provides `data/annotations.json`, `data/canvas-state.json`, `data/review-completion.json`, and `data/generation-tasks.json` for Codex-readable review handoff. Local file URLs should not be required for browser image rendering.
 
 ## Case 29: annotation JSON to generation tasks
 Expected: `parse-canvas-annotations.mjs` converts open annotations into generation tasks with `image_id`, `region`, `issue_type`, `return_node`, `action`, and `rerun_scope`. Scene feedback routes to `scene-asset-production`, copy feedback to `localized-copy-pack`, layout feedback to `layout-wireframes`, and identity feedback to `product-identity-lock`.
@@ -149,3 +149,6 @@ Expected: copy strategy records buyer question, conversion intent, purchase obje
 
 ## Case 46: apparel geometry drift catches shortened jersey
 Expected: for a source jersey with normal length and lower hem, a generated model image marked cropped/above-waist fails `identity-geometry-gate.mjs` with `apparel-length-shortened` or `geometry-class-drift`. The QA router should regenerate only the failed image with stricter geometry lock, not the full set.
+
+## Case 47: review workspace layer and completion contract
+Expected: the review workspace has no left sidebar. Generated images are the bottom `image-floor-layer`; A-H standards and annotation markers are the upper `standard-overlay-layer`; the image file list is a top dropdown; the direct modification form uses image standard fields; the board has a locked no-independent-zoom policy; `Complete Review` creates a screenshot-oriented completion payload that Codex can capture with `capture-review-session.mjs`.

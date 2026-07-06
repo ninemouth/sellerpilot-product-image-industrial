@@ -102,6 +102,9 @@ const manifest = {
     annotations_file: "data/annotations.json",
     canvas_state_file: "data/canvas-state.json",
     generation_tasks_file: "data/generation-tasks.json",
+    review_completion_file: "data/review-completion.json",
+    review_screenshot_pattern: "sellerpilot-review-*.png",
+    layer_policy: "generated images are the bottom floor layer; standards and annotations float above; no independent canvas zoom",
   },
 };
 
@@ -113,15 +116,22 @@ fs.writeFileSync(path.join(outDir, "data", "annotations.json"), JSON.stringify({
   annotations: [],
 }, null, 2));
 fs.writeFileSync(path.join(outDir, "data", "canvas-state.json"), JSON.stringify({
-  schema_version: "sellerpilot.canvas_state.v1",
+  schema_version: "sellerpilot.canvas_state.v2",
   updated_at: "",
   snapshot: null,
+  board: {
+    zoom_policy: "locked-no-independent-canvas-zoom",
+    layer_order: ["image-floor-layer", "standard-overlay-layer", "top-controls"],
+  },
   fallback_layout: images.map((image, index) => ({
     image_id: image.id,
     file: image.file,
+    copied_file: image.copied_file,
     path: image.path,
-    x: 64 + (index % 4) * 360,
-    y: 96 + Math.floor(index / 4) * 470,
+    x: 32 + (index % 3) * 372,
+    y: 32 + Math.floor(index / 3) * 452,
+    width: 332,
+    height: 408,
   })),
 }, null, 2));
 fs.writeFileSync(path.join(outDir, "data", "generation-tasks.json"), JSON.stringify({
@@ -129,6 +139,16 @@ fs.writeFileSync(path.join(outDir, "data", "generation-tasks.json"), JSON.string
   created_at: "",
   source_annotations: "",
   tasks: [],
+}, null, 2));
+fs.writeFileSync(path.join(outDir, "data", "review-completion.json"), JSON.stringify({
+  schema_version: "sellerpilot.review_completion.v1",
+  completed_at: "",
+  workspace: manifest.workspace,
+  annotations: [],
+  annotation_count: 0,
+  open_annotation_count: 0,
+  review_screenshot: null,
+  next_codex_step: "Click Complete Review in the browser, then have Codex capture the session or parse the downloaded review-completion.json.",
 }, null, 2));
 
 fs.writeFileSync(path.join(outDir, "HOW_TO_USE_WITH_CODEX.md"), [
@@ -148,15 +168,21 @@ fs.writeFileSync(path.join(outDir, "HOW_TO_USE_WITH_CODEX.md"), [
   "Review flow:",
   "",
   "1. Open the Vite URL in Codex/Browser.",
-  "2. Use tldraw for arrows, sketches, and spatial notes.",
-  "3. Use the left panel to create deterministic per-image annotations.",
-  "4. Export `annotations.json` and save it to `data/annotations.json`.",
-  "5. Ask Codex to run `parse-canvas-annotations.mjs` to create `data/generation-tasks.json`.",
+  "2. Generated images render as the bottom floor layer. Standards, A-H region guides, and annotations float above the images.",
+  "3. Use the top image dropdown and direct image-standard form to create deterministic per-image annotations.",
+  "4. Click `Complete Review` to create a screenshot plus `review-completion.json` browser handoff payload.",
+  "5. Ask Codex to capture the session or parse the completion/annotations JSON into `data/generation-tasks.json`.",
   "",
   "Codex handoff command:",
   "",
   "```bash",
   `node ${path.join(skillRoot, "scripts", "parse-canvas-annotations.mjs")} --annotations ${path.join(outDir, "data", "annotations.json")} --out ${path.join(outDir, "data", "generation-tasks.json")}`,
+  "```",
+  "",
+  "Codex screenshot/session capture command when a browser session URL is available:",
+  "",
+  "```bash",
+  `node ${path.join(skillRoot, "scripts", "capture-review-session.mjs")} --url http://127.0.0.1:5190/?session=${sessionId} --out-dir ${path.join(outDir, "captures")}`,
   "```",
   "",
   "Controlled launcher:",

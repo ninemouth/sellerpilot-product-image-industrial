@@ -60,12 +60,14 @@ node scripts/start-tldraw-review-workspace.mjs \
 
 Capabilities:
 
-- Real browser infinite canvas powered by `tldraw`.
-- Image review cards copied into the workspace so browser rendering does not depend on unsafe local file URLs.
-- Arrows, drawings, spatial notes, sticky-note style feedback, and free canvas thinking.
-- Deterministic side-panel annotations tied to image IDs and A-H regions.
-- Exportable `annotations.json` and `canvas-state.json`.
-- Codex-readable handoff through `data/import-manifest.json`, `data/annotations.json`, `data/canvas-state.json`, and `data/generation-tasks.json`.
+- Real browser review workspace served through the shared tldraw service session URL.
+- Generated image assets are copied into the workspace so browser rendering does not depend on unsafe local file URLs.
+- Generated product images render as the bottom floor layer. A-H standards, issue markers, and revision annotations float above the images.
+- The review board does not zoom independently. If a future zoom control is added, it must scale the image floor layer and all standard overlays together.
+- The image file list lives in the top dropdown. Do not restore a left sidebar.
+- Deterministic direct image-standard form fields tied to image IDs, A-H regions, issue type, priority, and revision instruction.
+- Exportable `annotations.json`, `canvas-state.json`, `review-completion.json`, and Codex-readable `generation-tasks.json`.
+- `Complete Review` action creates a screenshot-oriented browser handoff payload so Codex can capture the session and continue revisions from annotations.
 
 Convert annotations to generation tasks:
 
@@ -77,6 +79,16 @@ node scripts/parse-canvas-annotations.mjs \
 ```
 
 Use `generation-tasks.json` as structured input to the revision loop. It should route tasks to `localized-copy-pack`, `layout-wireframes`, `scene-asset-production`, `product-identity-lock`, or `failed-output-regeneration` depending on annotation issue type and region.
+
+When the user clicks `Complete Review`, capture the browser state and screenshot:
+
+```bash
+node scripts/capture-review-session.mjs \
+  --url http://127.0.0.1:5190/?session=run-or-chat-id \
+  --out-dir /abs/run/review-workspace/captures
+```
+
+The capture JSON records whether a completion payload was present in browser storage. Use the screenshot in the chat when Codex needs visual evidence, and parse either `annotations.json` or the completed payload into revision tasks.
 
 ## Launch Policy
 

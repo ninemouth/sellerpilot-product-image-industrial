@@ -151,6 +151,38 @@ record("tldraw lockfile", () => {
   if (lock.name !== "sellerpilot-tldraw-review-workspace") throw new Error("tldraw lockfile name mismatch.");
 });
 
+record("review workspace UI contract", () => {
+  const mainPath = path.join(skillRoot, "assets", "tldraw-review-workspace", "src", "main.jsx");
+  const cssPath = path.join(skillRoot, "assets", "tldraw-review-workspace", "src", "styles.css");
+  const main = fs.readFileSync(mainPath, "utf8");
+  const css = fs.readFileSync(cssPath, "utf8");
+  const requiredMain = [
+    "image-floor-layer",
+    "standard-overlay-layer",
+    "action-complete-review",
+    "captureReviewPng",
+    "review_completion.v1",
+    "locked-no-independent-canvas-zoom",
+    "compact-field",
+  ];
+  for (const token of requiredMain) {
+    if (!main.includes(token)) throw new Error(`review workspace main.jsx missing ${token}`);
+  }
+  const requiredCss = [
+    ".topbar",
+    ".image-floor-layer",
+    ".standard-overlay-layer",
+    ".review-toolbar",
+    ".annotation-dock",
+  ];
+  for (const token of requiredCss) {
+    if (!css.includes(token)) throw new Error(`review workspace styles.css missing ${token}`);
+  }
+  if (/className=["']sidebar["']|\.sidebar\b|image-card-layer/.test(`${main}\n${css}`)) {
+    throw new Error("review workspace should not restore left sidebar or image-card overlay layer.");
+  }
+});
+
 record("brief intake smoke", () => {
   const outDir = path.join(tmpDir("sp-verify-brief-"), "brief");
   run(process.execPath, [
@@ -420,10 +452,56 @@ record("tldraw workspace smoke", () => {
     "data/import-manifest.json",
     "data/annotations.json",
     "data/canvas-state.json",
+    "data/review-completion.json",
     "data/generation-tasks.json",
     "public/imported-images/IMG-01-main-product.png",
   ]) {
     if (!fs.existsSync(path.join(outDir, file))) throw new Error(`missing review workspace file ${file}`);
+  }
+  const manifest = readJson(path.join(outDir, "data", "import-manifest.json"));
+  if (manifest.protocol?.review_completion_file !== "data/review-completion.json") {
+    throw new Error("review workspace manifest should expose review completion file.");
+  }
+  if (!/bottom floor layer/.test(manifest.protocol?.layer_policy || "")) {
+    throw new Error("review workspace manifest should record layer policy.");
+  }
+  const canvasState = readJson(path.join(outDir, "data", "canvas-state.json"));
+  if (canvasState.board?.zoom_policy !== "locked-no-independent-canvas-zoom") {
+    throw new Error("review workspace canvas state should lock independent zoom.");
+  }
+});
+
+record("review completion parse smoke", () => {
+  const dir = tmpDir("sp-verify-review-completion-");
+  const completionPath = path.join(dir, "review-completion.json");
+  const outPath = path.join(dir, "generation-tasks.json");
+  fs.writeFileSync(completionPath, JSON.stringify({
+    schema_version: "sellerpilot.review_completion.v1",
+    review_screenshot: { filename: "sellerpilot-review.png", width: 1200, height: 900, data_url: "data:image/png;base64,AAA" },
+    canvas_state: { board: { zoom_policy: "locked-no-independent-canvas-zoom", layer_order: ["image-floor-layer", "standard-overlay-layer"] } },
+    annotations: [{
+      id: "ann-1",
+      image_id: "IMG-01",
+      image_file: "IMG-01-main-product.png",
+      region: "A-product-subject",
+      issue_type: "identity-drift",
+      priority: "P0",
+      comment: "球衣下摆变短，必须恢复原图长度。",
+    }],
+  }, null, 2));
+  run(process.execPath, [
+    "scripts/parse-canvas-annotations.mjs",
+    "--annotations", completionPath,
+    "--out", outPath,
+  ]);
+  const parsed = readJson(outPath);
+  if (parsed.task_count !== 1) throw new Error("completion parser should create one task.");
+  if (parsed.review_screenshot?.has_data_url !== true) throw new Error("completion parser should retain screenshot evidence summary.");
+  if (parsed.canvas_state_summary?.zoom_policy !== "locked-no-independent-canvas-zoom") {
+    throw new Error("completion parser should retain canvas zoom policy.");
+  }
+  if (parsed.tasks[0].return_node !== "product-identity-lock") {
+    throw new Error("identity drift completion task should route to product identity lock.");
   }
 });
 
