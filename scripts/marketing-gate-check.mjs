@@ -429,6 +429,47 @@ for (const panel of scenePanels) {
   }
 }
 
+const sceneOrUsePanels = panels.filter(isSceneOrUsePanel);
+for (const panel of sceneOrUsePanels) {
+  const imageIndex = panels.indexOf(panel) + 1;
+  const sceneProof = hasTrueSceneAssetProof(panel);
+  const compositionSignal = textify([
+    panel.visual_composition,
+    panel.background_or_scene,
+    panel.background_style,
+    panel.scene_style,
+    panel.render_mode,
+    panel.final_asset_type,
+    panel.asset_origin,
+    panel.generation_status,
+    panel.layout_intent,
+    panel.graphic_design_intent,
+    panel.product_placement,
+    panel.final_scene_realism_review,
+  ]);
+  const sceneReviewStatus = normalize(firstValue(panel, [
+    "final_scene_realism_review.status",
+    "scene_realism_review.status",
+    "visual_realism_review.status",
+  ]));
+  if (isFakeVectorSceneSignal(compositionSignal) && !sceneProof) {
+    findings.push({
+      severity: "fail",
+      type: "fake-vector-scene",
+      image_index: imageIndex,
+      message: "Use/scene panel appears to rely on flat vector illustration, repeated decorative pattern, deterministic composite, or product-on-card paste instead of a true generated/photo use scene.",
+    });
+  }
+  if (!sceneProof && !["pass", "not_required"].includes(sceneReviewStatus)) {
+    findings.push({
+      severity: "fail",
+      type: "missing-scene-realism-review",
+      image_index: imageIndex,
+      message: "Use/scene panel needs a true generated/photo scene asset or a final_scene_realism_review.status=pass/not_required record before final delivery.",
+    });
+  }
+}
+
 const status = findings.some((item) => item.severity === "fail")
   ? "fail"
   : findings.some((item) => item.severity === "warn")
@@ -516,6 +557,65 @@ function distinctMeaningfulValues(values) {
 
 function normalize(value) {
   return String(value || "").trim().toLowerCase();
+}
+
+function isSceneOrUsePanel(panel) {
+  const text = textify([
+    panel.image_role,
+    panel.role,
+    panel.title,
+    panel.slug,
+    panel.asset_id,
+    panel.background_or_scene,
+    panel.usage_context,
+  ]);
+  return /(场景|使用|修剪|户外|花园|草坪|灌木|绿篱|阳台|庭院|园林|scene|use|usage|lifestyle|garden|grass|lawn|shrub|hedge|balcony|yard|outdoor|trim|trimming|куст|кустов|газон|сада|дачи|подрезк)/i.test(text);
+}
+
+function hasTrueSceneAssetProof(panel) {
+  const assetSignal = textify([
+    panel.scene_asset_type,
+    panel.final_asset_type,
+    panel.asset_type,
+    panel.asset_origin,
+    panel.generation_status,
+    panel.render_mode,
+    panel.final_scene_realism_review,
+    panel.scene_realism_review,
+  ]);
+  if (/(layout|wireframe|draft|placeholder|cutout|renderer_only|deterministic_only|pillow|composite_only|product_card)/i.test(assetSignal)) {
+    return false;
+  }
+  if (panel.scene_asset_path) {
+    if (/\/final-images\//.test(String(panel.scene_asset_path)) && !/(gpt|imagegen|image_gen|built-in|runtime_generated_scene|product.?in.?scene|photo_scene|true_scene)/i.test(assetSignal)) {
+      return false;
+    }
+    return /(gpt|imagegen|image_gen|built-in|runtime|generated|photo|scene_asset|approved|pass|realistic|true_scene)/i.test(assetSignal)
+      || /scene|photo|generated/i.test(String(panel.scene_asset_path));
+  }
+  if (panel.generated_asset_path) {
+    return /(gpt|imagegen|image_gen|built-in|runtime_generated_scene|product.?in.?scene|photo_scene|scene_asset|true_scene)/i.test(assetSignal);
+  }
+  return /(true_scene|scene_asset|runtime_generated_scene|photo_scene|gpt_built_in_product_in_scene|imagegen_scene|final_scene_realism_review[^}]*pass)/i.test(assetSignal);
+}
+
+function isFakeVectorSceneSignal(value) {
+  return /(flat vector|vector illustration|illustration background|decorative circles|repeating circles|abstract pattern|cartoon shrub|product card|white card|source cutout|cutout on|pillow|deterministic composite|renderer only|layout composite|矢量|插画|装饰圆|重复圆|重复灌木|白卡|商品卡|贴图|抠图合成|确定性合成|脚本合成)/i.test(String(value || ""));
+}
+
+function firstValue(object, keys) {
+  for (const key of keys) {
+    const value = getPath(object, key);
+    if (value !== undefined && value !== null && String(textify(value)).trim()) return value;
+  }
+  return "";
+}
+
+function getPath(object, key) {
+  return String(key).split(".").reduce((current, part) => {
+    if (current && Object.prototype.hasOwnProperty.call(current, part)) return current[part];
+    return undefined;
+  }, object);
 }
 
 function textify(value) {

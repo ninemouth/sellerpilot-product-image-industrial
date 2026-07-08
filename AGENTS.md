@@ -11,7 +11,7 @@ Product Image Orchestrator Agent
 
 本 Agent 不应直接把任务简化为“一次出图”。日常 Codex 对话应选择最轻但能保护成品质量的模式：单图草稿或明确速度优先才用 fast generation mode；高质量多图成品默认用 quality production mode；用户要求工业级审计、完整报告、迁移 SellerPilot 或开发验证时，才执行完整 Harness + Loop：
 
-Intent -> Normalize -> Mode Router -> Efficiency Plan -> Brief Intake Gate -> Source Photo Preflight/Enhance -> Source Asset Normalization for Transparent/Card-Safe Product Master -> Source Product Understanding with AI Text Read and Conditional OCR -> Product Identity Lock -> Triggered Platform/Category Context -> Compact Image-Set Planning -> Visual Director Shot Matrix -> Buyer-Facing Copy -> Localized Copy QA when locale needs review -> Prompt Layer Brain -> Codex-Native GPT Built-In Image Generation Anchor Batch -> Identity/Marketing/Final Visible Text/Product Background/Card/Export QA -> Delivery Overview -> Continue Missing Assets Only -> Unified QA Loop Router -> Post-Generation tldraw Auto Start -> Final Delivery Gate -> Native Canvas Review -> Revision -> Export
+Intent -> Normalize -> Mode Router -> Efficiency Plan -> Brief Intake Gate -> Source Photo Preflight/Enhance -> Source Asset Normalization for Transparent/Card-Safe Product Master -> Source Product Understanding with AI Text Read and Conditional OCR -> Product Identity Lock -> Triggered Platform/Category Context -> Compact Image-Set Planning -> Visual Director Shot Matrix -> Buyer-Facing Copy -> Localized Copy QA when locale needs review -> Text Layout Proof Gate for visible copy -> Prompt Layer Brain -> Codex-Native GPT Built-In Image Generation Anchor Batch -> Identity/Marketing/Final Visible Text/Product Background/Card/Export QA -> Delivery Overview -> Continue Missing Assets Only -> Unified QA Loop Router -> Post-Generation tldraw Auto Start -> Final Delivery Gate -> Native Canvas Review -> Revision -> Export
 
 ## Non-negotiable Rules
 
@@ -52,6 +52,8 @@ Intent -> Normalize -> Mode Router -> Efficiency Plan -> Brief Intake Gate -> So
 34. 多图高质量成品最终交付前必须校验 `generated-assets/generation-progress.json`、当前 run manifest 和 anchor batch QA 决策。若最终图已存在但 progress 仍是 `planned`/`not_started` 且没有 completed_images，或 4 张以上套图缺少 `qa_decision=continue/pass` 的 anchor batch 证据，Final Delivery Gate 必须失败；只能用当前 run 的 manifest reconcile 进度，不得整套重做来掩盖卡点。
 35. 凡是商品被放入白色 card、参数卡、对比卡、卖点信息图或干净棚拍卡片中，必须优先使用 `source-normalized/product-cutout-transparent.png` 或 `source-normalized/product-on-card-safe.png`，不得直接把带灰底/白底矩形的用户源图整张贴进 card。若透明抠图不稳定，必须记录风险并用 card-safe 白底母版或人工/视觉复核。
 36. 最终交付前必须运行 product-background-card-consistency gate。商品底图边缘背景与 card 背景灰度/色彩不一致、可见矩形底、灰底残留、缺少透明/card-safe 素材证据时，不得通过最终交付；只返回 `source-asset-normalization -> layout-composition` 重做受影响图片。
+37. 带可见文字的正式图不得先用昂贵最终生成来试错排版。正式出图/最终导出前必须运行 `text-layout-proof-gate`，或记录 `text_layout_proof.status=pass/not_required`，先用低成本 layout proof、截图或画布检查标题、卖点、标签、俄语/德语/阿拉伯语等复杂语言的换行、溢出、层级和安全区。
+38. 使用/场景类图不得用矢量装饰背景、重复图案、白卡商品贴图、Pillow/确定性合成图冒充真实场景。若 image role/title/usage context 表达修草、修篱、户外、阳台、花园、lifestyle、use 等，必须有真实 generated/photo scene asset 证据，或 `final_scene_realism_review.status=pass/not_required`；否则 marketing gate 必须失败。
 
 ## Default Workflow
 
@@ -80,6 +82,7 @@ Fast generation mode uses this compact workflow unless the user requests a full 
 - Codex-native imagegen/image_gen anchor batch execution
 - anchor-batch-qa-decision and generation-progress updates
 - focused identity/physical-function/marketing/export QA
+- text-layout-proof-gate-before-final-export-if-visible-copy
 - final localized visible-text review when locale needs review
 - product-background-card-consistency-gate
 - final-images-manifest
@@ -108,6 +111,7 @@ Industrial audit mode uses the full workflow:
 - graphic-design-direction
 - visual-director
 - copy-localization
+- text-layout-proof-gate
 - blueprint-gate
 - prompt-layer-architect
 - prompt-layer-stack

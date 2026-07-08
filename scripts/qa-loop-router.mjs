@@ -39,10 +39,11 @@ fs.mkdirSync(qaDir, { recursive: true });
 
 const reports = loadReports(qaDir);
 const findings = collectFindings(reports);
-const actionable = findings.filter((item) => ["critical", "fail", "warn"].includes(item.severity));
+const warningFindings = findings.filter((item) => item.severity === "warn");
+const actionable = findings.filter((item) => ["critical", "fail"].includes(item.severity));
 const ranked = actionable.sort(compareFindings);
 const primary = ranked[0] || null;
-const decision = applyRetryGuard(buildDecision({ runDir, reports, findings, primary }), qaDir, reports);
+const decision = applyRetryGuard(buildDecision({ runDir, reports, findings, primary, warningFindings }), qaDir, reports);
 
 fs.writeFileSync(path.join(qaDir, "qa-loop-routing-decision.json"), JSON.stringify(decision, null, 2));
 fs.writeFileSync(path.join(qaDir, "qa-loop-routing-decision.yaml"), toYaml(decision));
@@ -329,7 +330,7 @@ function collectFindings(reports) {
   return findings;
 }
 
-function buildDecision({ runDir, reports, findings, primary }) {
+function buildDecision({ runDir, reports, findings, primary, warningFindings = [] }) {
   if (!reports.length) {
     return {
       loop_decision: {
@@ -366,6 +367,8 @@ function buildDecision({ runDir, reports, findings, primary }) {
         retry_budget: null,
         blocked_reason: null,
         user_input_required: false,
+        warning_count: warningFindings.length,
+        warnings_require_human_review: warningFindings.length > 0,
       },
       reports_seen: reports.map((item) => item.name),
       findings,

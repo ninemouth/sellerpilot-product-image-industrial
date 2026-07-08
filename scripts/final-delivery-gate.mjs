@@ -65,6 +65,15 @@ if (!allowMissingGates) {
       });
     }
   }
+  if (hasVisiblePanelCopy(runDir) && !reports.some((item) => item.name === "text-layout-proof-gate-report.json")) {
+    findings.push({
+      severity: "fail",
+      type: "missing-required-gate-report",
+      gate_id: "final-delivery-gate",
+      source_report: "text-layout-proof-gate-report.json",
+      message: "text-layout-proof-gate-report.json is required before final delivery when panels contain visible buyer-facing copy.",
+    });
+  }
   if (requiresLocalizedCopyQa(runLocale) && !reports.some((item) => item.name === "localized-copy-qa-report.json")) {
     findings.push({
       severity: "fail",
@@ -534,6 +543,8 @@ function validateAnchorBatchEvidence({ runDir: currentRunDir, finalImageNames, f
 
   const candidates = [
     path.join(currentRunDir, "generated-assets", "anchor-batch-qa-decision.json"),
+    path.join(currentRunDir, "generated-assets", "generation-progress.json"),
+    path.join(currentRunDir, "qa", "anchor-batch-qa.json"),
     path.join(currentRunDir, "qa", "anchor-batch-qa-decision.json"),
     path.join(currentRunDir, "qa", "anchor-batch-qa-report.json"),
     path.join(currentRunDir, "blueprint", "quality-production-blueprint.json"),
@@ -545,11 +556,11 @@ function validateAnchorBatchEvidence({ runDir: currentRunDir, finalImageNames, f
     const decision = normalizeText(firstNonEmpty([
       parsed?.qa_decision,
       parsed?.decision,
-      parsed?.status,
       parsed?.anchor_batch?.qa_decision,
       parsed?.anchor_batch?.decision,
       parsed?.anchor_batch?.status,
       parsed?.generation_pacing?.anchor_batch?.qa_decision,
+      parsed?.status,
     ]));
     if (["continue", "pass", "passed", "approved", "ready"].includes(decision)) {
       evidence = { file, decision };
@@ -663,6 +674,65 @@ function requiresSourceUnderstandingGate(filePath) {
     const text = fs.readFileSync(filePath, "utf8");
     return /(source_image|ocr|visible_text|dimension|length|width|height|diameter|label|warning|model|install|function|material|weight|尺寸|文字|标签|型号|安装|功能|材质|重量)/i.test(text);
   }
+}
+
+function hasVisiblePanelCopy(currentRunDir) {
+  const candidates = [
+    path.join(currentRunDir, "blueprint", "panels-array.json"),
+    path.join(currentRunDir, "blueprint", "panels.json"),
+    path.join(currentRunDir, "blueprint", "quality-production-blueprint.json"),
+  ];
+  for (const file of candidates) {
+    if (!fs.existsSync(file)) continue;
+    const parsed = readJsonSafe(file);
+    const panels = Array.isArray(parsed)
+      ? parsed
+      : Array.isArray(parsed?.panels)
+        ? parsed.panels
+        : Array.isArray(parsed?.image_set)
+          ? parsed.image_set
+          : Array.isArray(parsed?.images)
+            ? parsed.images
+            : [];
+    if (panels.some((panel) => panelHasVisibleCopy(panel))) return true;
+  }
+  return false;
+}
+
+function panelHasVisibleCopy(panel) {
+  if (!panel || typeof panel !== "object") return false;
+  const textless = [
+    panel.textless_ok,
+    panel.no_visible_text,
+    panel.visible_text_policy,
+  ].some((value) => /^(true|no visible text|textless|none)$/i.test(String(value || "").trim()));
+  const text = [
+    panel.title,
+    panel.sub,
+    panel.subtitle,
+    panel.tag,
+    panel.main_message,
+    panel.secondary_message,
+    panel.required_copy,
+    panel.buyer_facing_message,
+    panel.overlay_text,
+    panel.badge,
+    panel.badges,
+    panel.footer_label,
+    panel.final_visible_text,
+    panel.visible_copy,
+    panel.visible_copy_ru,
+    panel.copy_lines,
+  ].map(textifyForGate).filter(Boolean).join(" ").trim();
+  return Boolean(text) && !textless;
+}
+
+function textifyForGate(value) {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) return value.map(textifyForGate).filter(Boolean).join(" ");
+  if (typeof value === "object") return Object.values(value).map(textifyForGate).filter(Boolean).join(" ");
+  return String(value);
 }
 
 function normalizeStatus(status) {

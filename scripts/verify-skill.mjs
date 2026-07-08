@@ -173,10 +173,12 @@ record("workflow loop guard ordering", () => {
       "commerce-design-research-planner-if-conversion-critical",
       "copy-strategy-gate",
       "localized-copy-qa-gate-if-locale-needs-review",
+      "text-layout-proof-gate-before-final-raster-if-visible-copy",
       "compact-image-set-blueprint",
       "image-set-export-gate",
       "anchor-batch-qa-decision-record",
       "localized-final-visible-text-qa-if-locale-needs-review",
+      "text-layout-proof-gate-before-final-export-if-visible-copy",
       "product-background-card-consistency-gate",
       "generation-progress-reconcile-before-final-delivery",
       "qa-loop-router",
@@ -202,8 +204,11 @@ record("workflow loop guard ordering", () => {
     assertStepBefore(file, steps, "product-physical-truth-lock-if-function-use-or-scale-sensitive", "product-physics-fact-gate-if-function-use-or-scale-sensitive");
     assertStepBefore(file, steps, "copy-strategy-gate", "marketing-quality-gate");
     assertStepBefore(file, steps, "localized-copy-qa-gate-if-locale-needs-review", "marketing-quality-gate");
+    assertStepBefore(file, steps, "localized-copy-qa-gate-if-locale-needs-review", "text-layout-proof-gate-before-final-raster-if-visible-copy");
+    assertStepBefore(file, steps, "text-layout-proof-gate-before-final-raster-if-visible-copy", "compact-image-set-blueprint");
     assertStepBefore(file, steps, "anchor-batch-generation-loop-if-runtime-available", "anchor-batch-qa-decision-record");
     assertStepBefore(file, steps, "anchor-batch-qa-decision-record", "continue-missing-assets-only");
+    assertStepBefore(file, steps, "text-layout-proof-gate-before-final-export-if-visible-copy", "localized-final-visible-text-qa-if-locale-needs-review");
     assertStepBefore(file, steps, "localized-final-visible-text-qa-if-locale-needs-review", "marketing-quality-gate");
     assertStepBefore(file, steps, "product-background-card-consistency-gate", "marketing-quality-gate");
     assertStepBefore(file, steps, "image-set-export-gate", "qa-loop-router");
@@ -900,6 +905,38 @@ record("qa loop ignores final gate self-loop smoke", () => {
   }
 });
 
+record("qa loop warnings do not trigger retry loop smoke", () => {
+  const runDir = path.join(tmpDir("sp-verify-qa-loop-warnings-"), "run");
+  const qaDir = path.join(runDir, "qa");
+  run(process.execPath, [
+    "scripts/create-run-skeleton.mjs",
+    "--out-dir", runDir,
+    "--platform", "Ozon",
+    "--category", "garden trimmer",
+  ]);
+  fs.writeFileSync(path.join(qaDir, "copy-strategy-gate-report.json"), JSON.stringify({
+    status: "pass_with_warnings",
+    findings: [{
+      severity: "warn",
+      type: "textless-panel-with-structured-copy-strategy",
+      image_index: 1,
+      message: "Textless main image has structured strategy notes for audit traceability.",
+    }],
+  }, null, 2));
+  run(process.execPath, ["scripts/qa-loop-router.mjs", "--run-dir", runDir]);
+  const decision = readJson(path.join(qaDir, "qa-loop-routing-decision.json"));
+  if (decision.loop_decision.status !== "continue") {
+    throw new Error(`warning-only QA route should continue, got ${decision.loop_decision.status}`);
+  }
+  if (decision.loop_decision.warning_count !== 1 || !decision.loop_decision.warnings_require_human_review) {
+    throw new Error("warning-only QA route should keep warning count and human review hint.");
+  }
+  const state = readJson(path.join(qaDir, "qa-loop-state.json"));
+  if (state.last_decision?.status !== "continue") {
+    throw new Error("warning-only QA route should not consume retry budget.");
+  }
+});
+
 record("export gate pass and draft fail", () => {
   const runDir = path.join(tmpDir("sp-verify-export-"), "run");
   const dir = path.join(runDir, "final-images");
@@ -1156,6 +1193,27 @@ record("final delivery gate blocks stale progress and missing anchor decision", 
   if (!report.findings.some((item) => item.type === "missing-anchor-batch-qa-decision")) {
     throw new Error("final gate should block multi-image quality delivery without anchor batch QA decision.");
   }
+  const manifest = readJson(path.join(runDir, "export", "final-images-manifest.json"));
+  fs.writeFileSync(path.join(runDir, "generated-assets", "generation-progress.json"), JSON.stringify({
+    schema_version: "sellerpilot.generation_progress.v1",
+    status: "completed",
+    expected_count: manifest.image_count,
+    completed_images: manifest.images.map((image) => ({
+      id: image.id,
+      path: image.path,
+      status: "approved_final",
+    })),
+    anchor_batch: {
+      qa_decision: "pass",
+      images: ["IMG-01", "IMG-02"],
+    },
+    updated_at: new Date().toISOString(),
+  }, null, 2));
+  spawnSync(process.execPath, ["scripts/final-delivery-gate.mjs", "--run-dir", runDir], { cwd: skillRoot });
+  const acceptedAnchor = readJson(path.join(qaDir, "final-delivery-gate-report.json"));
+  if (acceptedAnchor.findings.some((item) => item.type === "missing-anchor-batch-qa-decision")) {
+    throw new Error("final gate should accept anchor batch QA decision recorded inside generation-progress.json.");
+  }
 });
 
 record("cross-run image scope isolation smoke", () => {
@@ -1380,6 +1438,91 @@ record("marketing gate catches blank module and source-language residue flags", 
   if (!report.findings.some((item) => item.type === "source-or-non-target-language-residue")) {
     throw new Error("marketing gate should catch source/non-target language residue from structured final review flags.");
   }
+});
+
+record("marketing gate blocks fake vector use scenes", () => {
+  const dir = tmpDir("sp-verify-marketing-fake-scene-");
+  const panelsPath = path.join(dir, "panels.json");
+  fs.writeFileSync(panelsPath, JSON.stringify([
+    {
+      id: "IMG-05",
+      title: "Ровная форма кустов",
+      sub: "Для легкой сезонной подрезки",
+      image_role: "garden shrub trimming use case",
+      buyer_question: "Can this tool help with light shrub trimming?",
+      commercial_task: "Show the tool in a garden use scene.",
+      camera_angle: "front three-quarter product card",
+      image: path.join(dir, "product-card.png"),
+      render_mode: "pillow deterministic composite",
+      final_asset_type: "renderer_only_product_card",
+      background_or_scene: "flat vector shrub background with repeating decorative circles",
+      visual_composition: "white product card pasted over flat vector illustration background",
+      props_or_model_context: "none; decorative vector garden only",
+      lighting: "flat vector background with no real product-scene light interaction",
+      photography_style_archetype: "clean marketplace studio, 70mm lens, softbox light, product centered for mobile commerce detail clarity, audience fit: fast product inspection",
+      product_placement: "product pasted on a tilted white card over vector shrubs",
+      graphic_design_intent: "Role-specific garden use layout",
+      design_quality_bar: "Hierarchy and safe zones recorded.",
+      typography_hierarchy: "Readable title and footer.",
+      safe_zone_notes: "Keep text inside safe area.",
+      mobile_thumbnail_rule: "Product visible at thumbnail size.",
+      visual_difference_from_previous: "Different title and garden-use task.",
+    },
+  ], null, 2));
+  spawnSync(process.execPath, [
+    "scripts/marketing-gate-check.mjs",
+    "--copy-json", panelsPath,
+    "--out-dir", path.join(dir, "qa"),
+  ], { cwd: skillRoot });
+  const report = readJson(path.join(dir, "qa", "marketing-quality-gate-report.json"));
+  if (!report.findings.some((item) => item.type === "fake-vector-scene")) {
+    throw new Error("marketing gate should block fake vector/product-card use scenes.");
+  }
+  if (!report.findings.some((item) => item.type === "missing-scene-realism-review")) {
+    throw new Error("marketing gate should require true scene proof or final scene realism review for use scenes.");
+  }
+});
+
+record("text layout proof gate blocks long unproofed localized copy", () => {
+  const dir = tmpDir("sp-verify-text-layout-proof-");
+  const panelsPath = path.join(dir, "panels.json");
+  fs.writeFileSync(panelsPath, JSON.stringify([
+    {
+      id: "IMG-05",
+      title: "Ровная форма кустов",
+      sub: "Для легкой сезонной подрезки",
+      footer_label: "Длинное лезвие для ухода за небольшими кустами",
+    },
+  ], null, 2));
+  spawnSync(process.execPath, [
+    "scripts/text-layout-proof-gate.mjs",
+    "--copy-json", panelsPath,
+    "--out-dir", path.join(dir, "qa-fail"),
+  ], { cwd: skillRoot });
+  const fail = readJson(path.join(dir, "qa-fail", "text-layout-proof-gate-report.json"));
+  if (fail.status !== "fail" || !fail.findings.some((item) => item.type === "missing-text-layout-proof")) {
+    throw new Error("text layout proof gate should fail long visible copy without proof.");
+  }
+
+  fs.writeFileSync(panelsPath, JSON.stringify([
+    {
+      id: "IMG-05",
+      title: "Ровная форма кустов",
+      sub: "Для легкой сезонной подрезки",
+      footer_label: "Длинное лезвие для ухода за небольшими кустами",
+      text_layout_proof: { status: "pass", method: "low-cost layout screenshot reviewed" },
+      text_layout_boxes: {
+        footer: { width: 1080, height: 180, font_size: 30, max_lines: 3 },
+      },
+    },
+  ], null, 2));
+  run(process.execPath, [
+    "scripts/text-layout-proof-gate.mjs",
+    "--copy-json", panelsPath,
+    "--out-dir", path.join(dir, "qa-pass"),
+  ]);
+  const pass = readJson(path.join(dir, "qa-pass", "text-layout-proof-gate-report.json"));
+  if (pass.status === "fail") throw new Error("text layout proof gate should pass long copy with proof and sufficient text box.");
 });
 
 record("copy strategy gate smoke", () => {

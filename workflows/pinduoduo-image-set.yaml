@@ -53,6 +53,7 @@ steps:
   - copy-localization
   - copy-strategy-gate
   - localized-copy-qa-gate-if-locale-needs-review
+  - text-layout-proof-gate-before-final-raster-if-visible-copy
   - compact-image-set-blueprint
   - blueprint-gate
   - gpt-built-in-image-generation-policy
@@ -70,6 +71,7 @@ steps:
   - identity-geometry-gate-if-proportion-sensitive
   - product-physics-fact-gate-if-function-use-or-scale-sensitive
   - marketing-diversity-gate
+  - text-layout-proof-gate-before-final-export-if-visible-copy
   - localized-final-visible-text-qa-if-locale-needs-review
   - product-background-card-consistency-gate
   - marketing-quality-gate
