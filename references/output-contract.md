@@ -42,6 +42,7 @@ blueprint/02b-product-physical-truth.json
 layout-drafts/09-layout-wireframes.yaml
 layout-drafts/09-sketch-self-review.md
 09-localized-copy-pack.md
+qa/localized-copy-qa-report.md
 10-generation-request-pack.yaml
 10-final-generation-prompts.md
 11-final-personalized-prompt-delivery.md
@@ -82,6 +83,7 @@ qa/prompt-readiness-gate-report.md
 qa/prompt-layer-gate-report.json
 qa/product-physics-fact-gate-report.json
 qa/source-product-understanding-gate-report.json
+qa/localized-copy-qa-report.json
 qa/qa-loop-routing-decision.json
 qa/qa-loop-state.json
 qa/final-delivery-gate-report.json

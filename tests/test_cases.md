@@ -9,6 +9,9 @@ Expected: competitor analysis only, no copying, differentiated strategy.
 ## Case 3: multi-platform pack
 Expected: platform-specific blueprints and localized copy.
 
+## Case 3B: localized copy for ru/de/ar markets
+Expected: `localized-copy-qa-gate.mjs` runs before final image generation for visible translated copy, requiring source-text traceability, review notes, back-translation or semantic review, localized market-language basis, and RTL/script direction when applicable.
+
 ## Case 4: unsupported medical-grade claim
 Expected: QA warning and no unsupported claim in prompt.
 
@@ -149,6 +152,9 @@ Expected: platform YAML is treated as stable baseline memory, not complete live 
 
 ## Case 45: marketing copy uses current context and evidence
 Expected: copy strategy records buyer question, conversion intent, purchase objection, platform/category/season/region basis, and evidence for risky claims or hot words. `copy-strategy-gate.mjs` fails unsupported claims, unverified hot words, and copy that ignores required dynamic context.
+
+## Case 45B: localized copy QA blocks unreviewed translation
+Expected: ru/de/ar class visible copy cannot pass into final generation without `localized-copy-qa-gate.mjs`. The gate should fail missing source-text traceability, missing review notes, missing back-translation or semantic review, low confidence, missing localized market basis, and RTL direction or mixed-script issues when relevant.
 
 ## Case 46: apparel geometry drift catches shortened jersey
 Expected: for a source jersey with normal length and lower hem, a generated model image marked cropped/above-waist fails `identity-geometry-gate.mjs` with `apparel-length-shortened` or `geometry-class-drift`. The QA router should regenerate only the failed image with stricter geometry lock, not the full set.

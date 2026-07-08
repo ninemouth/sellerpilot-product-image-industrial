@@ -95,3 +95,19 @@ requested_change:
 keep_unchanged:
 priority:
 ```
+
+## Localized Copy QA Report
+
+```yaml
+schema_version: sellerpilot.localized_copy_qa_report.v1
+status: pass|pass_with_warnings|fail|not_run
+locale:
+source_locale:
+review_required: true|false
+locale_profile:
+  direction: ltr|rtl
+  expected_script: latin|cyrillic|arabic|any
+  minimum_confidence:
+panel_count:
+findings: []
+```

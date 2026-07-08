@@ -51,6 +51,7 @@ steps:
   - buyer-facing-copy-director
   - copy-localization
   - copy-strategy-gate
+  - localized-copy-qa-gate-if-locale-needs-review
   - compact-image-set-blueprint
   - blueprint-gate
   - gpt-built-in-image-generation-policy

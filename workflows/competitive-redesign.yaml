@@ -45,6 +45,7 @@ steps:
   - scene-asset-production-if-scene-roles
   - copy-localization
   - copy-strategy-gate
+  - localized-copy-qa-gate-if-locale-needs-review
   - compact-image-set-blueprint
   - gpt-built-in-image-generation-policy
   - prompt-layer-architect

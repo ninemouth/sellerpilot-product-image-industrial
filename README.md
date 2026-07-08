@@ -16,6 +16,7 @@
 - **Ozon 比例规则**：普通品类默认按 `3:4` 竖版商品图导出，Ozon Fresh 食品类等例外按平台 profile 或当前官方证据处理；导出 gate 会从当前任务的 `platform/category` 自动推断比例。
 - **平台/品类偏好记忆**：用户明确确认过的某平台同类商品图片特质、风格方向、文案语气、陈列节奏和禁用项，会保存为 platform preference memory；后续同平台/同品类任务会先读取该记忆，再结合当前商品事实和最新调研决定是否采用。
 - **商业设计研究计划**：当任务目标涉及“爆品图”“提升销售”“点击”“停留”或品类竞争时，skill 会生成 commerce design research plan，把点击钩子、停留机制、信任疑虑、买家问题、画廊叙事和文案节奏回写到套图蓝图与 QA 标准。
+- **本地化文案复核**：当目标语言属于俄语、德语、阿拉伯语这类复杂本地化场景时，正式出图前会再过一层 localized-copy-qa / translation-qa gate，检查源文案追溯、复核说明、回译或语义复核、局部市场语言依据，以及 RTL / 脚本方向。
 - **验证闭环**：`npm run verify` 覆盖 Ozon 3:4 导出、平台记忆 apply/remember、商业设计研究 planner、总览图、tldraw 自动启动、跨任务图片隔离和 QA retry budget。
 
 ## 它能做什么
@@ -140,7 +141,17 @@ npm run sync -- --source "$PWD"
 
 不要直接手动覆盖 `${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial`，除非你已经备份旧目录。
 
-### 方式 5：安装到临时目录做验证
+### 方式 5：在 Codex 对话中要求更新并复核
+
+如果你只是想让 Codex 在新对话里先检查是否有更新，再决定是否继续生产，可以直接发：
+
+```text
+请先检查 sellerpilot-product-image-industrial 是否有更新。如果有新版，请先问我是否更新，再继续生产；如果没有更新，直接继续。
+```
+
+当目标语言是俄语、德语、阿拉伯语这类本地化文案时，还会自动加上 localized-copy-qa / translation-qa 复核，避免直接把未复核的翻译文案送进正式出图。
+
+### 方式 6：安装到临时目录做验证
 
 适合只想检查 GitHub 安装包是否完整，不想影响当前 Codex 环境：
 
@@ -154,7 +165,7 @@ python3 ${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/insta
 test -f "$tmp_dir/sellerpilot-product-image-industrial/SKILL.md" && echo "install package looks OK"
 ```
 
-### 方式 6：手动复制安装（不推荐）
+### 方式 7：手动复制安装（不推荐）
 
 只在目标目录不存在时使用：
 

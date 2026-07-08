@@ -40,6 +40,7 @@ fs.mkdirSync(qaDir, { recursive: true });
 const reports = loadGateReports(qaDir);
 const findings = [];
 const allowMissingGates = Boolean(args["allow-missing-gates"]);
+const runLocale = inferRunLocale(runDir);
 
 if (!allowMissingGates) {
   if (!reports.length) {
@@ -58,6 +59,27 @@ if (!allowMissingGates) {
         gate_id: "final-delivery-gate",
         source_report: requiredName,
         message: `${requiredName} is required before final ecommerce image delivery can pass.`,
+      });
+    }
+  }
+  if (requiresLocalizedCopyQa(runLocale) && !reports.some((item) => item.name === "localized-copy-qa-report.json")) {
+    findings.push({
+      severity: "fail",
+      type: "missing-required-gate-report",
+      gate_id: "final-delivery-gate",
+      source_report: "localized-copy-qa-report.json",
+      message: `localized-copy-qa-report.json is required before final delivery for locale ${runLocale}.`,
+    });
+  } else if (requiresLocalizedCopyQa(runLocale)) {
+    const localizedReport = reports.find((item) => item.name === "localized-copy-qa-report.json")?.report || null;
+    const localizedStatus = normalizeStatus(localizedReport?.status);
+    if (!["pass", "pass_with_warnings"].includes(localizedStatus)) {
+      findings.push({
+        severity: "fail",
+        type: "localized-copy-qa-not-passed",
+        gate_id: "final-delivery-gate",
+        source_report: "localized-copy-qa-report.json",
+        message: `localized-copy-qa-report.json must pass before final delivery for locale ${runLocale}; current status is ${localizedReport?.status || "unknown"}.`,
       });
     }
   }
@@ -418,6 +440,45 @@ function requiresPhysicalTruthGate(filePath) {
     const text = fs.readFileSync(filePath, "utf8");
     return /(function|install|screw|route|cable|clip|clamp|hold|press|lock|scale|dimension|mount|adhesive|magnet|waterproof|load-bearing|功能|安装|螺丝|固定|走线|线缆|夹|按压|尺寸|比例|承重|防水)/i.test(text);
   }
+}
+
+function inferRunLocale(runDir) {
+  const taskContextPath = path.join(runDir, "00-task-context.yaml");
+  const fromTaskContext = extractYamlScalar(taskContextPath, "locale");
+  if (fromTaskContext) return fromTaskContext;
+  const contextPlanPath = path.join(runDir, "research", "platform-context-plan.json");
+  if (fs.existsSync(contextPlanPath)) {
+    try {
+      const plan = JSON.parse(fs.readFileSync(contextPlanPath, "utf8"));
+      return String(plan?.platform_category_profile_overlay?.locale || plan?.locale || "").trim();
+    } catch {
+      return "";
+    }
+  }
+  return "";
+}
+
+function requiresLocalizedCopyQa(locale) {
+  const normalized = String(locale || "").trim().toLowerCase();
+  if (!normalized) return false;
+  return !/^(zh|zh-|en|en-)/.test(normalized);
+}
+
+function extractYamlScalar(filePath, key) {
+  if (!fs.existsSync(filePath)) return "";
+  const text = fs.readFileSync(filePath, "utf8");
+  const lines = text.split(/\r?\n/);
+  for (const line of lines) {
+    const match = line.match(new RegExp(`^${escapeRegex(key)}:\\s*(.*?)\\s*$`));
+    if (!match) continue;
+    const value = String(match[1] || "").replace(/^["']|["']$/g, "").trim();
+    if (value) return value;
+  }
+  return "";
+}
+
+function escapeRegex(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function requiresSourceUnderstandingGate(filePath) {

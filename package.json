@@ -17,6 +17,7 @@
     "plan:efficiency": "node scripts/production-efficiency-plan.mjs",
     "memory:platform": "node scripts/platform-preference-memory.mjs",
     "plan:commerce-research": "node scripts/commerce-design-research-planner.mjs",
+    "qa:localized-copy": "node scripts/localized-copy-qa-gate.mjs",
     "launch:canvas": "node scripts/post-generation-tldraw-launcher.mjs",
     "wait:review": "node scripts/wait-for-review-completion.mjs"
   },

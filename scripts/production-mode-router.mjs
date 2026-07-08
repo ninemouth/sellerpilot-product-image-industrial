@@ -121,6 +121,7 @@ function modePolicy(mode, flags) {
         "feature-audience-analysis",
         "visual-director-shot-matrix",
         "copy-strategy-gate",
+        "localized-copy-qa-gate-if-locale-needs-review",
         "prompt-layer-gate",
         "anchor-batch-imagegen",
         "identity-marketing-export-final-gates",

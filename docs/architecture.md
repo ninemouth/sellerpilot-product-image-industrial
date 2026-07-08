@@ -27,6 +27,7 @@ L2 Commerce Visual Skills:
 - product-positioning
 - visual-strategy
 - copy-localization
+- localized-copy-qa
 - gpt-built-in-image-generation-execution
 - generation-runtime-execution-boundary
 - qa-compliance

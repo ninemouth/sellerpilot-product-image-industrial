@@ -15,6 +15,17 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
   --out-dir /abs/run/qa
 ```
 
+For localized visible copy in ru/de/ar class markets, add:
+
+```bash
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/localized-copy-qa-gate.mjs \
+  --copy-json /abs/run/blueprint/panels.json \
+  --locale ru-RU \
+  --source-locale zh-CN \
+  --platform-context /abs/run/research/platform-context-plan.json \
+  --out-dir /abs/run/qa
+```
+
 ## Copy Planning Inputs
 
 Each panel should record:
@@ -33,9 +44,10 @@ Each panel should record:
 1. Draft copy from Product Fact Sheet and selected strategy direction.
 2. Pull platform/category/season/region language from current research when required.
 3. Run `copy-strategy-gate`.
-4. Revise only failed copy fields.
-5. Run `marketing-gate-check`.
-6. Continue to final prompt/layout only after copy and marketing gates are clean or explicitly accepted with documented warnings.
+4. If the locale is translated/localized for ru/de/ar class markets, run `localized-copy-qa-gate`.
+5. Revise only failed copy fields.
+6. Run `marketing-gate-check`.
+7. Continue to final prompt/layout only after copy and marketing gates are clean or explicitly accepted with documented warnings.
 
 ## Failures
 

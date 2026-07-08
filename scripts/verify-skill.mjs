@@ -171,6 +171,7 @@ record("workflow loop guard ordering", () => {
       "platform-preference-memory-remember-if-user-confirms-platform-traits",
       "commerce-design-research-planner-if-conversion-critical",
       "copy-strategy-gate",
+      "localized-copy-qa-gate-if-locale-needs-review",
       "compact-image-set-blueprint",
       "image-set-export-gate",
       "qa-loop-router",
@@ -193,6 +194,7 @@ record("workflow loop guard ordering", () => {
     assertStepBefore(file, steps, "compact-image-set-blueprint", "prompt-layer-stack");
     assertStepBefore(file, steps, "product-physical-truth-lock-if-function-use-or-scale-sensitive", "product-physics-fact-gate-if-function-use-or-scale-sensitive");
     assertStepBefore(file, steps, "copy-strategy-gate", "marketing-quality-gate");
+    assertStepBefore(file, steps, "localized-copy-qa-gate-if-locale-needs-review", "marketing-quality-gate");
     assertStepBefore(file, steps, "image-set-export-gate", "qa-loop-router");
     assertStepBefore(file, steps, "qa-loop-router", "delivery-overview-contact-sheet-if-multi-image-set");
     assertStepBefore(file, steps, "delivery-overview-contact-sheet-if-multi-image-set", "final-delivery-gate");
@@ -1043,6 +1045,56 @@ record("delivery overview and final gate smoke", () => {
   if (finalGate.status !== "pass") throw new Error("final gate should pass when overview and gates are present.");
 });
 
+record("final delivery gate requires localized copy qa for non english locales", () => {
+  const runDir = path.join(tmpDir("sp-verify-localized-final-"), "run");
+  const imageDir = path.join(runDir, "final-images");
+  const qaDir = path.join(runDir, "qa");
+  run(process.execPath, [
+    "scripts/create-run-skeleton.mjs",
+    "--out-dir", runDir,
+    "--platform", "Amazon",
+    "--category", "cable clip",
+  ]);
+  fs.writeFileSync(path.join(runDir, "00-task-context.yaml"), [
+    "created_at: \"2026-07-08T00:00:00.000Z\"",
+    "run_id: \"verify-localized-final\"",
+    "platform: \"Amazon\"",
+    "category: \"cable clip\"",
+    "product_name: \"测试包\"",
+    "source_images: []",
+    "target_image_count: 2",
+    "locale: \"ru-RU\"",
+    "audience: \"\"",
+    "season_or_occasion: \"\"",
+    "commercial_goal: \"\"",
+    "notes: []",
+    "",
+  ].join("\n"));
+  execFileSync(process.execPath, ["-e", `
+    const sharp = require(${JSON.stringify(path.join(os.homedir(), ".cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/sharp"))});
+    const dir = process.argv[1];
+    (async () => { await Promise.all([
+      sharp({create:{width:1200,height:1200,channels:4,background:'#fff'}}).png().toFile(dir + '/IMG-01-main-product.png'),
+      sharp({create:{width:1200,height:1200,channels:4,background:'#eee'}}).png().toFile(dir + '/IMG-02-detail-structure.png')
+    ]); })().catch((e)=>{ console.error(e); process.exit(1); });
+  `, imageDir], { cwd: skillRoot, stdio: "inherit" });
+  fs.writeFileSync(path.join(qaDir, "marketing-quality-gate-report.json"), JSON.stringify({ status: "pass", findings: [] }));
+  fs.writeFileSync(path.join(qaDir, "copy-strategy-gate-report.json"), JSON.stringify({ status: "pass", findings: [] }));
+  run(process.execPath, [
+    "scripts/image-set-export-gate.mjs",
+    "--run-dir", runDir,
+    "--image-dir", imageDir,
+    "--out-dir", qaDir,
+    "--expected-count", "2",
+    "--require-square",
+  ]);
+  spawnSync(process.execPath, ["scripts/final-delivery-gate.mjs", "--run-dir", runDir], { cwd: skillRoot });
+  const report = readJson(path.join(qaDir, "final-delivery-gate-report.json"));
+  if (!report.findings.some((item) => item.source_report === "localized-copy-qa-report.json")) {
+    throw new Error("final gate should require localized copy QA for ru-RU delivery.");
+  }
+});
+
 record("cross-run image scope isolation smoke", () => {
   const root = tmpDir("sp-verify-cross-run-");
   const shared = path.join(root, "outputs");
@@ -1212,6 +1264,67 @@ record("copy strategy gate allows structured textless panels", () => {
   if (report.status === "fail") throw new Error("copy strategy gate should not fail structured textless panels.");
   if (report.findings.some((item) => item.type === "missing-buyer-facing-copy")) {
     throw new Error("structured textless panels should not be reported as missing buyer-facing copy.");
+  }
+});
+
+record("localized copy qa gate smoke", () => {
+  const dir = tmpDir("sp-verify-localized-copy-");
+  const qaDir = path.join(dir, "qa");
+  const panelsPath = path.join(dir, "panels.json");
+  fs.writeFileSync(panelsPath, JSON.stringify([
+    {
+      id: "IMG-03",
+      title: "Короткий текст для товара",
+      buyer_question: "Почему этот товар подходит для повседневного использования?",
+      conversion_intent: "buy",
+      copy_strategy: "Localized buyer-facing copy with review notes and a traced source line.",
+      source_text: "原文：适合日常通勤，轻便好拿。",
+      translation_review_notes: "Meaning, tone, and market fit checked for ru-RU.",
+      back_translation: "Suitable for daily commuting; light and easy to carry.",
+      translation_confidence: 0.93,
+      market_keyword_basis: "ru-RU localized commerce phrasing reviewed against source meaning.",
+      text_direction: "ltr",
+    },
+  ], null, 2));
+  spawnSync(process.execPath, [
+    "scripts/localized-copy-qa-gate.mjs",
+    "--copy-json", panelsPath,
+    "--locale", "ru-RU",
+    "--source-locale", "zh-CN",
+    "--out-dir", qaDir,
+  ], { cwd: skillRoot });
+  const report = readJson(path.join(qaDir, "localized-copy-qa-report.json"));
+  if (report.status !== "pass") throw new Error("localized copy QA gate should pass with traced source, review notes, and back-translation.");
+  if (report.review_required !== true) throw new Error("localized copy QA should require review for ru-RU.");
+});
+
+record("localized copy qa gate catches rtl direction issues", () => {
+  const dir = tmpDir("sp-verify-localized-copy-rtl-");
+  const qaDir = path.join(dir, "qa");
+  const panelsPath = path.join(dir, "panels.json");
+  fs.writeFileSync(panelsPath, JSON.stringify([
+    {
+      id: "IMG-04",
+      title: "نص عربي",
+      source_text: "原文：适合礼物场景，强调轻便。",
+      translation_review_notes: "Checked for Arabic market fit and meaning preservation.",
+      back_translation: "Suitable for gifting scenes, emphasizing portability.",
+      translation_confidence: 0.9,
+      text_direction: "ltr",
+      localized_copy: "صالح للهدايا والاستخدام اليومي",
+    },
+  ], null, 2));
+  spawnSync(process.execPath, [
+    "scripts/localized-copy-qa-gate.mjs",
+    "--copy-json", panelsPath,
+    "--locale", "ar-SA",
+    "--source-locale", "zh-CN",
+    "--out-dir", qaDir,
+  ], { cwd: skillRoot });
+  const report = readJson(path.join(qaDir, "localized-copy-qa-report.json"));
+  if (report.status === "pass") throw new Error("localized copy QA gate should catch rtl direction mismatch.");
+  if (!report.findings.some((item) => item.type === "missing-rtl-layout-direction" || item.type === "wrong-text-direction")) {
+    throw new Error("localized copy QA gate should report rtl direction issues.");
   }
 });
 

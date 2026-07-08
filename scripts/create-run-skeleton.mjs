@@ -503,6 +503,8 @@ writeIfMissing(path.join(outDir, "copy", "copy-strategy.yaml"), [
   `  category: ${JSON.stringify(category)}`,
   "  direction_ref: strategy/direction-selection.yaml",
   "  platform_context_ref: research/platform-context-plan.json",
+  "  target_locale:",
+  "  source_locale:",
   "  web_research_basis: []",
   "  hotword_policy: use_only_source_backed_platform_category_terms",
   "  seasonal_or_regional_context:",
@@ -513,6 +515,7 @@ writeIfMissing(path.join(outDir, "copy", "copy-strategy.yaml"), [
   "  panels: []",
   "  loop_review:",
   "    copy_strategy_gate_status: pending",
+  "    localized_copy_qa_status: pending",
   "    marketing_quality_gate_status: pending",
   "",
 ].join("\n"));
@@ -991,6 +994,30 @@ writeIfMissing(path.join(outDir, "qa", "copy-strategy-gate-report.md"), [
   "- Smallest next action:",
   "",
 ].join("\n"));
+
+writeIfMissing(path.join(outDir, "qa", "localized-copy-qa-report.md"), [
+  "# Localized Copy QA Report",
+  "",
+  "- Status: pending",
+  "- Locale:",
+  "- Source locale:",
+  "- Review required:",
+  "- Script / direction checks:",
+  "- Back translation:",
+  "- Smallest next action:",
+  "",
+].join("\n"));
+
+writeIfMissing(path.join(outDir, "qa", "localized-copy-qa-report.json"), JSON.stringify({
+  status: "not_run",
+  checked_at: now,
+  locale: "",
+  source_locale: "zh-CN",
+  review_required: false,
+  locale_profile: {},
+  panel_count: 0,
+  findings: [],
+}, null, 2) + "\n");
 
 writeIfMissing(path.join(outDir, "qa", "identity-geometry-gate-report.md"), [
   "# Identity Geometry Gate Report",

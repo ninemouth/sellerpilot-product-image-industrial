@@ -8,7 +8,7 @@ Do not count the same product photo with different headings as a complete image 
 
 Final image copy must be buyer-facing. Internal QA, platform notes, uncertainty labels, or workflow reminders belong in reports and blueprints, not on the exported image.
 
-Run `copy-strategy-gate.mjs` before this marketing gate when final images contain text or when platform/category/season/region/hotword context influences copy.
+Run `copy-strategy-gate.mjs` before this marketing gate when final images contain text or when platform/category/season/region/hotword context influences copy. For ru/de/ar style localized copy, run `localized-copy-qa-gate.mjs` before marketing QA so translation review, source-text traceability, and RTL/script direction are checked before generation.
 
 Final images must not contain arbitrary watermark-like marks or platform-pack labels. The default decision before design is no visible watermark/mark. `拼多多女包套图`, `拼多多套图`, `女包套图`, `PDD`, `SellerPilot`, `Codex`, `AI生成`, `样图`, `示例图`, and `仅供参考` are hard failures unless the user explicitly asks to add that exact mark and the run records `watermark_authorization.status: user_explicitly_requested` with exact text, placement, purpose, and image scope.
 

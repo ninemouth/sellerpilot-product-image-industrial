@@ -140,7 +140,7 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
 The planner is a budgeted research contract, not a competitor-copy license. Extract click hooks, dwell-time mechanisms, trust cues, buyer objections, category gallery sequence, and copy rhythm; then update `blueprint/quality-production-blueprint.json` fields such as buyer question, conversion task, shot direction, copy intent, prompt-layer needs, and QA acceptance criteria.
 8. Run bestseller design mining only when marketing enhancement, click appeal, category differentiation, or "爆品" learning is required. Borrow patterns, not assets, layouts, copy, or brand style. Do not run full market research by default in quality production.
 9. Run Product Feature Analysis and Audience Positioning Analysis. Convert confirmed traits into buyer-relevant benefits, detail-shot opportunities, scene triggers, buyer motivations, purchase objections, aesthetic preferences, and copy voice. Keep unsupported claims out of final image copy.
-9a. Load `references/copy-strategy-loop.md` before final image text or prompt delivery. Plan copy from product truth plus platform/category/season/region research, run `copy-strategy-gate.mjs`, and revise only failed copy fields before marketing QA.
+9a. Load `references/copy-strategy-loop.md` before final image text or prompt delivery. Plan copy from product truth plus platform/category/season/region research, run `copy-strategy-gate.mjs`, then run `localized-copy-qa-gate.mjs` for locales such as ru-RU, de-DE, ar-SA, and revise only failed copy fields before marketing QA.
 10. In quality production, create or update compact image-set planning instead of separate verbose strategy documents. The plan must still include each image's buyer question, commercial task, shot role, copy intent, required evidence, prompt-layer needs, and success/failure criteria. In industrial audit mode, keep the full separate goal contract, commerce strategy brief, creative direction brief, graphic design direction brief, and photography treatment.
 11. Create sketches or layout wireframes before final generation prompts when the set is complete, scene-heavy, layout-heavy, or final quality depends on composition. In quality production, use compact wireframe notes inside the image-set plan unless a separate layout artifact is needed. Load `references/sketch-to-final-production.md` for complete image sets, scene-heavy work, or any run where final quality matters.
 12. Create a Graphic Design Direction Brief and Visual Direction Brief before full image generation. A design director must define typography hierarchy, safe zones, overlay style, text density, mobile legibility, set-level layout variation, and the visible-mark decision. Default visible-mark decision is absolute prohibition: no watermark, platform-pack label, system mark, or arbitrary corner mark unless the user explicitly requested that exact mark and the run records `watermark_authorization` with exact text, placement, purpose, and image scope before prompt/layout work. A visual director must define the shot matrix, camera angles, crops, lighting, scene logic, prop/model context, buyer-facing copy intent, and A-H editable regions for every image. Do not allow final image copy to sound like internal QA notes.
@@ -344,6 +344,17 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
 ```
 
 Use the copy strategy gate before marketing QA. It blocks thin buyer strategy, unsupported claims, unverified hot words, and copy that ignores required season/climate/holiday/regional context.
+
+```bash
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/localized-copy-qa-gate.mjs \
+  --copy-json /abs/run/blueprint/panels.json \
+  --locale ru-RU \
+  --source-locale zh-CN \
+  --platform-context /abs/run/research/platform-context-plan.json \
+  --out-dir /abs/run/qa
+```
+
+Use the localized copy QA gate when the visible copy is translated or localized for ru/de/ar class markets. It checks source-text traceability, review notes, back-translation or semantic review, translation confidence, localized keyword basis, and RTL direction when applicable before final prompt/layout work.
 
 ```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/product-physics-fact-gate.mjs \
