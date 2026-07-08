@@ -56,13 +56,16 @@ steps:
   - scene-asset-generation-if-scene-roles
   - generation-runtime-execution-boundary
   - anchor-batch-generation-loop-if-runtime-available
+  - anchor-batch-qa-decision-record
   - continue-missing-assets-only
   - identity-consistency-gate
   - identity-geometry-gate-if-proportion-sensitive
   - product-physics-fact-gate-if-function-use-or-scale-sensitive
   - layout-composition
+  - localized-final-visible-text-qa-if-locale-needs-review
   - marketing-quality-gate
   - image-set-export-gate
+  - generation-progress-reconcile-before-final-delivery
   - qa-loop-router
   - delivery-overview-contact-sheet-if-multi-image-set
   - post-generation-tldraw-auto-start-if-generated-images

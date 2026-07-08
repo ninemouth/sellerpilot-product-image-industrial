@@ -356,6 +356,29 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
 
 Use the localized copy QA gate when the visible copy is translated or localized for ru/de/ar class markets. It checks source-text traceability, review notes, back-translation or semantic review, translation confidence, localized keyword basis, and RTL direction when applicable before final prompt/layout work.
 
+After localized final images are exported, rerun the same gate with the current run manifest and a structured final visible-text review when text may appear in the raster output:
+
+```bash
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/localized-copy-qa-gate.mjs \
+  --copy-json /abs/run/blueprint/panels.json \
+  --locale ru-RU \
+  --source-locale zh-CN \
+  --run-dir /abs/run \
+  --manifest /abs/run/export/final-images-manifest.json \
+  --final-visible-text-review /abs/run/qa/final-visible-text-review.json \
+  --out-dir /abs/run/qa
+```
+
+The final visible-text review is conditional: prefer Codex visual inspection or structured review evidence first, and use OCR only when text is uncertain, small, script-sensitive, or risk-bearing. For localized final delivery, Chinese/source-language residue, non-target-language residue, or target-script drift in the final raster must block delivery.
+
+```bash
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/reconcile-generation-progress.mjs \
+  --run-dir /abs/run \
+  --manifest /abs/run/export/final-images-manifest.json
+```
+
+Use this after image export when `generated-assets/generation-progress.json` is stale but the current run-scoped final-images manifest is correct. It updates progress evidence without regenerating approved images. It does not replace anchor batch QA.
+
 ```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/product-physics-fact-gate.mjs \
   --fact-lock /abs/run/blueprint/02b-product-physical-truth.json \
@@ -425,6 +448,8 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
 ```
 
 Use the final delivery gate after all QA gates and before telling the user a set is complete. It aggregates upstream gate reports, blocks delivery when required generation is unavailable, requires a delivery overview contact sheet for multi-image sets, and rejects draft/placeholder/wireframe assets in `final-images`. A technical export pass is not enough for ecommerce image acceptance.
+
+For multi-image sets it also checks `00-task-context.yaml`, stale generation progress, and anchor batch QA evidence. If final images exist but progress is still `planned`/`not_started` with no completed images, reconcile progress from the current run manifest before final delivery. If a 4+ image set lacks an anchor batch decision of `continue`/`pass`, generate and review the anchor batch before continuing the full set.
 
 ```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/qa-loop-router.mjs \

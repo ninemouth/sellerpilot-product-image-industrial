@@ -893,12 +893,37 @@ writeIfMissing(path.join(outDir, "prompt-pack", "12-prompt-layer-stack.json"), J
 }, null, 2) + "\n");
 
 writeIfMissing(path.join(outDir, "generated-assets", "generation-progress.json"), JSON.stringify({
+  schema_version: "sellerpilot.generation_progress.v1",
   status: "not_started",
+  created_at: now,
+  updated_at: now,
+  mode: "quality_production",
   completed_images: [],
   pending_images: [],
   failed_images: [],
   next_action: "run brief intake, identity lock, visual direction, then generate anchor batch",
   anchor_batch_required: true,
+  reconcile_with_final_manifest_before_final_delivery: true,
+  progress_update_policy: {
+    update_after_each_generated_asset: true,
+    user_visible_update_interval_seconds: 300,
+    long_running_threshold_seconds: 900,
+  },
+}, null, 2) + "\n");
+
+writeIfMissing(path.join(outDir, "generated-assets", "anchor-batch-qa-decision.json"), JSON.stringify({
+  schema_version: "sellerpilot.anchor_batch_qa_decision.v1",
+  status: "pending",
+  qa_decision: "pending",
+  selected_images: [],
+  checked_at: null,
+  decision_notes: "",
+  allowed_next_actions: [
+    "continue",
+    "revise_prompt",
+    "ask_user",
+    "blocked",
+  ],
 }, null, 2) + "\n");
 
 writeIfMissing(path.join(outDir, "qa", "prompt-readiness-gate-report.md"), [

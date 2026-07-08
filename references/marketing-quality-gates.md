@@ -10,6 +10,8 @@ Final image copy must be buyer-facing. Internal QA, platform notes, uncertainty 
 
 Run `copy-strategy-gate.mjs` before this marketing gate when final images contain text or when platform/category/season/region/hotword context influences copy. For ru/de/ar style localized copy, run `localized-copy-qa-gate.mjs` before marketing QA so translation review, source-text traceability, and RTL/script direction are checked before generation.
 
+For localized final rasters, run the final visible-text review after export when text may appear in the image. The review may be Codex visual inspection, structured `final-visible-text-review.json`, or conditional OCR when visual reading is uncertain. Source-language residue, non-target-language residue, or target-script drift in the final bitmap is a delivery blocker.
+
 Final images must not contain arbitrary watermark-like marks or platform-pack labels. The default decision before design is no visible watermark/mark. `拼多多女包套图`, `拼多多套图`, `女包套图`, `PDD`, `SellerPilot`, `Codex`, `AI生成`, `样图`, `示例图`, and `仅供参考` are hard failures unless the user explicitly asks to add that exact mark and the run records `watermark_authorization.status: user_explicitly_requested` with exact text, placement, purpose, and image scope.
 
 ## Minimum Visual Diversity
@@ -40,6 +42,8 @@ Fail the image set if:
 - The set lacks true visual role separation between main image, detail, capacity, scene, and summary.
 - Most images use the same camera angle or product orientation.
 - Detail grids repeat the same crop while changing only labels, or include blank/irrelevant crops.
+- Final images contain large blank rounded cards, empty visual modules, unused white blocks, or layout slots with no product/copy purpose.
+- Final localized images contain source poster text, Chinese/source-language residue, non-target-language residue, or unreviewed mixed-script visible text.
 - Scene images do not show any environmental context, human styling, outfit context, or realistic placement.
 - Text is too small or low contrast for mobile thumbnail reading.
 - Final image copy includes internal-facing terms such as `不虚标`, `以源图为准`, `示意`, `QA`, `风险`, `待确认`, or `证据不足`.

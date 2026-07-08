@@ -26,7 +26,8 @@ The JSON should be an array of panel/blueprint objects. Useful fields:
 image_role, title, sub, tag, main_message, secondary_message, required_copy,
 camera_angle, product_view, crop_type, visual_composition, image,
 scene_asset_type, final_asset_type, generation_status, generated_asset_path,
-scene_asset_path.`);
+scene_asset_path, blank_region_risk, source_language_residue_risk,
+final_visible_text_review.`);
   process.exit(2);
 }
 
@@ -319,6 +320,36 @@ panels.forEach((panel, index) => {
       message: "Panel is missing image_role.",
     });
   }
+  const blankRisk = textify([
+    panel.blank_region_risk,
+    panel.large_blank_region,
+    panel.empty_visual_module,
+    panel.blank_module_risk,
+    panel.final_raster_blank_region_review,
+  ]);
+  if (truthyRisk(blankRisk)) {
+    findings.push({
+      severity: "fail",
+      type: "blank-or-empty-final-module",
+      image_index: index + 1,
+      message: "Panel/final review reports a large blank region, empty card, or unused visual module in the final image.",
+    });
+  }
+  const languageResidueRisk = textify([
+    panel.source_poster_visible_text_risk,
+    panel.source_language_residue_risk,
+    panel.non_target_language_residue,
+    panel.source_language_residue_review,
+    panel.final_visible_text_review,
+  ]);
+  if (truthyRisk(languageResidueRisk)) {
+    findings.push({
+      severity: "fail",
+      type: "source-or-non-target-language-residue",
+      image_index: index + 1,
+      message: "Panel/final review reports source poster text or non-target-language residue in the final commerce image.",
+    });
+  }
 });
 
 for (const [value, count] of Object.entries(layoutIntentCounts)) {
@@ -493,6 +524,13 @@ function textify(value) {
   if (Array.isArray(value)) return value.map(textify).filter(Boolean).join(" ");
   if (typeof value === "object") return Object.values(value).map(textify).filter(Boolean).join(" ");
   return String(value);
+}
+
+function truthyRisk(value) {
+  const text = normalize(textify(value));
+  if (!text) return false;
+  if (/^(false|no|none|pass|passed|ok|clear|clean|not_detected|not detected|无|没有|通过)$/.test(text)) return false;
+  return /(true|yes|fail|failed|risk|detected|blank|empty|large blank|unused|source|non[-_ ]?target|residue|poster|chinese|中文|汉字|残留|空白|生造|未处理)/i.test(text);
 }
 
 function visibleMarkFields(panel) {

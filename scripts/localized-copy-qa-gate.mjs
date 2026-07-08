@@ -22,11 +22,16 @@ function usage() {
   console.error(`Usage:
 node scripts/localized-copy-qa-gate.mjs --copy-json /abs/panels.json --out-dir /abs/run/qa \\
   [--locale ru-RU] [--source-locale zh-CN] [--task-context /abs/run/00-task-context.yaml] \\
-  [--platform-context /abs/run/research/platform-context-plan.json]
+  [--platform-context /abs/run/research/platform-context-plan.json] \\
+  [--run-dir /abs/run] [--manifest /abs/run/export/final-images-manifest.json] \\
+  [--final-visible-text-review /abs/run/qa/final-visible-text-review.json] \\
+  [--require-final-visible-text-review]
 
 Runs a pre-generation localization/translation QA gate for buyer-facing image copy.
 For non-zh/non-en locales, especially ru/de/ar class markets, visible copy must carry
-source text traceability, review notes, and locale-safe direction/script checks.`);
+source text traceability, review notes, and locale-safe direction/script checks.
+After final images exist, rerun with --run-dir/--manifest and a structured final
+visible-text review when localized raster text may contain source-language residue.`);
   process.exit(2);
 }
 
@@ -37,6 +42,8 @@ const copyJson = path.resolve(args["copy-json"]);
 const outDir = path.resolve(args["out-dir"]);
 const taskContextPath = args["task-context"] ? path.resolve(args["task-context"]) : null;
 const platformContextPath = args["platform-context"] ? path.resolve(args["platform-context"]) : null;
+const runDir = args["run-dir"] ? path.resolve(args["run-dir"]) : inferRunDirFromCopyJson(copyJson);
+const manifestPath = args.manifest ? path.resolve(args.manifest) : (runDir ? path.join(runDir, "export", "final-images-manifest.json") : null);
 fs.mkdirSync(outDir, { recursive: true });
 
 const panels = JSON.parse(fs.readFileSync(copyJson, "utf8"));
@@ -243,6 +250,18 @@ panels.forEach((panel, index) => {
   }
 });
 
+const finalVisibleTextReview = evaluateFinalVisibleTextReview({
+  panels,
+  locale,
+  sourceLocale,
+  profile,
+  runDir,
+  manifestPath,
+  explicitReviewPath: args["final-visible-text-review"] ? path.resolve(args["final-visible-text-review"]) : null,
+  requireReview: Boolean(args["require-final-visible-text-review"]),
+});
+for (const finding of finalVisibleTextReview.findings) findings.push(finding);
+
 const status = findings.some((item) => item.severity === "fail")
   ? "fail"
   : findings.some((item) => item.severity === "warn")
@@ -257,6 +276,7 @@ const report = {
   review_required: profile.review_required,
   locale_profile: profile,
   panel_count: panels.length,
+  final_visible_text_review: finalVisibleTextReview.summary,
   findings,
 };
 
@@ -264,6 +284,183 @@ fs.writeFileSync(path.join(outDir, "localized-copy-qa-report.json"), JSON.string
 fs.writeFileSync(path.join(outDir, "localized-copy-qa-report.md"), toMarkdown(report));
 console.log(JSON.stringify({ status, findings: findings.length, locale, outDir }, null, 2));
 if (status === "fail") process.exitCode = 1;
+
+function evaluateFinalVisibleTextReview(options) {
+  const { panels: panelList, locale: targetLocale, sourceLocale: originalLocale, profile, runDir: currentRunDir, manifestPath: currentManifestPath, explicitReviewPath, requireReview } = options;
+  const sourceLang = normalizeLocale(originalLocale).split("-")[0].toLowerCase();
+  const targetLang = normalizeLocale(targetLocale).split("-")[0].toLowerCase();
+  const reviewPaths = [
+    explicitReviewPath,
+    currentRunDir ? path.join(currentRunDir, "qa", "final-visible-text-review.json") : null,
+    currentRunDir ? path.join(currentRunDir, "final-images", "final-visible-text-review.json") : null,
+    currentRunDir ? path.join(currentRunDir, "export", "final-visible-text-review.json") : null,
+  ].filter(Boolean);
+  const reviewFile = reviewPaths.find((file) => fs.existsSync(file));
+  const findings = [];
+  const manifestExists = currentManifestPath && fs.existsSync(currentManifestPath);
+  const reviewRequired = Boolean(requireReview || (profile.review_required && manifestExists));
+  const panelItems = collectPanelFinalVisibleTextItems(panelList);
+  const fileItems = reviewFile ? collectFinalVisibleTextItems(readJsonSafe(reviewFile)) : [];
+  const items = [...panelItems, ...fileItems];
+
+  if (!reviewRequired && !items.length) {
+    return {
+      findings,
+      summary: {
+        status: "not_run",
+        required: false,
+        source: null,
+        item_count: 0,
+        policy: "Final raster visible-text review is conditional and runs after localized final images exist.",
+      },
+    };
+  }
+  if (reviewRequired && !items.length) {
+    findings.push({
+      severity: "fail",
+      type: "missing-final-visible-text-review",
+      message: "Localized final images require a structured final visible-text review after raster export, so source-language residue and script drift can be checked before delivery.",
+    });
+    return {
+      findings,
+      summary: {
+        status: "fail",
+        required: true,
+        source: reviewFile || "panel.final_visible_text_review",
+        item_count: 0,
+      },
+    };
+  }
+
+  for (const item of items) {
+    const text = textify([item.visible_text, item.text, item.detected_text, item.raw_text, item.ocr_text]);
+    const languages = textify([item.language, item.languages, item.detected_language, item.detected_languages]).toLowerCase();
+    const imageIndex = Number(item.image_index || item.index || item.panel_index || 0) || null;
+    const imageFile = item.file || item.image || item.path || null;
+    const residueSignal = normalize(textify([
+      item.source_language_residue,
+      item.non_target_language_residue,
+      item.source_poster_residue,
+      item.language_residue_review,
+      item.status,
+      item.result,
+    ]));
+    const hasSourceResidue = truthyRisk(residueSignal)
+      || (sourceLang && languages.includes(sourceLang) && sourceLang !== targetLang)
+      || (targetLang !== "zh" && /[\u3400-\u9FFF]/.test(text));
+    if (hasSourceResidue) {
+      findings.push({
+        severity: "fail",
+        type: "final-image-source-language-residue",
+        image_index: imageIndex,
+        file: imageFile,
+        message: "Final raster visible-text review found source-language or non-target language residue in a localized image.",
+      });
+    }
+    if (text.trim() && profile.review_required) {
+      const scriptCheck = checkScriptExpectation(text, profile, {
+        lockedTerms: textify([item.locked_terms, item.allowed_foreign_terms]),
+        reviewNotes: textify([item.review_notes, item.exception_reason]),
+      });
+      if (scriptCheck.mismatch) {
+        findings.push({
+          severity: scriptCheck.severity,
+          type: "final-raster-target-script-mismatch",
+          image_index: imageIndex,
+          file: imageFile,
+          message: scriptCheck.message,
+        });
+      }
+      if (scriptCheck.mixedScriptNeedsReview) {
+        findings.push({
+          severity: "warn",
+          type: "final-raster-mixed-script-needs-review",
+          image_index: imageIndex,
+          file: imageFile,
+          message: "Final raster text mixes scripts and needs explicit locked-term or exception review.",
+        });
+      }
+    }
+    if (truthyRisk(textify([item.blank_text_module, item.empty_copy_card, item.unreadable_text, item.ocr_uncertain]))) {
+      findings.push({
+        severity: "fail",
+        type: "final-raster-visible-text-review-failed",
+        image_index: imageIndex,
+        file: imageFile,
+        message: "Final raster visible-text review marked a blank, unreadable, or uncertain text module.",
+      });
+    }
+  }
+
+  const statusValue = findings.some((item) => item.type.startsWith("final-") || item.type === "missing-final-visible-text-review")
+    ? "fail"
+    : "pass";
+  return {
+    findings,
+    summary: {
+      status: statusValue,
+      required: reviewRequired,
+      source: reviewFile || "panel.final_visible_text_review",
+      item_count: items.length,
+      policy: "Uses structured visual/OCR review evidence; local OCR remains conditional instead of always-on.",
+    },
+  };
+}
+
+function collectPanelFinalVisibleTextItems(panelList) {
+  const items = [];
+  panelList.forEach((panel, index) => {
+    const review = panel.final_visible_text_review || panel.final_raster_text_review || panel.visible_text_review_after_export;
+    if (!review) return;
+    if (Array.isArray(review)) {
+      for (const item of review) items.push({ image_index: index + 1, ...objectify(item) });
+    } else {
+      items.push({ image_index: index + 1, ...objectify(review) });
+    }
+  });
+  return items;
+}
+
+function collectFinalVisibleTextItems(review) {
+  if (!review) return [];
+  if (Array.isArray(review)) return review.map(objectify);
+  const arrays = [
+    review.images,
+    review.items,
+    review.reviews,
+    review.visible_text_items,
+    review.final_visible_text_items,
+  ].find((item) => Array.isArray(item));
+  if (arrays) return arrays.map(objectify);
+  if (review.status && /no_visible_text|textless|not_required/i.test(String(review.status))) return [];
+  return [objectify(review)];
+}
+
+function objectify(value) {
+  if (value && typeof value === "object") return value;
+  return { visible_text: textify(value) };
+}
+
+function truthyRisk(value) {
+  const text = normalize(textify(value));
+  if (!text) return false;
+  if (/^(false|no|none|pass|passed|ok|clear|clean|not_detected|not detected|无|没有|通过)$/.test(text)) return false;
+  return /(true|yes|fail|failed|risk|detected|residue|source|non[-_ ]?target|chinese|中文|汉字|blank|empty|unreadable|uncertain|疑似|残留|不确定|空白)/i.test(text);
+}
+
+function readJsonSafe(file) {
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function inferRunDirFromCopyJson(file) {
+  const dir = path.dirname(file);
+  if (path.basename(dir) === "blueprint" || path.basename(dir) === "copy") return path.dirname(dir);
+  return null;
+}
 
 function extractVisibleCopy(panel) {
   return textify([

@@ -17,6 +17,7 @@
 - **平台/品类偏好记忆**：用户明确确认过的某平台同类商品图片特质、风格方向、文案语气、陈列节奏和禁用项，会保存为 platform preference memory；后续同平台/同品类任务会先读取该记忆，再结合当前商品事实和最新调研决定是否采用。
 - **商业设计研究计划**：当任务目标涉及“爆品图”“提升销售”“点击”“停留”或品类竞争时，skill 会生成 commerce design research plan，把点击钩子、停留机制、信任疑虑、买家问题、画廊叙事和文案节奏回写到套图蓝图与 QA 标准。
 - **本地化文案复核**：当目标语言属于俄语、德语、阿拉伯语这类复杂本地化场景时，正式出图前会再过一层 localized-copy-qa / translation-qa gate，检查源文案追溯、复核说明、回译或语义复核、局部市场语言依据，以及 RTL / 脚本方向。
+- **最终成图文字复核**：本地化成品导出后，会对最终图片里的可见文字做轻量复核；优先使用 Codex 视觉检查或结构化复核记录，只有不确定时才使用 OCR，避免俄语/德语/阿拉伯语图片里残留中文海报字、源图文字或非目标语言。
 - **验证闭环**：`npm run verify` 覆盖 Ozon 3:4 导出、平台记忆 apply/remember、商业设计研究 planner、总览图、tldraw 自动启动、跨任务图片隔离和 QA retry budget。
 
 ## 它能做什么
@@ -233,6 +234,8 @@ npm run plan:efficiency -- \
 
 这个计划不会降低成图质量。它的作用是把完整工业工作流收敛为当次任务真正需要的质量路径：保留源图理解、身份锁、紧凑套图规划、prompt layer、anchor batch、关键 QA、总览图和最终画布；跳过未触发的 URL 读取、完整市场研究、完整爆品挖掘、预生成画布和多份长报告。
 
+高质量多图任务还会写入 `generated-assets/generation-progress.json`。每生成一张图都应更新 completed / pending / failed；导出 manifest 后如果发现进度文件落后，可以用 `npm run progress:reconcile` 从当前 run 的 manifest 回填进度，避免已经完成的图片因为机械进度文件过期而反复重跑。
+
 ## 推荐输入
 
 效果最好时，给 Codex：
@@ -263,7 +266,7 @@ npm run plan:efficiency -- \
 - 匹配到的平台/品类偏好记忆，例如同平台同类商品延续的视觉特质、风格方向、文案语气和禁用项。
 - 转化关键任务的商业设计研究计划，例如点击钩子、用户停留机制、信任疑虑处理和爆品模式借鉴边界。
 - Anchor batch QA 结论，以及后续只补齐缺失/失败图片的说明。
-- 相关 QA 结论：身份、物理/几何、文案、营销、导出、最终交付。
+- 相关 QA 结论：身份、物理/几何、文案、本地化最终可见文字、营销、导出、最终交付。
 - 生图完成后的 tldraw review session URL。多图最终成品会在导出和总览图完成后自动创建并启动画布；单图草稿可跳过，除非用户要求审核或 gate 失败。
 
 `fast_generation` 会输出更精简的成品、摘要和 QA；它主要用于单图、草稿或明确速度优先的任务。
@@ -309,6 +312,16 @@ npm run plan:efficiency -- \
   --image-count 8 \
   --has-source-image true
 ```
+
+导出后同步/修复生图进度文件：
+
+```bash
+npm run progress:reconcile -- \
+  --run-dir runs/demo-amazon-bag \
+  --manifest runs/demo-amazon-bag/export/final-images-manifest.json
+```
+
+这个命令只根据当前任务的 `export/final-images-manifest.json` 更新 `generated-assets/generation-progress.json`，不会重新生图，也不会替代 anchor batch QA。它用于修复“图片已经导出，但进度仍显示 planned / not_started”的卡点。
 
 生图完成后启动/复用 tldraw 画布：
 

@@ -61,9 +61,10 @@ Quality production mode runs the full quality-critical path without generating t
 11. Run a focused anchor QA against identity, scene direction, role diversity, and obvious platform mismatch.
 12. Continue only missing/failed assets after anchor QA passes. Reuse approved assets; do not regenerate the full set.
 13. Compose final layouts.
-14. Run marketing diversity gate and QA.
-15. For generated multi-image final sets, create and auto-start the run-scoped tldraw workspace after export/overview. For single-image drafts, create a review surface only when requested, when a gate fails, or when revision feedback is the next action. Prefer the shared tldraw service session over per-run dev servers.
-16. Convert user annotations into Revision Brief when feedback exists.
+14. Run copy, localized final visible-text when needed, marketing diversity, export, and final delivery QA.
+15. Reconcile `generated-assets/generation-progress.json` from the current run manifest only when final images exist but the progress file is stale; do not regenerate approved images just to fix bookkeeping.
+16. For generated multi-image final sets, create and auto-start the run-scoped tldraw workspace after export/overview. For single-image drafts, create a review surface only when requested, when a gate fails, or when revision feedback is the next action. Prefer the shared tldraw service session over per-run dev servers.
+17. Convert user annotations into Revision Brief when feedback exists.
 
 Fast mode should not create the full industrial run skeleton, every research artifact, every gate JSON, or a tldraw workspace by default. Escalate to industrial audit mode only when the user asks for evidence, migration artifacts, debug traces, or a repeated failure needs deeper routing.
 
@@ -103,6 +104,10 @@ generated-assets/generation-progress.json
 
 Include completed images, pending images, failed images, next action, and whether user feedback can improve the next batch. This prevents an unfinished run from looking like a silent failure.
 
+Before final delivery, `final-delivery-gate.mjs` must reject stale progress such as `planned` or `not_started` with empty completed images when final images already exist. If the current run manifest is correct, run `reconcile-generation-progress.mjs` to update the progress file from the manifest. This is a bookkeeping repair, not a quality shortcut and not a substitute for anchor QA.
+
+For image sets with more than three outputs, final delivery must see an anchor batch decision of `continue`, `pass`, `approved`, or equivalent before the remaining set is accepted. Missing anchor evidence means the workflow skipped the pacing guard and should return to anchor QA rather than presenting a finished set.
+
 If wall-clock time exceeds 15 minutes, do not continue silently. Report the current progress marker to the user, identify whether the delay is from network/image generation or local planning/gates, and continue only the smallest pending scope.
 
 If a user gives feedback on an anchor image, merge it directly into the remaining image prompts instead of restarting the whole plan.
@@ -116,6 +121,8 @@ If a gate fails, report the failing gate and the smallest next action:
 - scene assets weak -> regenerate only scene assets
 - product identity drift -> regenerate only failed assets using stronger source-image reference, or ask for more source angles
 - repeated angle/detail/copy -> revise Visual Direction Brief and rerun only affected images
+- blank/empty final visual module -> rerender or regenerate only that image/layout section
+- localized final raster contains source-language or non-target-language residue -> rerender/regenerate affected localized image text/layout only
 - text/layout issue -> rerender layout only
 - review widget unavailable -> use tldraw workspace JSON/completion payload/screenshot evidence and state widget limitation
 

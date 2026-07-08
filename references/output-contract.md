@@ -11,6 +11,7 @@ overview/SET-OVERVIEW-contact-sheet.png  # required package overview for multi-i
 generation-summary.md  # concise product identity, visual strategy, prompt, and QA notes
 brief-intake/brief-intake-gate-report.json  # only when clarifications or assumptions are material
 generated-assets/generation-progress.json  # for multi-image sets and long-running generation
+generated-assets/anchor-batch-qa-decision.json  # required for 4+ image quality production pacing
 planning/production-efficiency-plan.json  # triggered/skipped work and stage budgets
 blueprint/quality-production-blueprint.json  # compact image-set planning for quality production multi-image finals
 qa/qa-loop-state.json                     # persisted retry signatures and loop guard state
@@ -43,6 +44,7 @@ layout-drafts/09-layout-wireframes.yaml
 layout-drafts/09-sketch-self-review.md
 09-localized-copy-pack.md
 qa/localized-copy-qa-report.md
+qa/final-visible-text-review.json  # conditional post-export localized raster text review evidence
 10-generation-request-pack.yaml
 10-final-generation-prompts.md
 11-final-personalized-prompt-delivery.md
@@ -57,6 +59,7 @@ review-workspace/data/canvas-state.json
 review-workspace/data/generation-tasks.json
 11-generated-images/  # only when Codex-native imagegen/image_gen, host app GPT generation, or deterministic rendering was requested
 generated-assets/generation-progress.json
+generated-assets/anchor-batch-qa-decision.json
 12-identity-consistency-report.json
 14-marketing-quality-gate-report.md
 15-image-set-export-gate-report.md
@@ -84,6 +87,7 @@ qa/prompt-layer-gate-report.json
 qa/product-physics-fact-gate-report.json
 qa/source-product-understanding-gate-report.json
 qa/localized-copy-qa-report.json
+qa/final-visible-text-review.json
 qa/qa-loop-routing-decision.json
 qa/qa-loop-state.json
 qa/final-delivery-gate-report.json

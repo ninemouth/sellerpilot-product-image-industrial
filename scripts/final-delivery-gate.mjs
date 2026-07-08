@@ -35,12 +35,15 @@ const qaDir = args["out-dir"] ? path.resolve(args["out-dir"]) : path.join(runDir
 const finalImageDir = path.join(runDir, "final-images");
 const overviewReportPath = path.join(runDir, "overview", "delivery-overview-report.json");
 const sourceUnderstandingPath = path.join(runDir, "source-understanding", "source-product-understanding.json");
+const taskContextPath = path.join(runDir, "00-task-context.yaml");
+const generationProgressPath = path.join(runDir, "generated-assets", "generation-progress.json");
 fs.mkdirSync(qaDir, { recursive: true });
 
 const reports = loadGateReports(qaDir);
 const findings = [];
 const allowMissingGates = Boolean(args["allow-missing-gates"]);
-const runLocale = inferRunLocale(runDir);
+const runContext = inferRunContext(runDir);
+const runLocale = runContext.locale;
 
 if (!allowMissingGates) {
   if (!reports.length) {
@@ -80,6 +83,16 @@ if (!allowMissingGates) {
         gate_id: "final-delivery-gate",
         source_report: "localized-copy-qa-report.json",
         message: `localized-copy-qa-report.json must pass before final delivery for locale ${runLocale}; current status is ${localizedReport?.status || "unknown"}.`,
+      });
+    }
+    const finalTextStatus = normalizeStatus(localizedReport?.final_visible_text_review?.status);
+    if (!["pass", "not_required"].includes(finalTextStatus)) {
+      findings.push({
+        severity: "fail",
+        type: "missing-localized-final-visible-text-review",
+        gate_id: "final-delivery-gate",
+        source_report: "localized-copy-qa-report.json",
+        message: `Localized final delivery for ${runLocale} requires final raster visible-text review status pass/not_required; current status is ${localizedReport?.final_visible_text_review?.status || "missing"}.`,
       });
     }
   }
@@ -177,6 +190,11 @@ if (requestPackPath) {
 
 if (fs.existsSync(finalImageDir)) {
   const finalImageNames = fs.readdirSync(finalImageDir).filter((item) => /\.(png|jpe?g|webp)$/i.test(item));
+  if (finalImageNames.length > 1) {
+    validateTaskContext({ taskContextPath, runContext, findings });
+    validateGenerationProgress({ generationProgressPath, finalImageNames, findings });
+    validateAnchorBatchEvidence({ runDir, finalImageNames, findings });
+  }
   for (const name of finalImageNames) {
     if (/\b(?:layout-)?draft\b|placeholder|wireframe|blocked/i.test(name)) {
       findings.push({
@@ -417,6 +435,153 @@ function validateFinalImagesManifest({ manifestPath, runDir, finalImageDir, fina
   }
 }
 
+function validateTaskContext({ taskContextPath: contextPath, runContext: context, findings }) {
+  if (!fs.existsSync(contextPath)) {
+    findings.push({
+      severity: "fail",
+      type: "missing-task-context",
+      gate_id: "final-delivery-gate",
+      source_report: "00-task-context.yaml",
+      message: "Multi-image delivery requires 00-task-context.yaml so platform, category, locale, and run_id cannot drift across tasks.",
+    });
+    return;
+  }
+  for (const key of ["run_id", "platform", "category"]) {
+    if (!String(context[key] || "").trim()) {
+      findings.push({
+        severity: "fail",
+        type: `missing-task-context-${key.replace(/_/g, "-")}`,
+        gate_id: "final-delivery-gate",
+        source_report: "00-task-context.yaml",
+        message: `00-task-context.yaml is missing ${key}; final delivery needs run-scoped platform/category identity.`,
+      });
+    }
+  }
+}
+
+function validateGenerationProgress({ generationProgressPath: progressPath, finalImageNames, findings }) {
+  if (!fs.existsSync(progressPath)) {
+    findings.push({
+      severity: "fail",
+      type: "missing-generation-progress",
+      gate_id: "final-delivery-gate",
+      source_report: "generated-assets/generation-progress.json",
+      message: "Multi-image delivery requires generated-assets/generation-progress.json with completed/pending/failed asset state.",
+    });
+    return;
+  }
+  let progress;
+  try {
+    progress = JSON.parse(fs.readFileSync(progressPath, "utf8"));
+  } catch (error) {
+    findings.push({
+      severity: "fail",
+      type: "unreadable-generation-progress",
+      gate_id: "final-delivery-gate",
+      source_report: "generated-assets/generation-progress.json",
+      message: error.message,
+    });
+    return;
+  }
+
+  const status = normalizeText(progress.status);
+  const completed = normalizeProgressImages(progress.completed_images);
+  const pending = normalizeProgressImages(progress.pending_images);
+  const failed = normalizeProgressImages(progress.failed_images);
+  const externalImport = hasExternalFinalImport(progress);
+  if (["planned", "not_started", "pending", "initialized"].includes(status) && !completed.length && !externalImport) {
+    findings.push({
+      severity: "fail",
+      type: "stale-generation-progress",
+      gate_id: "final-delivery-gate",
+      source_report: "generated-assets/generation-progress.json",
+      message: `Generation progress is still "${progress.status}" with no completed_images, but final-images contains ${finalImageNames.length} files. Update progress after each asset or run manifest/progress reconciliation.`,
+    });
+  }
+  if (failed.length) {
+    findings.push({
+      severity: "fail",
+      type: "generation-progress-has-failed-assets",
+      gate_id: "final-delivery-gate",
+      source_report: "generated-assets/generation-progress.json",
+      message: `Generation progress still lists failed assets: ${failed.join(", ")}.`,
+    });
+  }
+  if (pending.length && !["complete", "completed", "final_exported", "exported", "ready"].includes(status)) {
+    findings.push({
+      severity: "fail",
+      type: "generation-progress-has-pending-assets",
+      gate_id: "final-delivery-gate",
+      source_report: "generated-assets/generation-progress.json",
+      message: `Generation progress still lists pending assets: ${pending.join(", ")}.`,
+    });
+  }
+  if (!externalImport && completed.length && completed.length < finalImageNames.length) {
+    findings.push({
+      severity: "fail",
+      type: "generation-progress-underreports-finals",
+      gate_id: "final-delivery-gate",
+      source_report: "generated-assets/generation-progress.json",
+      message: `Generation progress completed_images has ${completed.length} items, but final-images contains ${finalImageNames.length} files.`,
+    });
+  }
+}
+
+function validateAnchorBatchEvidence({ runDir: currentRunDir, finalImageNames, findings }) {
+  if (finalImageNames.length <= 3) return;
+  const progress = readJsonSafe(path.join(currentRunDir, "generated-assets", "generation-progress.json"));
+  if (progress?.anchor_batch_required === false || hasExternalFinalImport(progress)) return;
+
+  const candidates = [
+    path.join(currentRunDir, "generated-assets", "anchor-batch-qa-decision.json"),
+    path.join(currentRunDir, "qa", "anchor-batch-qa-decision.json"),
+    path.join(currentRunDir, "qa", "anchor-batch-qa-report.json"),
+    path.join(currentRunDir, "blueprint", "quality-production-blueprint.json"),
+  ].filter((file) => fs.existsSync(file));
+
+  let evidence = null;
+  for (const file of candidates) {
+    const parsed = readJsonSafe(file);
+    const decision = normalizeText(firstNonEmpty([
+      parsed?.qa_decision,
+      parsed?.decision,
+      parsed?.status,
+      parsed?.anchor_batch?.qa_decision,
+      parsed?.anchor_batch?.decision,
+      parsed?.anchor_batch?.status,
+      parsed?.generation_pacing?.anchor_batch?.qa_decision,
+    ]));
+    if (["continue", "pass", "passed", "approved", "ready"].includes(decision)) {
+      evidence = { file, decision };
+      break;
+    }
+    if (["revise_prompt", "ask_user", "blocked", "fail", "failed"].includes(decision)) {
+      evidence = { file, decision };
+      break;
+    }
+  }
+
+  if (!evidence) {
+    findings.push({
+      severity: "fail",
+      type: "missing-anchor-batch-qa-decision",
+      gate_id: "final-delivery-gate",
+      source_report: "generated-assets/anchor-batch-qa-decision.json",
+      message: "Multi-image quality delivery requires anchor batch QA evidence before continuing the full set. Generate a small anchor batch, record qa_decision=continue/pass, then continue missing assets only.",
+    });
+    return;
+  }
+  if (!["continue", "pass", "passed", "approved", "ready"].includes(evidence.decision)) {
+    findings.push({
+      severity: "fail",
+      type: "anchor-batch-qa-not-cleared",
+      gate_id: "final-delivery-gate",
+      source_report: path.relative(currentRunDir, evidence.file),
+      message: `Anchor batch QA decision is "${evidence.decision}", so full-set final delivery is not cleared.`,
+    });
+  }
+}
+
 function requiresGeometryGate(filePath) {
   try {
     const parsed = JSON.parse(fs.readFileSync(filePath, "utf8"));
@@ -442,20 +607,27 @@ function requiresPhysicalTruthGate(filePath) {
   }
 }
 
-function inferRunLocale(runDir) {
+function inferRunContext(runDir) {
   const taskContextPath = path.join(runDir, "00-task-context.yaml");
-  const fromTaskContext = extractYamlScalar(taskContextPath, "locale");
-  if (fromTaskContext) return fromTaskContext;
+  const context = {
+    run_id: extractYamlScalar(taskContextPath, "run_id"),
+    platform: extractYamlScalar(taskContextPath, "platform"),
+    category: extractYamlScalar(taskContextPath, "category"),
+    locale: extractYamlScalar(taskContextPath, "locale"),
+  };
   const contextPlanPath = path.join(runDir, "research", "platform-context-plan.json");
   if (fs.existsSync(contextPlanPath)) {
     try {
       const plan = JSON.parse(fs.readFileSync(contextPlanPath, "utf8"));
-      return String(plan?.platform_category_profile_overlay?.locale || plan?.locale || "").trim();
+      const overlay = plan?.platform_category_profile_overlay || {};
+      context.platform ||= String(overlay.platform || plan?.platform || "").trim();
+      context.category ||= String(overlay.category || plan?.category || "").trim();
+      context.locale ||= String(overlay.locale || plan?.locale || "").trim();
     } catch {
-      return "";
+      return context;
     }
   }
-  return "";
+  return context;
 }
 
 function requiresLocalizedCopyQa(locale) {
@@ -496,6 +668,7 @@ function requiresSourceUnderstandingGate(filePath) {
 function normalizeStatus(status) {
   const value = String(status || "").toLowerCase();
   if (["pass", "ready", "ok", "continue"].includes(value)) return "pass";
+  if (["not_required", "not-required"].includes(value)) return "not_required";
   if (["pass_with_warnings", "ready_with_warnings", "warn"].includes(value)) return "warn";
   if (["fail", "failed"].includes(value)) return "fail";
   if (["blocked"].includes(value)) return "blocked";
@@ -512,6 +685,56 @@ function normalizeSeverity(severity) {
 
 function normalizeType(type) {
   return String(type || "unknown").trim().toLowerCase().replace(/_/g, "-");
+}
+
+function normalizeText(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function normalizeProgressImages(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      if (typeof item === "string") return path.basename(item);
+      if (!item || typeof item !== "object") return "";
+      return path.basename(item.path || item.file || item.filename || item.name || item.id || "");
+    })
+    .map((item) => String(item || "").trim())
+    .filter(Boolean);
+}
+
+function hasExternalFinalImport(progress) {
+  if (!progress || typeof progress !== "object") return false;
+  const text = normalizeText([
+    progress.source,
+    progress.mode,
+    progress.final_asset_origin,
+    progress.import_mode,
+    progress.reconciliation_mode,
+    progress.notes,
+  ].filter(Boolean).join(" "));
+  return Boolean(
+    progress.external_import_allowed
+    || progress.manual_final_import
+    || progress.reconciled_from_manifest
+    || /(external|manual import|imported final|manifest reconciliation|reconciled from manifest)/i.test(text)
+  );
+}
+
+function readJsonSafe(file) {
+  if (!file || !fs.existsSync(file)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function firstNonEmpty(values) {
+  for (const value of values) {
+    if (value !== undefined && value !== null && String(value).trim()) return value;
+  }
+  return "";
 }
 
 function gateIdFromName(name) {

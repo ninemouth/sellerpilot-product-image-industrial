@@ -174,6 +174,9 @@ record("workflow loop guard ordering", () => {
       "localized-copy-qa-gate-if-locale-needs-review",
       "compact-image-set-blueprint",
       "image-set-export-gate",
+      "anchor-batch-qa-decision-record",
+      "localized-final-visible-text-qa-if-locale-needs-review",
+      "generation-progress-reconcile-before-final-delivery",
       "qa-loop-router",
       "delivery-overview-contact-sheet-if-multi-image-set",
       "post-generation-tldraw-auto-start-if-generated-images",
@@ -195,7 +198,12 @@ record("workflow loop guard ordering", () => {
     assertStepBefore(file, steps, "product-physical-truth-lock-if-function-use-or-scale-sensitive", "product-physics-fact-gate-if-function-use-or-scale-sensitive");
     assertStepBefore(file, steps, "copy-strategy-gate", "marketing-quality-gate");
     assertStepBefore(file, steps, "localized-copy-qa-gate-if-locale-needs-review", "marketing-quality-gate");
+    assertStepBefore(file, steps, "anchor-batch-generation-loop-if-runtime-available", "anchor-batch-qa-decision-record");
+    assertStepBefore(file, steps, "anchor-batch-qa-decision-record", "continue-missing-assets-only");
+    assertStepBefore(file, steps, "localized-final-visible-text-qa-if-locale-needs-review", "marketing-quality-gate");
     assertStepBefore(file, steps, "image-set-export-gate", "qa-loop-router");
+    assertStepBefore(file, steps, "image-set-export-gate", "generation-progress-reconcile-before-final-delivery");
+    assertStepBefore(file, steps, "generation-progress-reconcile-before-final-delivery", "qa-loop-router");
     assertStepBefore(file, steps, "qa-loop-router", "delivery-overview-contact-sheet-if-multi-image-set");
     assertStepBefore(file, steps, "delivery-overview-contact-sheet-if-multi-image-set", "final-delivery-gate");
     assertStepBefore(file, steps, "delivery-overview-contact-sheet-if-multi-image-set", "post-generation-tldraw-auto-start-if-generated-images");
@@ -1028,6 +1036,11 @@ record("delivery overview and final gate smoke", () => {
     "--expected-count", "2",
     "--require-square",
   ]);
+  run(process.execPath, [
+    "scripts/reconcile-generation-progress.mjs",
+    "--run-dir", runDir,
+    "--manifest", path.join(runDir, "export", "final-images-manifest.json"),
+  ]);
   spawnSync(process.execPath, ["scripts/final-delivery-gate.mjs", "--run-dir", runDir], { cwd: skillRoot });
   const missingOverview = readJson(path.join(qaDir, "final-delivery-gate-report.json"));
   if (!missingOverview.findings.some((item) => item.type === "missing-delivery-overview")) {
@@ -1092,6 +1105,49 @@ record("final delivery gate requires localized copy qa for non english locales",
   const report = readJson(path.join(qaDir, "final-delivery-gate-report.json"));
   if (!report.findings.some((item) => item.source_report === "localized-copy-qa-report.json")) {
     throw new Error("final gate should require localized copy QA for ru-RU delivery.");
+  }
+});
+
+record("final delivery gate blocks stale progress and missing anchor decision", () => {
+  const runDir = path.join(tmpDir("sp-verify-final-progress-anchor-"), "run");
+  const imageDir = path.join(runDir, "final-images");
+  const qaDir = path.join(runDir, "qa");
+  run(process.execPath, [
+    "scripts/create-run-skeleton.mjs",
+    "--out-dir", runDir,
+    "--platform", "Ozon",
+    "--category", "garden trimmer",
+    "--run-id", "verify-progress-anchor",
+  ]);
+  execFileSync(process.execPath, ["-e", `
+    const sharp = require(${JSON.stringify(path.join(os.homedir(), ".cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/sharp"))});
+    const dir = process.argv[1];
+    (async () => { await Promise.all([1,2,3,4].map((i) =>
+      sharp({create:{width:900,height:1200,channels:4,background:i % 2 ? '#fff' : '#eee'}}).png().toFile(dir + '/IMG-0' + i + '-ozon-test-' + i + '.png')
+    )); })().catch((e)=>{ console.error(e); process.exit(1); });
+  `, imageDir], { cwd: skillRoot, stdio: "inherit" });
+  fs.writeFileSync(path.join(qaDir, "marketing-quality-gate-report.json"), JSON.stringify({ status: "pass", findings: [] }));
+  fs.writeFileSync(path.join(qaDir, "copy-strategy-gate-report.json"), JSON.stringify({ status: "pass", findings: [] }));
+  run(process.execPath, [
+    "scripts/image-set-export-gate.mjs",
+    "--run-dir", runDir,
+    "--image-dir", imageDir,
+    "--out-dir", qaDir,
+    "--expected-count", "4",
+  ]);
+  run(process.execPath, [
+    "scripts/create-delivery-overview.mjs",
+    "--run-dir", runDir,
+    "--manifest", path.join(runDir, "export", "final-images-manifest.json"),
+    "--out-dir", path.join(runDir, "overview"),
+  ]);
+  spawnSync(process.execPath, ["scripts/final-delivery-gate.mjs", "--run-dir", runDir], { cwd: skillRoot });
+  const report = readJson(path.join(qaDir, "final-delivery-gate-report.json"));
+  if (!report.findings.some((item) => item.type === "stale-generation-progress")) {
+    throw new Error("final gate should block stale not_started/planned generation progress when final images exist.");
+  }
+  if (!report.findings.some((item) => item.type === "missing-anchor-batch-qa-decision")) {
+    throw new Error("final gate should block multi-image quality delivery without anchor batch QA decision.");
   }
 });
 
@@ -1210,6 +1266,47 @@ record("marketing gate watermark fail", () => {
   if (report.status !== "fail") throw new Error("marketing gate should reject platform-pack labels.");
 });
 
+record("marketing gate catches blank module and source-language residue flags", () => {
+  const dir = tmpDir("sp-verify-marketing-final-visual-flags-");
+  const panelsPath = path.join(dir, "panels.json");
+  fs.writeFileSync(panelsPath, JSON.stringify([
+    {
+      id: "IMG-02",
+      title: "Clear buyer-facing title",
+      image_role: "use case comparison",
+      commercial_task: "Show the two blade use cases without unsupported claims.",
+      camera_angle: "front three-quarter",
+      image: path.join(dir, "IMG-02.png"),
+      background_or_scene: "clean marketplace studio with small garden prop surface",
+      props_or_model_context: "subtle garden-use props with product scale kept consistent",
+      lighting: "clean marketplace studio, 70mm lens, softbox light, product centered for mobile commerce detail clarity, audience fit: fast product inspection",
+      photography_style_archetype: "clean marketplace studio, 70mm lens, softbox light, product centered for mobile commerce detail clarity, audience fit: fast product inspection",
+      product_placement: "product remains the main subject with blades shown as verified accessories only",
+      visual_composition: "role-specific comparison layout with no empty cards",
+      graphic_design_intent: "Role-specific two-use comparison layout",
+      design_quality_bar: "Clear hierarchy, safe spacing, mobile thumbnail readable, role-specific variation recorded.",
+      typography_hierarchy: "Title/subtitle scale is reserved and does not cover the product.",
+      safe_zone_notes: "Keep product and text inside platform-safe center region.",
+      mobile_thumbnail_rule: "Recognizable product shape at mobile thumbnail size.",
+      visual_difference_from_previous: "Distinct commercial task and layout from hero image.",
+      blank_region_risk: "detected large blank top module",
+      source_language_residue_risk: "detected Chinese source poster residue",
+    },
+  ], null, 2));
+  spawnSync(process.execPath, [
+    "scripts/marketing-gate-check.mjs",
+    "--copy-json", panelsPath,
+    "--out-dir", path.join(dir, "qa"),
+  ], { cwd: skillRoot });
+  const report = readJson(path.join(dir, "qa", "marketing-quality-gate-report.json"));
+  if (!report.findings.some((item) => item.type === "blank-or-empty-final-module")) {
+    throw new Error("marketing gate should catch blank/empty final modules from structured final review flags.");
+  }
+  if (!report.findings.some((item) => item.type === "source-or-non-target-language-residue")) {
+    throw new Error("marketing gate should catch source/non-target language residue from structured final review flags.");
+  }
+});
+
 record("copy strategy gate smoke", () => {
   const dir = tmpDir("sp-verify-copy-");
   const contextPath = path.join(dir, "platform-context-plan.json");
@@ -1296,6 +1393,55 @@ record("localized copy qa gate smoke", () => {
   const report = readJson(path.join(qaDir, "localized-copy-qa-report.json"));
   if (report.status !== "pass") throw new Error("localized copy QA gate should pass with traced source, review notes, and back-translation.");
   if (report.review_required !== true) throw new Error("localized copy QA should require review for ru-RU.");
+});
+
+record("localized copy qa catches final raster source-language residue", () => {
+  const dir = tmpDir("sp-verify-localized-raster-");
+  const runDir = path.join(dir, "run");
+  const qaDir = path.join(runDir, "qa");
+  const panelsPath = path.join(runDir, "blueprint", "panels.json");
+  const manifestPath = path.join(runDir, "export", "final-images-manifest.json");
+  fs.mkdirSync(path.dirname(panelsPath), { recursive: true });
+  fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
+  fs.mkdirSync(qaDir, { recursive: true });
+  fs.writeFileSync(panelsPath, JSON.stringify([
+    {
+      id: "IMG-04",
+      title: "Для сада",
+      source_text: "原文：适合花园修剪。",
+      translation_review_notes: "Meaning checked for ru-RU.",
+      back_translation: "Suitable for garden trimming.",
+      translation_confidence: 0.94,
+      text_direction: "ltr",
+    },
+  ], null, 2));
+  fs.writeFileSync(manifestPath, JSON.stringify({
+    images: [{ index: 1, file: "IMG-04-garden-use-case.png", path: path.join(runDir, "final-images", "IMG-04-garden-use-case.png") }],
+  }, null, 2));
+  fs.writeFileSync(path.join(qaDir, "final-visible-text-review.json"), JSON.stringify({
+    images: [{
+      image_index: 1,
+      file: "IMG-04-garden-use-case.png",
+      visible_text: "中文海报残留",
+      languages: ["zh-CN"],
+      source_language_residue: true,
+    }],
+  }, null, 2));
+  spawnSync(process.execPath, [
+    "scripts/localized-copy-qa-gate.mjs",
+    "--copy-json", panelsPath,
+    "--locale", "ru-RU",
+    "--source-locale", "zh-CN",
+    "--run-dir", runDir,
+    "--manifest", manifestPath,
+    "--final-visible-text-review", path.join(qaDir, "final-visible-text-review.json"),
+    "--out-dir", qaDir,
+  ], { cwd: skillRoot });
+  const report = readJson(path.join(qaDir, "localized-copy-qa-report.json"));
+  if (report.status !== "fail") throw new Error("localized copy QA should fail source-language residue in final raster review.");
+  if (!report.findings.some((item) => item.type === "final-image-source-language-residue")) {
+    throw new Error("localized copy QA should report final-image-source-language-residue.");
+  }
 });
 
 record("localized copy qa gate catches rtl direction issues", () => {
