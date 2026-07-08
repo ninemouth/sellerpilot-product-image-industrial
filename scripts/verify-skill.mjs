@@ -160,6 +160,7 @@ record("workflow loop guard ordering", () => {
   for (const file of workflows) {
     const steps = workflowSteps(file);
     for (const required of [
+      "skill-update-check-first",
       "create-run-skeleton",
       "production-efficiency-plan",
       "source-product-understanding-ai-text-first-ocr-if-needed",
@@ -179,6 +180,8 @@ record("workflow loop guard ordering", () => {
     ]) {
       if (!steps.includes(required)) throw new Error(`${file} missing workflow step ${required}`);
     }
+    assertStepBefore(file, steps, "resolve-skill-root", "skill-update-check-first");
+    assertStepBefore(file, steps, "skill-update-check-first", "production-mode-router");
     assertStepBefore(file, steps, "create-run-skeleton", "image-set-export-gate");
     assertStepBefore(file, steps, "production-mode-router", "production-efficiency-plan");
     assertStepBefore(file, steps, "production-efficiency-plan", "compact-image-set-blueprint");
@@ -328,6 +331,24 @@ record("skill update checker smoke", () => {
   const cached = JSON.parse(cachedOut);
   if (!cached.cache_hit || cached.remote.commit !== "2222222222222222222222222222222222222222") {
     throw new Error("update checker should use fresh cache instead of rechecking remote.");
+  }
+});
+
+record("production update gate contract", () => {
+  const skill = fs.readFileSync(path.join(skillRoot, "SKILL.md"), "utf8");
+  const agents = fs.readFileSync(path.join(skillRoot, "AGENTS.md"), "utf8");
+  const readme = fs.readFileSync(path.join(skillRoot, "README.md"), "utf8");
+  if (!skill.includes("Every production request must start with the update check")) {
+    throw new Error("SKILL.md must require update check as the first production gate.");
+  }
+  if (!skill.includes("Do not enter production planning, source analysis, image generation, QA, or canvas launch until the user chooses")) {
+    throw new Error("SKILL.md must pause production when update_available is detected.");
+  }
+  if (!agents.includes("所有 production request 的第一步必须运行 skill update check")) {
+    throw new Error("AGENTS.md must require update check as the first production step.");
+  }
+  if (!readme.includes("用户选择前不进入生产规划、生图、QA 或画布启动")) {
+    throw new Error("README.md must document the update_available pause behavior.");
   }
 });
 

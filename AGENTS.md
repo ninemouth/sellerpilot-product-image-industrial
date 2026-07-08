@@ -46,11 +46,13 @@ Intent -> Normalize -> Mode Router -> Efficiency Plan -> Brief Intake Gate -> So
 28. Ozon 普通品类默认使用 3:4 竖版商品图比例；只有 Ozon Fresh 食品类例外或当前官方/品类证据要求时才使用 1:1。导出 gate 必须从当前 run 的平台/品类或显式参数执行比例校验。
 29. 当用户明确提出或确认某平台/某品类的图片特质、风格取向、文案语气、陈列节奏或禁用项时，只要属于平台属性类，就必须写入 platform preference memory；不得写入商品身份、私密业务数据、供应商/客户信息、unsupported claims 或一次性失败反馈。后续同平台/同类商品图必须先 apply 该记忆，再结合当前用户需求、商品事实和实时调研决定是否采用。
 30. 平台/商品/爆品图研究的目标不是堆报告，而是提升点击理解、用户停留和购买信任。转化关键、品类竞争、用户明确要求“爆品/销售/停留/点击”时，必须运行 commerce design research planner，把点击钩子、停留机制、信任疑虑、买家问题和画廊叙事回写到套图蓝图、文案和 QA 标准。
+31. 所有 production request 的第一步必须运行 skill update check。`current` 则静默继续；`update_available` 必须先询问用户是否现在更新，用户选择前不得进入生产规划、生图、QA 或画布启动；用户同意更新后必须验证再同步安装目录；用户拒绝更新时记录决定后继续。`unknown_*` 或超时不阻塞生产，但不得声称当前安装版已是最新。
 
 ## Default Workflow
 
 Fast generation mode uses this compact workflow unless the user requests a full audit package:
 
+- skill-update-check-first
 - input-normalizer
 - production-mode-router
 - production-efficiency-plan

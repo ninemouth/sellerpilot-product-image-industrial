@@ -5,6 +5,7 @@ inherits: ecommerce-product-image-generation
 goal: Use competitor references for analysis only and create differentiated GPT built-in image generation prompts; execute generation through Codex-native or host runtime when available.
 steps:
   - resolve-skill-root
+  - skill-update-check-first
   - production-mode-router
   - production-efficiency-plan
   - input-normalizer

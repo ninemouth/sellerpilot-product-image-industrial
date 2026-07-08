@@ -81,6 +81,7 @@ execution_modes:
     write_verbose_work_artifacts: true
 steps:
   - resolve-skill-root
+  - skill-update-check-first
   - production-mode-router
   - production-efficiency-plan
   - input-normalizer

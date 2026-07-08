@@ -5,6 +5,7 @@ inherits: ecommerce-product-image-generation
 goal: Generate Xiaohongshu content-native cover and seed image packs using GPT built-in image generation prompts plus QA/export gates; create request packs only as fallback or audit evidence.
 steps:
   - resolve-skill-root
+  - skill-update-check-first
   - production-mode-router
   - production-efficiency-plan
   - input-normalizer

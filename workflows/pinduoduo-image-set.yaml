@@ -5,6 +5,7 @@ inherits: ecommerce-product-image-generation
 goal: Apply Pinduoduo-specific constraints to the platform-agnostic ecommerce product image generation loop, typically 7-9 images, with Chinese conversion copy, visually distinct marketing roles, GPT built-in image generation prompts for true lifestyle scene images when requested, product-fact boundaries, QA, review surface, revision brief, and export package.
 steps:
   - resolve-skill-root
+  - skill-update-check-first
   - production-mode-router
   - production-efficiency-plan
   - input-normalizer

@@ -383,11 +383,11 @@ node scripts/qa-loop-router.mjs --run-dir runs/demo-amazon-bag
 npm run sync -- --source "$PWD"
 ```
 
-## 更新感知和自动更新边界
+## Production 更新检查
 
-这个 skill 支持“自动感知是否需要更新”，但不会在未获授权时自动覆盖安装目录。
+所有 production request 的第一步都会先检查本地安装版是否落后于 GitHub，但不会在未获授权时自动覆盖安装目录。
 
-正常 Codex 使用中，skill 会优先用缓存做轻量更新检查：
+检查命令是：
 
 ```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/check-skill-update.mjs \
@@ -397,17 +397,17 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
 
 可能返回：
 
-- `current`：当前安装版和 GitHub `main` 一致，继续工作。
-- `update_available`：安装版落后于 GitHub，可以选择先更新或当前任务结束后更新。
-- `unknown_local_revision` / `unknown_remote_revision`：无法确认版本，例如网络不可达、没有 release metadata 或远端超时。此时不应阻塞出图。
+- `current`：当前安装版和 GitHub `main` 一致，静默继续任务。
+- `update_available`：安装版落后于 GitHub，Codex 必须先询问是否现在更新；用户选择前不进入生产规划、生图、QA 或画布启动。
+- `unknown_local_revision` / `unknown_remote_revision`：无法确认版本，例如网络不可达、没有 release metadata 或远端超时。此时不阻塞出图，但不能声称当前安装版已是最新。
 
 为什么不完全自动更新：
 
 - Codex skill 是本地能力目录，覆盖前应该备份并验证。
 - 用户可能正在使用本地开发版或临时改动版。
-- 自动更新可能改变当前任务行为，尤其是长任务或正在修订的图片生产流程。
+- 自动更新可能改变当前任务行为，尤其是长任务或正在修订的图片生产流程，所以发现新版时先询问用户。
 
-推荐更新流程仍然是：
+用户确认更新后，推荐更新流程是：
 
 ```bash
 git pull

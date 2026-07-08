@@ -25,9 +25,9 @@ When developing this skill outside the installed capability root, verify the dev
 
 Do not copy competitor visuals, invent product facts, auto-publish assets, or promise CTR, CVR, ROAS, ACOS, ranking, or sales lift.
 
-## Fast Start And Update Awareness
+## Production Update Gate
 
-At the start of a normal production request, run only a lightweight update awareness check if it can use cache or finish quickly:
+Every production request must start with the update check before mode routing, planning, source analysis, or generation:
 
 ```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/check-skill-update.mjs \
@@ -35,7 +35,13 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
   --timeout-ms 1500
 ```
 
-This check is non-blocking. If it reports `current`, continue silently. If it reports `update_available`, briefly tell the user the installed skill appears behind GitHub and offer to update before or after the current run. If it reports `unknown_*`, timed out, or uses stale cache, continue the image workflow and mention it only when the user asks about version freshness. Do not auto-install or overwrite a skill without explicit user authorization.
+Handle the result as a gate:
+
+- `current`: continue the production request silently.
+- `update_available`: pause before formal production and ask the user whether to update now. Do not enter production planning, source analysis, image generation, QA, or canvas launch until the user chooses. If the user chooses update, run the verified update flow (`git pull`, `npm run verify`, then `npm run sync -- --source "$PWD"` from the development clone when available, or reinstall from GitHub if no clone exists). If the user declines or says to continue with the installed version, record that decision in the task notes and continue.
+- `unknown_*`, timeout, stale cache, or missing local clone: continue the image workflow without blocking, but briefly tell the user update freshness could not be confirmed and avoid claiming the installed skill is current.
+
+Never auto-install or overwrite a skill without explicit user authorization.
 
 For speed-sensitive chat generation, use the lightest mode that can still protect final image quality. Do not treat `fast_generation` as the universal default for ecommerce finals. Use `quality_production` for normal multi-image sets, high-quality final assets, scene-heavy requests, physical-function/scale-sensitive products, or conversion-critical platform/category work. Quality production must keep the delivery overview contact sheet, and it should keep planning compact instead of writing separate verbose industrial reports. For generated multi-image final sets, auto-start the tldraw review workspace after final images are exported and the delivery overview is created, before final user handoff. Use cached platform/profile memory unless the platform/category/season/region/trend question is current or conversion-critical. For Ozon, use the platform profile's 3:4 portrait export baseline by default; only use 1:1 when the profile exception or current official category evidence requires it.
 
@@ -88,8 +94,9 @@ For normal chat, do not create every artifact listed in the full output contract
 ## Execution Flow
 
 1. Resolve the skill root to `${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial`. Read `${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/AGENTS.md` before running a production image workflow. Do not search only the current workspace for `AGENTS.md`.
-1a. Select the production mode with `production-mode-router.mjs` when the request is not explicitly a tiny single-image task. Default high-quality ecommerce套图 to `quality_production`, not `fast_generation`; use `industrial_audit` only when the user wants full evidence or migration artifacts.
-1b. Run `production-efficiency-plan.mjs` before heavy planning or generation. In `quality_production`, keep planning compact by merging product facts, identity/geometry/physical locks, platform context, buyer questions, shot matrix, copy intent, prompt-layer decisions, and QA criteria into `blueprint/quality-production-blueprint.json` instead of writing every industrial report separately.
+1a. Run the Production Update Gate with `check-skill-update.mjs` as the first executable production step. If it reports `update_available`, ask the user whether to update now before any production planning or generation. If it reports `current`, continue silently. If freshness is unknown, continue with a concise note that update status could not be confirmed.
+1b. Select the production mode with `production-mode-router.mjs` when the request is not explicitly a tiny single-image task. Default high-quality ecommerce套图 to `quality_production`, not `fast_generation`; use `industrial_audit` only when the user wants full evidence or migration artifacts.
+1c. Run `production-efficiency-plan.mjs` before heavy planning or generation. In `quality_production`, keep planning compact by merging product facts, identity/geometry/physical locks, platform context, buyer questions, shot matrix, copy intent, prompt-layer decisions, and QA criteria into `blueprint/quality-production-blueprint.json` instead of writing every industrial report separately.
 2. Run the Brief Intake Gate. If required information is missing, ask at most three high-value questions and record the assumptions. If no material gap exists, continue without interrupting the user.
 2a. When the user request is rough or commercially open-ended, load `references/strategy-direction-routing.md`, create 2-3 production direction options, and run `strategy-direction-handoff-gate.mjs` before formal production. The first visible response to the user must include the short direction choices plus the harness-selected fallback. Do not skip this just because enough facts exist to generate. If the user has no clear preference, continue with the harness-selected `selected_option_id`, record the reason in `strategy/direction-selection.yaml`, and keep the user-visible handoff in `strategy/direction-user-handoff.md`.
 3. Use `workflows/ecommerce-product-image-generation.yaml` as the default master workflow for complete product image generation. Then load the closest platform-specific workflow/profile only for extra constraints:
@@ -177,7 +184,7 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
   --timeout-ms 1500
 ```
 
-Use this as a lightweight, cache-first freshness check in Codex usage. It compares the installed release metadata or local git commit against the configured GitHub branch when the cache is stale. It must not block generation; report update availability as a concise note and continue unless the user chooses to update.
+Use this as the mandatory first gate for production requests. It compares the installed release metadata or local git commit against the configured GitHub branch when the cache is stale. `current` continues silently. `update_available` must pause formal production and ask the user whether to update before continuing. Unknown freshness should not block production, but it must not be presented as current.
 
 ```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/production-mode-router.mjs \
