@@ -90,6 +90,7 @@ if (!fs.existsSync(manifest)) {
     url: parsed?.url || null,
     autoStart,
     workspace_result: parsed,
+    review_completion_wait_command: `node ${path.join(skillRoot, "scripts", "wait-for-review-completion.mjs")} --workspace-dir ${outDir} --run-dir ${runDir} --session-id ${sessionId}`,
     message: ready
       ? autoStart ? "Post-generation tldraw workspace is ready." : "Post-generation tldraw workspace files were created without auto-start."
       : "Post-generation tldraw workspace could not be started. Keep the workspace files and report the blocked reason.",
@@ -122,6 +123,7 @@ function toMarkdown(report) {
     `- Workspace: ${report.outDir}`,
     `- Session: ${report.sessionId}`,
     `- URL: ${report.url || "none"}`,
+    `- Review completion wait command: ${report.review_completion_wait_command || "none"}`,
     `- Message: ${report.message}`,
     "",
   ].join("\n");

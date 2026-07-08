@@ -17,7 +17,8 @@
     "plan:efficiency": "node scripts/production-efficiency-plan.mjs",
     "memory:platform": "node scripts/platform-preference-memory.mjs",
     "plan:commerce-research": "node scripts/commerce-design-research-planner.mjs",
-    "launch:canvas": "node scripts/post-generation-tldraw-launcher.mjs"
+    "launch:canvas": "node scripts/post-generation-tldraw-launcher.mjs",
+    "wait:review": "node scripts/wait-for-review-completion.mjs"
   },
   "optionalDependencies": {
     "playwright": "^1.61.1",

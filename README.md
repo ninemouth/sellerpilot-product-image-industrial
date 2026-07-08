@@ -308,7 +308,16 @@ npm run launch:canvas -- \
   --title "商品图审核工作台"
 ```
 
-这个命令会读取当前任务的 final-images manifest，创建 `review-workspace/`，把图片作为 tldraw 底层锁定图形导入，并默认启动或复用共享 tldraw 服务。自测或只想生成文件时才加 `--no-auto-start`。
+这个命令会读取当前任务的 final-images manifest，创建 `review-workspace/`，把图片作为 tldraw 底层锁定图形导入，并默认启动或复用共享 tldraw 服务。用户在画布中标注后点击 **Complete Review**，本地服务会把交接数据写回 `review-workspace/data/review-completion.json`，并生成 `review-workspace/data/review-completion-ready.json`。Codex 随后可以运行 `wait-for-review-completion.mjs` 自动解析成 `generation-tasks.json` 并继续只修改受影响图片。自测或只想生成文件时才加 `--no-auto-start`。
+
+等待画布完成并转换为修订任务：
+
+```bash
+node scripts/wait-for-review-completion.mjs \
+  --workspace-dir runs/demo-amazon-bag/review-workspace \
+  --run-dir runs/demo-amazon-bag \
+  --session-id demo-amazon-bag
+```
 
 创建任务目录：
 

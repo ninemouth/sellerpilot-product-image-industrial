@@ -446,7 +446,7 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
   --title "商品图审核工作台"
 ```
 
-This creates a React + Vite review workspace from the current run manifest with copied image assets, `data/import-manifest.json`, `data/annotations.json`, `data/canvas-state.json`, `data/review-completion.json`, and `data/generation-tasks.json`. By default it also starts or reuses the shared tldraw service and returns a ready session URL. The review plane must use native tldraw as the actual drawing canvas: generated product images are imported as locked bottom-floor tldraw image shapes, while tldraw pen, arrow, shape, note, text, A-H standards, issue markers, and revision annotations live above those images in the same canvas coordinate system. Do not use a left sidebar or an HTML image-card overlay above the tldraw canvas. Put the image file list in the top dropdown; tldraw zoom/pan is allowed because images and annotations scale together inside the same canvas. The session id should be the run id unless an explicit unique session id is provided.
+This creates a React + Vite review workspace from the current run manifest with copied image assets, `data/import-manifest.json`, `data/annotations.json`, `data/canvas-state.json`, `data/review-completion.json`, `data/review-completion-ready.json`, and `data/generation-tasks.json`. By default it also starts or reuses the shared tldraw service and returns a ready session URL. The review plane must use native tldraw as the actual drawing canvas: generated product images are imported as locked bottom-floor tldraw image shapes, while tldraw pen, arrow, shape, note, text, A-H standards, issue markers, and revision annotations live above those images in the same canvas coordinate system. Do not use a left sidebar or an HTML image-card overlay above the tldraw canvas. Put the image file list in the top dropdown; tldraw zoom/pan is allowed because images and annotations scale together inside the same canvas. The session id should be the run id unless an explicit unique session id is provided.
 
 For generated multi-image final sets, use the post-generation launcher so the workspace and shared canvas service are started automatically after export and overview. For single-image drafts or non-final planning artifacts, create the workspace only when visual review is requested or a gate fails. Use `--no-auto-start` only for selftests, file-only artifact generation, or explicitly non-interactive audit archives.
 
@@ -487,8 +487,19 @@ This writes `data/server-state.json` with the selected localhost URL. It starts 
 After the user exports or saves annotations, convert them into generation tasks:
 
 ```bash
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/wait-for-review-completion.mjs \
+  --workspace-dir /abs/run/review-workspace \
+  --run-dir /abs/run \
+  --session-id run-or-chat-id
+```
+
+This waits for the user to click `Complete Review`, detects `data/review-completion-ready.json`, parses `data/review-completion.json` into `data/generation-tasks.json`, writes `qa/review-completion-wakeup-report.json`, and lets Codex continue only the affected revision tasks.
+
+If the user manually provides an annotations or completion JSON file, parse it directly:
+
+```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/parse-canvas-annotations.mjs \
-  --annotations /abs/run/review-workspace/data/annotations.json \
+  --annotations /abs/run/review-workspace/data/review-completion.json \
   --out /abs/run/review-workspace/data/generation-tasks.json \
   --run-dir /abs/run
 ```
@@ -501,7 +512,7 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
   --out-dir /abs/run/review-workspace/captures
 ```
 
-The completion button creates a screenshot-oriented `review-completion.json` browser payload and PNG. Parse either `annotations.json` or the completion payload with `parse-canvas-annotations.mjs`, then continue only the affected revision tasks.
+The completion button posts the tldraw snapshot and structured annotation payload to the local review service, which writes `data/review-completion.json` and `data/review-completion-ready.json` back into the run workspace. It also keeps the JSON download fallback for browser-only failure cases. When visual screenshot evidence is needed, capture the browser session, then continue only the affected revision tasks.
 
 If a native Codex/Sites, Creative Production, Figma/FigJam, or app widget review surface is available in the current session and can actually render the image assets, render that review surface too; still keep the tldraw workspace files or annotation JSON as the durable artifact. Do not render a widget with local paths when it only shows placeholders.
 

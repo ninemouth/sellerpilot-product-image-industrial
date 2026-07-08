@@ -236,6 +236,8 @@ record("review workspace UI contract", () => {
     "createShapeId",
     "locked image-floor shapes",
     "action-complete-review",
+    "COMPLETE_REVIEW_API_URL",
+    "__SELLERPILOT_REVIEW_HANDOFF_RESULT__",
     "review_completion.v2",
     "native-tldraw",
     "compact-field",
@@ -257,6 +259,15 @@ record("review workspace UI contract", () => {
   }
   if (!/isLocked:\s*true/.test(main) || !/sendToBack/.test(main)) {
     throw new Error("review workspace must lock imported image shapes and send them behind tldraw annotations.");
+  }
+  const vite = fs.readFileSync(path.join(skillRoot, "assets", "tldraw-review-workspace", "vite.config.js"), "utf8");
+  for (const token of [
+    "sellerpilotReviewHandoffPlugin",
+    "/complete-review",
+    "review-completion-ready.json",
+    "ready_for_codex",
+  ]) {
+    if (!vite.includes(token)) throw new Error(`review workspace vite.config.js missing ${token}`);
   }
 });
 
@@ -1467,6 +1478,7 @@ record("tldraw workspace smoke", () => {
     "data/annotations.json",
     "data/canvas-state.json",
     "data/review-completion.json",
+    "data/review-completion-ready.json",
     "data/generation-tasks.json",
     "public/imported-images/IMG-01-main-product.png",
   ]) {
@@ -1475,6 +1487,12 @@ record("tldraw workspace smoke", () => {
   const manifest = readJson(path.join(outDir, "data", "import-manifest.json"));
   if (manifest.protocol?.review_completion_file !== "data/review-completion.json") {
     throw new Error("review workspace manifest should expose review completion file.");
+  }
+  if (manifest.protocol?.review_completion_ready_file !== "data/review-completion-ready.json") {
+    throw new Error("review workspace manifest should expose review completion ready file.");
+  }
+  if (!/Complete Review posts/.test(manifest.protocol?.auto_handoff_policy || "")) {
+    throw new Error("review workspace manifest should record auto handoff policy.");
   }
   if (!/bottom floor layer/.test(manifest.protocol?.layer_policy || "")) {
     throw new Error("review workspace manifest should record layer policy.");
@@ -1576,6 +1594,51 @@ record("review completion parse smoke", () => {
   }
   if (parsed.tasks[0].return_node !== "product-identity-lock") {
     throw new Error("identity drift completion task should route to product identity lock.");
+  }
+});
+
+record("review completion wakeup smoke", () => {
+  const runDir = path.join(tmpDir("sp-verify-review-wakeup-"), "run");
+  const workspaceDir = path.join(runDir, "review-workspace");
+  fs.mkdirSync(path.join(workspaceDir, "data"), { recursive: true });
+  fs.writeFileSync(path.join(workspaceDir, "data", "review-completion.json"), JSON.stringify({
+    schema_version: "sellerpilot.review_completion.v2",
+    saved_at: new Date().toISOString(),
+    handoff_status: "ready_for_codex",
+    workspace: { run_dir: runDir, workspace_dir: workspaceDir, session_id: "verify-wakeup" },
+    annotations: [{
+      id: "ann-1",
+      image_id: "IMG-02",
+      image_file: "IMG-02-detail.png",
+      region: "C-main-title",
+      issue_type: "copy-adjust",
+      priority: "P1",
+      comment: "文案太像内部说明，改成买家语言。",
+    }],
+    canvas_state: { board: { zoom_policy: "locked-no-independent-canvas-zoom" } },
+  }, null, 2));
+  fs.writeFileSync(path.join(workspaceDir, "data", "review-completion-ready.json"), JSON.stringify({
+    schema_version: "sellerpilot.review_completion_ready.v1",
+    status: "ready",
+    session_id: "verify-wakeup",
+    workspace_dir: workspaceDir,
+    completion_file: path.join(workspaceDir, "data", "review-completion.json"),
+  }, null, 2));
+  run(process.execPath, [
+    "scripts/wait-for-review-completion.mjs",
+    "--workspace-dir", workspaceDir,
+    "--run-dir", runDir,
+    "--session-id", "verify-wakeup",
+    "--timeout-ms", "1000",
+  ]);
+  const tasks = readJson(path.join(workspaceDir, "data", "generation-tasks.json"));
+  if (tasks.task_count !== 1) throw new Error("review completion watcher should parse one task.");
+  if (tasks.tasks[0].return_node !== "localized-copy-pack") {
+    throw new Error("copy-adjust wakeup task should route to localized-copy-pack.");
+  }
+  const wakeup = readJson(path.join(runDir, "qa", "review-completion-wakeup-report.json"));
+  if (wakeup.status !== "ready" || wakeup.task_count !== 1) {
+    throw new Error("review completion watcher should write a ready wakeup report.");
   }
 });
 

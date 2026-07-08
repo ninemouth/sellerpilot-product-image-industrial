@@ -72,7 +72,7 @@ if (fs.existsSync(existingSessionManifestPath) && !args["allow-session-reuse"]) 
 fs.rmSync(sessionDir, { recursive: true, force: true });
 fs.mkdirSync(path.join(sessionDir, "data"), { recursive: true });
 fs.cpSync(path.join(workspaceDir, "public", "imported-images"), path.join(sessionDir, "imported-images"), { recursive: true });
-for (const name of ["annotations.json", "canvas-state.json", "generation-tasks.json"]) {
+for (const name of ["annotations.json", "canvas-state.json", "generation-tasks.json", "review-completion.json", "review-completion-ready.json"]) {
   const source = path.join(workspaceDir, "data", name);
   if (fs.existsSync(source)) fs.copyFileSync(source, path.join(sessionDir, "data", name));
 }

@@ -11,6 +11,9 @@ const COMPLETION_KEY = `sellerpilot.review.completion.v1:${STORAGE_SCOPE}`;
 const MANIFEST_URL = SESSION_ID
   ? `/sessions/${encodeURIComponent(SESSION_ID)}/data/import-manifest.json`
   : "/data/import-manifest.json";
+const COMPLETE_REVIEW_API_URL = SESSION_ID
+  ? `/api/sessions/${encodeURIComponent(SESSION_ID)}/complete-review`
+  : "/api/workspace/complete-review";
 
 const REGIONS = [
   ["A-product-subject", "A product"],
@@ -227,7 +230,7 @@ function App() {
     setStatus("tldraw canvas state exported");
   };
 
-  const completeReview = () => {
+  const completeReview = async () => {
     const payload = buildCompletionPayload({
       manifest,
       annotations,
@@ -239,7 +242,19 @@ function App() {
     window.__SELLERPILOT_REVIEW_COMPLETION__ = payload;
     setCompletion(payload);
     downloadJson("review-completion.json", payload);
-    setStatus("review complete: tldraw snapshot and JSON handoff ready");
+    try {
+      const response = await fetch(COMPLETE_REVIEW_API_URL, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`);
+      window.__SELLERPILOT_REVIEW_HANDOFF_RESULT__ = result;
+      setStatus("review complete: saved to Codex handoff files");
+    } catch (error) {
+      setStatus(`review complete: download ready; auto handoff save failed: ${error.message}`);
+    }
   };
 
   const focusSelectedImage = () => {

@@ -99,7 +99,10 @@ const manifest = {
     canvas_state_file: "data/canvas-state.json",
     generation_tasks_file: "data/generation-tasks.json",
     review_completion_file: "data/review-completion.json",
+    review_completion_ready_file: "data/review-completion-ready.json",
+    review_completion_wakeup_report_file: "data/review-completion-wakeup-report.json",
     review_screenshot_pattern: "sellerpilot-review-*.png",
+    auto_handoff_policy: "Complete Review posts the handoff payload to the local tldraw service, which writes review-completion-ready.json for Codex to detect and parse.",
     layer_policy: "generated images are the bottom floor layer; standards and annotations float above; no independent canvas zoom",
   },
 };
@@ -144,7 +147,16 @@ fs.writeFileSync(path.join(outDir, "data", "review-completion.json"), JSON.strin
   annotation_count: 0,
   open_annotation_count: 0,
   review_screenshot: null,
-  next_codex_step: "Click Complete Review in the browser, then have Codex capture the session or parse the downloaded review-completion.json.",
+  next_codex_step: "Click Complete Review in the browser. The local service should save review-completion-ready.json; Codex can then run wait-for-review-completion.mjs.",
+}, null, 2));
+fs.writeFileSync(path.join(outDir, "data", "review-completion-ready.json"), JSON.stringify({
+  schema_version: "sellerpilot.review_completion_ready.v1",
+  status: "not_ready",
+  session_id: sessionId,
+  workspace_dir: outDir,
+  created_at: now,
+  completion_file: path.join(outDir, "data", "review-completion.json"),
+  generation_tasks_file: path.join(outDir, "data", "generation-tasks.json"),
 }, null, 2));
 
 fs.writeFileSync(path.join(outDir, "HOW_TO_USE_WITH_CODEX.md"), [
@@ -167,13 +179,13 @@ fs.writeFileSync(path.join(outDir, "HOW_TO_USE_WITH_CODEX.md"), [
   "2. Generated images are imported into native tldraw as locked bottom-floor image shapes.",
   "3. Use tldraw's native pen, arrow, shape, note, and text tools directly on top of the images.",
   "4. Use the top image dropdown to focus an image; use the optional Form panel only for structured metadata.",
-  "5. Click `Complete Review` to create `review-completion.json` with the tldraw snapshot and structured annotation payload.",
-  "6. Ask Codex to capture the browser session or parse the completion/annotations JSON into `data/generation-tasks.json`.",
+  "5. Click `Complete Review` to save `data/review-completion.json` and mark `data/review-completion-ready.json`.",
+  "6. Codex can wait for that ready marker and parse it into `data/generation-tasks.json`.",
   "",
   "Codex handoff command:",
   "",
   "```bash",
-  `node ${path.join(skillRoot, "scripts", "parse-canvas-annotations.mjs")} --annotations ${path.join(outDir, "data", "annotations.json")} --out ${path.join(outDir, "data", "generation-tasks.json")}`,
+  `node ${path.join(skillRoot, "scripts", "wait-for-review-completion.mjs")} --workspace-dir ${outDir} --run-dir ${runDir || path.dirname(outDir)} --session-id ${sessionId}`,
   "```",
   "",
   "Codex screenshot/session capture command when a browser session URL is available:",
