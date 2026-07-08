@@ -9,6 +9,15 @@
 - `references/`、`platform-profiles/`、`workflows/`：按需读取的行业规则和流程资料。
 - `assets/tldraw-review-workspace/`：用于看图、批注、截图回传的本地画布工作台。
 
+## 最新更新
+
+2026-07-08 版本重点增强了平台适配、风格记忆和商业研究闭环：
+
+- **Ozon 比例规则**：普通品类默认按 `3:4` 竖版商品图导出，Ozon Fresh 食品类等例外按平台 profile 或当前官方证据处理；导出 gate 会从当前任务的 `platform/category` 自动推断比例。
+- **平台/品类偏好记忆**：用户明确确认过的某平台同类商品图片特质、风格方向、文案语气、陈列节奏和禁用项，会保存为 platform preference memory；后续同平台/同品类任务会先读取该记忆，再结合当前商品事实和最新调研决定是否采用。
+- **商业设计研究计划**：当任务目标涉及“爆品图”“提升销售”“点击”“停留”或品类竞争时，skill 会生成 commerce design research plan，把点击钩子、停留机制、信任疑虑、买家问题、画廊叙事和文案节奏回写到套图蓝图与 QA 标准。
+- **验证闭环**：`npm run verify` 覆盖 Ozon 3:4 导出、平台记忆 apply/remember、商业设计研究 planner、总览图、tldraw 自动启动、跨任务图片隔离和 QA retry budget。
+
 ## 它能做什么
 
 - 根据商品原图、商品 URL、竞品参考图、目标平台、国家/语言、目标人群和风格要求，规划并生成电商商品图套图。
