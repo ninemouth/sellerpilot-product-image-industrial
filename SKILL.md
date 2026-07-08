@@ -37,7 +37,7 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
 
 This check is non-blocking. If it reports `current`, continue silently. If it reports `update_available`, briefly tell the user the installed skill appears behind GitHub and offer to update before or after the current run. If it reports `unknown_*`, timed out, or uses stale cache, continue the image workflow and mention it only when the user asks about version freshness. Do not auto-install or overwrite a skill without explicit user authorization.
 
-For speed-sensitive chat generation, use the lightest mode that can still protect final image quality. Do not treat `fast_generation` as the universal default for ecommerce finals. Use `quality_production` for normal multi-image sets, high-quality final assets, scene-heavy requests, physical-function/scale-sensitive products, or conversion-critical platform/category work. Quality production must keep the delivery overview contact sheet, and it should keep planning compact instead of writing separate verbose industrial reports. For generated multi-image final sets, auto-start the tldraw review workspace after final images are exported and the delivery overview is created, before final user handoff. Use cached platform/profile memory unless the platform/category/season/region/trend question is current or conversion-critical.
+For speed-sensitive chat generation, use the lightest mode that can still protect final image quality. Do not treat `fast_generation` as the universal default for ecommerce finals. Use `quality_production` for normal multi-image sets, high-quality final assets, scene-heavy requests, physical-function/scale-sensitive products, or conversion-critical platform/category work. Quality production must keep the delivery overview contact sheet, and it should keep planning compact instead of writing separate verbose industrial reports. For generated multi-image final sets, auto-start the tldraw review workspace after final images are exported and the delivery overview is created, before final user handoff. Use cached platform/profile memory unless the platform/category/season/region/trend question is current or conversion-critical. For Ozon, use the platform profile's 3:4 portrait export baseline by default; only use 1:1 when the profile exception or current official category evidence requires it.
 
 ## User Request Contract
 
@@ -104,8 +104,33 @@ For normal chat, do not create every artifact listed in the full output contract
 4a. Create Source Product Understanding from the original/enhanced source image before identity lock or prompt work. Use Codex visual inspection first to recognize product type, structure, components, material/color, physical size cues, scale references, visible text, labels, warnings, dimensions, specs, and function clues. Run local OCR only when AI visual reading detects visible text, is uncertain, cannot confidently transcribe text, or the text may reveal size, model, compatibility, warning, certification, installation, material, quantity, or weight. Record verified text-derived facts and propagate them into identity lock, physical truth lock, geometry lock, and prompt layers. Do not generate over these facts or silently drop them.
 5. Create a Product Identity Lock from all source/enhanced images and Source Product Understanding before generation. Lock silhouette, proportions, color family, material appearance, hardware, closure, straps/handles, accessories, logo/markings, distinctive details, and text-derived facts that affect physical size/function. If no source image exists, do not call generated images identity-preserving.
 5a. For physical products, load `references/product-physical-truth.md`. Create `blueprint/02b-product-physical-truth.json` before shot matrix or prompt work whenever the set shows installation, use steps, scale, cable/strap routing, moving parts, fixtures, fasteners, load, waterproofing, or product function. Lock confirmed functions, confirmed user actions, forbidden generated functions, and scale reference. Do not show invented use mechanisms such as unsupported press locks, adhesive/magnetic mounting, waterproof electrical behavior, extra moving parts, or inconsistent product size across images. Run `product-physics-fact-gate.mjs` before final delivery when physical function or scale appears in the image set.
-6. Load only the relevant baseline platform profile from `platform-profiles/`.
+6. Load only the relevant baseline platform profile from `platform-profiles/`. For Ozon, the baseline export ratio is `3:4` portrait for normal categories; the Ozon Fresh food exception is `1:1` unless current official evidence says otherwise.
+6a. Apply platform/category preference memory before platform context planning:
+
+```bash
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/platform-preference-memory.mjs \
+  --mode apply \
+  --platform "Ozon" \
+  --category "women bag" \
+  --locale "ru-RU" \
+  --run-dir /abs/run
+```
+
+Use `memory/platform-preference-overlay.json` only as confirmed platform/category style memory. It may influence visual traits, style direction, copy tone, merchandising rhythm, and avoid notes, but it must not override current user instructions, source product identity, official platform rules, physical truth, or fresh research. If the current user explicitly gives or confirms platform-level traits such as "Ozon 同类女包要保持 3:4、干净主图、俄语短文案", remember those traits after classification with `--mode remember`. Do not store product identity facts, private business data, supplier/customer details, unsupported claims, or one-off generation failures.
 7. Run platform/category research with web search only when the target platform/category tone is unclear, recent, or conversion-critical, or when season/climate/holiday/region/hotword copy materially affects conversion. Treat platform YAML as a baseline, not complete live truth. Load `references/contextual-platform-research.md` when season, climate, holiday, region, trend, or marketing language matters. Create `research/platform-context-plan.json` and a run-level platform/category overlay from current research. If no trigger exists, use the platform profile baseline and record `skip_use_platform_yaml_baseline` in the efficiency plan.
+7a. When the task is conversion-critical, dwell-time-sensitive, category-competitive, or the user asks for "爆品/提升销售/停留/点击", run the commerce design research planner before audience positioning, shot matrix, copy, and prompt layers:
+
+```bash
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/commerce-design-research-planner.mjs \
+  --run-dir /abs/run \
+  --platform "Ozon" \
+  --category "women bag" \
+  --locale "ru-RU" \
+  --goal both \
+  --research-depth compact
+```
+
+The planner is a budgeted research contract, not a competitor-copy license. Extract click hooks, dwell-time mechanisms, trust cues, buyer objections, category gallery sequence, and copy rhythm; then update `blueprint/quality-production-blueprint.json` fields such as buyer question, conversion task, shot direction, copy intent, prompt-layer needs, and QA acceptance criteria.
 8. Run bestseller design mining only when marketing enhancement, click appeal, category differentiation, or "爆品" learning is required. Borrow patterns, not assets, layouts, copy, or brand style. Do not run full market research by default in quality production.
 9. Run Product Feature Analysis and Audience Positioning Analysis. Convert confirmed traits into buyer-relevant benefits, detail-shot opportunities, scene triggers, buyer motivations, purchase objections, aesthetic preferences, and copy voice. Keep unsupported claims out of final image copy.
 9a. Load `references/copy-strategy-loop.md` before final image text or prompt delivery. Plan copy from product truth plus platform/category/season/region research, run `copy-strategy-gate.mjs`, and revise only failed copy fields before marketing QA.
@@ -217,6 +242,32 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
 Use the platform context planner before conversion-oriented planning and copy. It reads the baseline platform YAML, reports whether it is sufficient as stable memory, creates a freshness/query plan, and writes dynamic platform/category/season/region context into the run overlay.
 
 ```bash
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/platform-preference-memory.mjs \
+  --mode remember \
+  --platform "Ozon" \
+  --category "women bag" \
+  --locale "ru-RU" \
+  --trait "3:4 portrait first image with clean marketplace readability" \
+  --style "minimal premium detail gallery" \
+  --copy-tone "short Russian benefit phrasing" \
+  --source-note "user_confirmed_platform_style_trait"
+```
+
+Use platform preference memory only for durable platform/category visual, copy, and merchandising preferences that the user explicitly gives or confirms. Apply it at the start of later same-platform/same-category runs with `--mode apply --run-dir /abs/run`. The store lives outside task runs at `${SELLERPILOT_IMAGE_SKILL_MEMORY:-$HOME/.codex/sellerpilot-product-image-industrial}/platform-preference-memory.json`; run overlays are copied into `memory/platform-preference-overlay.json`.
+
+```bash
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/commerce-design-research-planner.mjs \
+  --run-dir /abs/run \
+  --platform "Ozon" \
+  --category "women bag" \
+  --locale "ru-RU" \
+  --goal both \
+  --research-depth compact
+```
+
+Use the commerce design research planner when sales intent, click appeal, dwell time, category differentiation, or bestseller pattern learning matters. It creates `research/commerce-design-research-plan.json` and `.md` with a bounded query plan, reference budget, extraction framework, pass criteria, and blueprint fields that must be updated before visual director and copy strategy.
+
+```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/build-source-image-set.mjs \
   --images "/abs/front.png,/abs/detail.png,/abs/side.png" \
   --out-dir /abs/run \
@@ -326,10 +377,10 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
   --image-dir /abs/run/final-images \
   --out-dir /abs/run/qa \
   --expected-count 8 \
-  --require-square
+  --required-ratio 3:4
 ```
 
-Use the export gate before final delivery to catch contact-sheet-only outputs, non-independent images, missing English purpose slugs in filenames, low resolution, wrong aspect ratios, and cross-task image scope risk. This writes `export/final-images-manifest.json`; use that manifest for overview and review surfaces.
+Use the export gate before final delivery to catch contact-sheet-only outputs, non-independent images, missing English purpose slugs in filenames, low resolution, wrong aspect ratios, and cross-task image scope risk. This writes `export/final-images-manifest.json`; use that manifest for overview and review surfaces. When `--run-dir` has a known platform context and no explicit `--required-ratio` is provided, the gate may infer the required ratio from the platform profile, such as Ozon `3:4` portrait for normal categories.
 
 ```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/create-delivery-overview.mjs \
@@ -488,6 +539,8 @@ Fast generation mode should provide:
 - Concise product physical truth notes when function, installation, use steps, dimensions, or scale affected the image set
 - Concise visual strategy / shot matrix summary
 - Concise platform/category/season/region context summary when it affected strategy or copy
+- Platform/category preference overlay when matching user-confirmed memory exists
+- Commerce design research plan when conversion, click appeal, dwell time, or bestseller learning is required
 - Final prompt/request summary sufficient for review
 - Focused QA summary covering product identity, scene reality, visual diversity, platform fit, and buyer-facing copy
 - tldraw review session URL after generated multi-image final sets are exported; single-image/draft fast mode may skip unless review is requested or a gate fails
@@ -541,6 +594,8 @@ Industrial audit mode should provide the complete workflow artifacts:
 - Platform/Category Research Brief when research is required
 - Platform Context Plan with freshness cadence, season, climate, holiday, region, and trend query plan when relevant
 - Platform/Category Profile Overlay
+- Platform Preference Overlay when matching user-confirmed memory exists
+- Commerce Design Research Plan when conversion, click appeal, dwell time, or bestseller learning is required
 - Bestseller Design Mining Report when marketing enhancement is requested
 - Copy Strategy Gate Report
 - Product Physics Fact Gate Report for physical function/use/scale-sensitive products

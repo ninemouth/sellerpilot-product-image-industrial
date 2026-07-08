@@ -166,6 +166,9 @@ record("workflow loop guard ordering", () => {
       "source-product-understanding-gate-if-source-facts-or-visible-text",
       "product-identity-lock",
       "product-physical-truth-lock-if-function-use-or-scale-sensitive",
+      "platform-preference-memory-apply-if-platform-category-match",
+      "platform-preference-memory-remember-if-user-confirms-platform-traits",
+      "commerce-design-research-planner-if-conversion-critical",
       "copy-strategy-gate",
       "compact-image-set-blueprint",
       "image-set-export-gate",
@@ -182,6 +185,8 @@ record("workflow loop guard ordering", () => {
     assertStepBefore(file, steps, "source-product-understanding-ai-text-first-ocr-if-needed", "product-identity-lock");
     assertStepBefore(file, steps, "source-product-understanding-gate-if-source-facts-or-visible-text", "product-identity-lock");
     assertStepBefore(file, steps, "product-identity-lock", "compact-image-set-blueprint");
+    assertStepBefore(file, steps, "platform-preference-memory-apply-if-platform-category-match", "platform-context-planner");
+    assertStepBefore(file, steps, "commerce-design-research-planner-if-conversion-critical", "audience-persona");
     assertStepBefore(file, steps, "compact-image-set-blueprint", "prompt-layer-stack");
     assertStepBefore(file, steps, "product-physical-truth-lock-if-function-use-or-scale-sensitive", "product-physics-fact-gate-if-function-use-or-scale-sensitive");
     assertStepBefore(file, steps, "copy-strategy-gate", "marketing-quality-gate");
@@ -652,6 +657,83 @@ record("platform context planner smoke", () => {
   if (!Array.isArray(plan.query_plan) || !plan.query_plan.length) throw new Error("platform context planner should create query plan.");
 });
 
+record("platform preference memory smoke", () => {
+  const root = tmpDir("sp-verify-platform-memory-");
+  const memoryRoot = path.join(root, "memory-root");
+  const runDir = path.join(root, "run");
+  run(process.execPath, [
+    "scripts/create-run-skeleton.mjs",
+    "--out-dir", runDir,
+    "--platform", "Ozon",
+    "--category", "women bag",
+  ]);
+  const rememberedOut = run(process.execPath, [
+    "scripts/platform-preference-memory.mjs",
+    "--memory-root", memoryRoot,
+    "--mode", "remember",
+    "--platform", "Ozon",
+    "--category", "women bag",
+    "--locale", "ru-RU",
+    "--trait", "3:4 portrait first image with clean marketplace readability",
+    "--style", "minimal premium detail gallery for Ozon women bag",
+    "--copy-tone", "short Russian benefit phrasing",
+    "--avoid", "do not overload the first image with infographic labels",
+    "--avoid", "supplier password token",
+    "--source-note", "user_confirmed_platform_style_trait",
+  ]);
+  const remembered = JSON.parse(rememberedOut);
+  if (remembered.status !== "remembered") throw new Error("platform preference memory should remember confirmed platform traits.");
+  if (remembered.entry.avoid.some((item) => /password|token/i.test(item))) {
+    throw new Error("platform preference memory should not store private/non-platform avoid notes.");
+  }
+  run(process.execPath, [
+    "scripts/platform-preference-memory.mjs",
+    "--memory-root", memoryRoot,
+    "--mode", "apply",
+    "--platform", "Ozon",
+    "--category", "women bag",
+    "--locale", "ru-RU",
+    "--run-dir", runDir,
+  ]);
+  const overlay = readJson(path.join(runDir, "memory", "platform-preference-overlay.json"));
+  if (overlay.status !== "applied") throw new Error("platform preference memory should apply matching platform/category memory.");
+  if (!overlay.merged_preferences.visual_traits.some((item) => /3:4 portrait/.test(item))) {
+    throw new Error("platform preference overlay should include remembered visual traits.");
+  }
+  if (!overlay.use_policy.includes("Do not override current user instructions")) {
+    throw new Error("platform preference overlay should include a use policy boundary.");
+  }
+});
+
+record("commerce design research planner smoke", () => {
+  const runDir = path.join(tmpDir("sp-verify-commerce-research-"), "run");
+  run(process.execPath, [
+    "scripts/create-run-skeleton.mjs",
+    "--out-dir", runDir,
+    "--platform", "Ozon",
+    "--category", "women bag",
+  ]);
+  run(process.execPath, [
+    "scripts/commerce-design-research-planner.mjs",
+    "--run-dir", runDir,
+    "--platform", "Ozon",
+    "--category", "women bag",
+    "--locale", "ru-RU",
+    "--goal", "both",
+    "--research-depth", "compact",
+  ]);
+  const plan = readJson(path.join(runDir, "research", "commerce-design-research-plan.json"));
+  if (plan.research_budget.required_reference_count !== 4) throw new Error("compact commerce research should use compact reference budget.");
+  for (const key of ["first_second_click_hook", "dwell_time_mechanisms", "trust_and_objection_handlers", "conversion_copy"]) {
+    if (!Array.isArray(plan.extraction_framework[key]) || !plan.extraction_framework[key].length) {
+      throw new Error(`commerce design research plan missing extraction framework ${key}.`);
+    }
+  }
+  if (!plan.output_contract.blueprint_fields_to_update.includes("image_set[].buyer_question")) {
+    throw new Error("commerce design research should write back into image-set buyer questions.");
+  }
+});
+
 record("blocked scaffold smoke", () => {
   const runDir = path.join(tmpDir("sp-verify-blocked-"), "run");
   run(process.execPath, [
@@ -807,6 +889,81 @@ record("export gate pass and draft fail", () => {
   ], { cwd: skillRoot });
   const report = readJson(path.join(dir, "qa-fail", "image-set-export-gate-report.json"));
   if (report.status !== "fail") throw new Error("export gate should reject draft final image.");
+});
+
+record("ozon export ratio gate smoke", () => {
+  const root = tmpDir("sp-verify-ozon-ratio-");
+  const runDir = path.join(root, "run");
+  const imageDir = path.join(runDir, "final-images");
+  run(process.execPath, [
+    "scripts/create-run-skeleton.mjs",
+    "--out-dir", runDir,
+    "--platform", "Ozon",
+    "--category", "women bag",
+  ]);
+  execFileSync(process.execPath, ["-e", `
+    const sharp = require(${JSON.stringify(path.join(os.homedir(), ".cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/sharp"))});
+    const dir = process.argv[1];
+    (async () => { await Promise.all([
+      sharp({create:{width:900,height:1200,channels:4,background:'#fff'}}).png().toFile(dir + '/IMG-01-main-product.png'),
+      sharp({create:{width:900,height:1200,channels:4,background:'#eee'}}).png().toFile(dir + '/IMG-02-detail-material.png')
+    ]); })().catch((e)=>{ console.error(e); process.exit(1); });
+  `, imageDir], { cwd: skillRoot, stdio: "inherit" });
+  run(process.execPath, [
+    "scripts/image-set-export-gate.mjs",
+    "--run-dir", runDir,
+    "--image-dir", imageDir,
+    "--out-dir", path.join(runDir, "qa-ozon-pass"),
+    "--expected-count", "2",
+    "--require-square",
+  ]);
+  const pass = readJson(path.join(runDir, "qa-ozon-pass", "image-set-export-gate-report.json"));
+  if (pass.required_ratio !== "3:4" || pass.require_square !== false) {
+    throw new Error("Ozon export gate should infer 3:4 from platform profile and disable generic square fallback.");
+  }
+
+  execFileSync(process.execPath, ["-e", `
+    const sharp = require(${JSON.stringify(path.join(os.homedir(), ".cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/sharp"))});
+    const dir = process.argv[1];
+    (async () => { await sharp({create:{width:1200,height:1200,channels:4,background:'#ddd'}}).png().toFile(dir + '/IMG-02-detail-material.png'); })().catch((e)=>{ console.error(e); process.exit(1); });
+  `, imageDir], { cwd: skillRoot, stdio: "inherit" });
+  spawnSync(process.execPath, [
+    "scripts/image-set-export-gate.mjs",
+    "--run-dir", runDir,
+    "--image-dir", imageDir,
+    "--out-dir", path.join(runDir, "qa-ozon-fail"),
+    "--expected-count", "2",
+  ], { cwd: skillRoot });
+  const fail = readJson(path.join(runDir, "qa-ozon-fail", "image-set-export-gate-report.json"));
+  if (fail.status !== "fail" || !fail.findings.some((item) => item.type === "wrong-required-aspect-ratio")) {
+    throw new Error("Ozon export gate should fail non-3:4 images for normal categories.");
+  }
+
+  const freshRun = path.join(root, "fresh-run");
+  const freshDir = path.join(freshRun, "final-images");
+  run(process.execPath, [
+    "scripts/create-run-skeleton.mjs",
+    "--out-dir", freshRun,
+    "--platform", "Ozon",
+    "--category", "Ozon Fresh food",
+  ]);
+  execFileSync(process.execPath, ["-e", `
+    const sharp = require(${JSON.stringify(path.join(os.homedir(), ".cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/sharp"))});
+    const dir = process.argv[1];
+    (async () => { await Promise.all([
+      sharp({create:{width:1200,height:1200,channels:4,background:'#fff'}}).png().toFile(dir + '/IMG-01-main-product.png'),
+      sharp({create:{width:1200,height:1200,channels:4,background:'#eee'}}).png().toFile(dir + '/IMG-02-detail-pack.png')
+    ]); })().catch((e)=>{ console.error(e); process.exit(1); });
+  `, freshDir], { cwd: skillRoot, stdio: "inherit" });
+  run(process.execPath, [
+    "scripts/image-set-export-gate.mjs",
+    "--run-dir", freshRun,
+    "--image-dir", freshDir,
+    "--out-dir", path.join(freshRun, "qa-fresh-pass"),
+    "--expected-count", "2",
+  ]);
+  const fresh = readJson(path.join(freshRun, "qa-fresh-pass", "image-set-export-gate-report.json"));
+  if (fresh.required_ratio !== "1:1") throw new Error("Ozon Fresh exception should infer 1:1.");
 });
 
 record("delivery overview and final gate smoke", () => {

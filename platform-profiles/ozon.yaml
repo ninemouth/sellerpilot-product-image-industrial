@@ -17,7 +17,7 @@ source_meta:
       type: official_ozon_seller_edu
 visual_strategy:
   default_set:
-    - square_main_product_image
+    - portrait_main_product_image
     - angle_gallery_image
     - detail_or_material_image
     - scale_or_dimension_image
@@ -27,12 +27,19 @@ visual_strategy:
   text_density: low_on_main_medium_in_rich_content
   language: ru-RU
 technical_baseline:
-  main_image_aspect_ratio: "1:1 square baseline"
+  main_image_aspect_ratio: "3:4 portrait default"
+  main_image_aspect_ratio_exception: "Ozon Fresh food category uses 1:1 square."
+  recommended_min_resolution: "900x1200 or higher for 3:4 portrait images"
+  export_gate:
+    required_aspect_ratio: "3:4"
+    ratio_tolerance: 0.02
+    exception_category_pattern: "Ozon Fresh|Продукты питания Ozon Fresh|fresh food"
   gallery_capacity: "Ozon Seller Edu public snippets indicate up to 30 photos: 1 main plus additional images; verify per category."
   main_image_content: "product only, no infographic/text/graphic elements on main image; light clean background baseline"
   file_types: [jpg, jpeg, png]
 image_guidance:
-  - make the first image square, product-only, clean, and easy to understand
+  - make the first image 3:4 portrait by default, product-only, clean, and easy to understand
+  - use 1:1 only for Ozon Fresh food-category exception or when current official/category evidence requires it
   - use additional images for all angles, details, materials, use cases, size, and included items
   - keep Russian copy concise and reserve richer explanation for rich content/detail modules
   - avoid putting infographic text on the main product image

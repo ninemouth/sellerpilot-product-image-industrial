@@ -50,6 +50,7 @@ for (const dir of [
   "source-understanding",
   "brief-intake",
   "strategy",
+  "memory",
   "research",
   "research/references",
   "blueprint",
@@ -188,6 +189,23 @@ writeIfMissing(path.join(outDir, "strategy", "direction-options.md"), [
   "- If the user does not choose, record the harness-selected direction and continue.",
   "",
 ].join("\n"));
+
+writeIfMissing(path.join(outDir, "memory", "platform-preference-overlay.json"), JSON.stringify({
+  schema_version: "sellerpilot.platform_preference_overlay.v1",
+  status: "not_run",
+  platform,
+  category,
+  locale: "",
+  matches: [],
+  merged_preferences: {
+    visual_traits: [],
+    style_direction: [],
+    avoid: [],
+    copy_tone: [],
+    merchandising_notes: [],
+  },
+  use_policy: "Use only confirmed platform/category style memory. Do not override current user instructions, product identity, official platform constraints, or fresh research.",
+}, null, 2) + "\n");
 
 writeIfMissing(path.join(outDir, "research", "platform-context-plan.md"), [
   "# Platform Context Plan",

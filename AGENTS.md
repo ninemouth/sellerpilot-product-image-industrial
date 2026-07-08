@@ -43,6 +43,9 @@ Intent -> Normalize -> Mode Router -> Efficiency Plan -> Brief Intake Gate -> So
 25. 每个任务必须有独立 `run_id` 和 run 目录。总览图、tldraw 工作台、导出 gate、A-H review 等只允许读取当前任务的 `export/final-images-manifest.json` 或当前 `run-dir/final-images`；不得扫描日期级目录、共享 `outputs/`、父目录或其他任务目录。
 26. 高质量多图成品必须强制保留交付总览图 `overview/SET-OVERVIEW-contact-sheet.png`。日常 Codex quality production 中的套图规划应保持紧凑，不得默认生成完整工业审计包里的多份长报告。
 27. 任务开始后必须写 `planning/production-efficiency-plan.json`，明确触发/跳过的工作、预算、进度文件和长耗时汇报规则。无触发信号时不得默认跑完整 web 调研、市场研究、URL 读取或预生成画布。
+28. Ozon 普通品类默认使用 3:4 竖版商品图比例；只有 Ozon Fresh 食品类例外或当前官方/品类证据要求时才使用 1:1。导出 gate 必须从当前 run 的平台/品类或显式参数执行比例校验。
+29. 当用户明确提出或确认某平台/某品类的图片特质、风格取向、文案语气、陈列节奏或禁用项时，只要属于平台属性类，就必须写入 platform preference memory；不得写入商品身份、私密业务数据、供应商/客户信息、unsupported claims 或一次性失败反馈。后续同平台/同类商品图必须先 apply 该记忆，再结合当前用户需求、商品事实和实时调研决定是否采用。
+30. 平台/商品/爆品图研究的目标不是堆报告，而是提升点击理解、用户停留和购买信任。转化关键、品类竞争、用户明确要求“爆品/销售/停留/点击”时，必须运行 commerce design research planner，把点击钩子、停留机制、信任疑虑、买家问题和画廊叙事回写到套图蓝图、文案和 QA 标准。
 
 ## Default Workflow
 
@@ -57,7 +60,10 @@ Fast generation mode uses this compact workflow unless the user requests a full 
 - source-product-understanding/ai-text-first-ocr-if-needed
 - product-identity-lock
 - product-physical-truth-lock-if-function/use/scale-sensitive
+- platform-preference-memory-apply-if-platform-category-match
+- platform-preference-memory-remember-if-user-confirms-platform-traits
 - platform/category baseline plus targeted research when useful
+- commerce-design-research-planner-if-conversion-dwell-bestseller-triggered
 - feature/audience/scene trigger summary
 - graphic-design-direction summary
 - visual-director shot matrix
@@ -81,8 +87,10 @@ Industrial audit mode uses the full workflow:
 - product-fact-sheet
 - product-physical-truth-lock
 - platform-spec-profile
+- platform-preference-memory
 - audience-persona
 - market-research
+- commerce-design-research-planner
 - product-positioning
 - visual-template-library
 - visual-strategy

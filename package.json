@@ -15,6 +15,8 @@
     "check:update": "node scripts/check-skill-update.mjs",
     "route:mode": "node scripts/production-mode-router.mjs",
     "plan:efficiency": "node scripts/production-efficiency-plan.mjs",
+    "memory:platform": "node scripts/platform-preference-memory.mjs",
+    "plan:commerce-research": "node scripts/commerce-design-research-planner.mjs",
     "launch:canvas": "node scripts/post-generation-tldraw-launcher.mjs"
   },
   "optionalDependencies": {

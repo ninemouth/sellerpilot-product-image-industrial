@@ -25,8 +25,8 @@ function parseArgs(argv) {
 
 function usage() {
   console.error(imageScopeUsage(`Usage:
-node scripts/image-set-export-gate.mjs --run-dir /abs/run --image-dir /abs/run/final-images --out-dir /abs/run/qa [--expected-count 8] [--require-square] [--allow-drafts]
-node scripts/image-set-export-gate.mjs --manifest /abs/run/export/final-images-manifest.json --out-dir /abs/run/qa [--expected-count 8]
+node scripts/image-set-export-gate.mjs --run-dir /abs/run --image-dir /abs/run/final-images --out-dir /abs/run/qa [--expected-count 8] [--require-square] [--required-ratio 3:4] [--platform Ozon] [--category apparel] [--allow-drafts]
+node scripts/image-set-export-gate.mjs --manifest /abs/run/export/final-images-manifest.json --out-dir /abs/run/qa [--expected-count 8] [--required-ratio 3:4] [--platform Ozon] [--category apparel]
 
 Checks exported image files for independent-file delivery, stable English filenames,
 minimum resolution, and contact-sheet-like aspect ratios.`));
@@ -45,11 +45,21 @@ try {
 
 const outDir = path.resolve(args["out-dir"]);
 const expectedCount = args["expected-count"] ? Number(args["expected-count"]) : null;
-const requireSquare = Boolean(args["require-square"]);
+let requireSquare = Boolean(args["require-square"]);
+let requiredRatio = args["required-ratio"] ? parseRatio(args["required-ratio"]) : null;
+const ratioTolerance = Number(args["ratio-tolerance"] || 0.02);
 const allowDrafts = Boolean(args["allow-drafts"]);
 fs.mkdirSync(outDir, { recursive: true });
 
 const scope = collectScopedImages(args, { purpose: "image-set-export-gate" });
+const platformContext = resolvePlatformContext(args, scope.runDir);
+const inferredRatio = requiredRatio ? null : inferPlatformRequiredRatio(platformContext);
+if (!requiredRatio && inferredRatio) {
+  requiredRatio = inferredRatio;
+  if (Math.abs(inferredRatio.value - 1) > ratioTolerance && requireSquare) {
+    requireSquare = false;
+  }
+}
 const files = scope.images;
 const imageDir = scope.imageDir || path.dirname(files[0] || "");
 const manifestResult = scope.runDir
@@ -120,6 +130,14 @@ for (const file of files) {
       message: `Image ratio is ${ratio.toFixed(3)}; expected independent 1:1 image.`,
     });
   }
+  if (requiredRatio && Math.abs(ratio - requiredRatio.value) > ratioTolerance) {
+    findings.push({
+      severity: "fail",
+      type: "wrong-required-aspect-ratio",
+      file,
+      message: `Image ratio is ${ratio.toFixed(3)}; expected ${requiredRatio.label} (${requiredRatio.value.toFixed(3)} width/height) within tolerance ${ratioTolerance}.`,
+    });
+  }
   if (ratio > 1.6 || ratio < 0.62) {
     findings.push({
       severity: "fail",
@@ -145,6 +163,11 @@ const report = {
   source: scope.source,
   image_manifest: manifestResult?.manifestPath || scope.manifestPath || null,
   expected_count: expectedCount,
+  required_ratio: requiredRatio?.label || null,
+  required_ratio_source: requiredRatio?.source || null,
+  ratio_tolerance: requiredRatio ? ratioTolerance : null,
+  require_square: requireSquare,
+  platform_context: platformContext,
   exported_count: files.length,
   files: fileReports,
   findings,
@@ -174,4 +197,86 @@ function toMarkdown(report) {
   }
   lines.push("");
   return lines.join("\n");
+}
+
+function parseRatio(value) {
+  const text = String(value || "").trim();
+  const match = text.match(/^(\d+(?:\.\d+)?)\s*[:x×/]\s*(\d+(?:\.\d+)?)$/i);
+  if (match) {
+    const width = Number(match[1]);
+    const height = Number(match[2]);
+    if (width > 0 && height > 0) return { label: `${width}:${height}`, value: width / height };
+  }
+  const number = Number(text);
+  if (Number.isFinite(number) && number > 0) return { label: text, value: number };
+  throw new Error(`Invalid --required-ratio "${value}". Use a value such as 1:1, 3:4, 4:5, or 0.75.`);
+}
+
+function resolvePlatformContext(input, runDir) {
+  const taskContext = runDir ? readTextIfExists(path.join(runDir, "00-task-context.yaml")) : "";
+  return {
+    platform: String(input.platform || extractYamlScalar(taskContext, "platform") || "").trim(),
+    category: String(input.category || extractYamlScalar(taskContext, "category") || "").trim(),
+  };
+}
+
+function inferPlatformRequiredRatio(context) {
+  const profilePath = resolveProfile(context.platform);
+  if (!profilePath) return null;
+  const profileText = readTextIfExists(profilePath);
+  const ratioText = extractYamlScalar(profileText, "required_aspect_ratio");
+  if (!ratioText) return null;
+  const exceptionPattern = extractYamlScalar(profileText, "exception_category_pattern");
+  if (exceptionPattern && context.category) {
+    try {
+      if (new RegExp(exceptionPattern, "i").test(context.category)) {
+        return { ...parseRatio("1:1"), source: `${path.relative(path.resolve(new URL("..", import.meta.url).pathname), profilePath)} exception_category_pattern` };
+      }
+    } catch {}
+  }
+  return { ...parseRatio(ratioText), source: path.relative(path.resolve(new URL("..", import.meta.url).pathname), profilePath) };
+}
+
+function resolveProfile(platform) {
+  const key = String(platform || "").trim().toLowerCase();
+  const mapping = [
+    [/拼多多|pinduoduo|pdd/, "pinduoduo.yaml"],
+    [/amazon|亚马逊/, "amazon.yaml"],
+    [/tiktok/, "tiktok-shop.yaml"],
+    [/小红书|xiaohongshu/, "xiaohongshu.yaml"],
+    [/抖音|douyin/, "douyin.yaml"],
+    [/京东|jd/, "jd.yaml"],
+    [/temu/, "temu.yaml"],
+    [/shein/, "shein.yaml"],
+    [/etsy/, "etsy.yaml"],
+    [/ozon|озон/, "ozon.yaml"],
+    [/wildberries|wb/, "wildberries.yaml"],
+    [/mercado/, "mercado-libre.yaml"],
+    [/falabella/, "falabella.yaml"],
+    [/shopee.*latam|brazil/, "shopee-latam.yaml"],
+    [/shopee|lazada/, "shopee-lazada.yaml"],
+    [/taobao|tmall|淘宝|天猫/, "taobao-tmall.yaml"],
+  ];
+  const found = mapping.find(([pattern]) => pattern.test(key));
+  if (!found) return null;
+  const file = path.join(path.resolve(new URL("..", import.meta.url).pathname), "platform-profiles", found[1]);
+  return fs.existsSync(file) ? file : null;
+}
+
+function readTextIfExists(file) {
+  try {
+    return fs.readFileSync(file, "utf8");
+  } catch {
+    return "";
+  }
+}
+
+function extractYamlScalar(text, key) {
+  const match = String(text || "").match(new RegExp(`^[ \\t]*${escapeRegex(key)}:[ \\t]*(.*)$`, "m"));
+  if (!match) return "";
+  return match[1].replace(/^["']|["']$/g, "").trim();
+}
+
+function escapeRegex(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

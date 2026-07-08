@@ -16,6 +16,9 @@
 - 在正式生产前，为粗略需求给出 2-3 个商业方向；用户不选时，harness 会自动选择一个方向继续。
 - 从源图中提取商品身份、可见文字、尺寸线索、材料/结构/功能信息，并把这些事实传递到后续图像生成和 QA。
 - 针对时令、气候、节假日、区域趋势和营销热词创建平台上下文计划。
+- 对 Ozon 普通品类默认执行 `3:4` 竖版商品图比例；Ozon Fresh 食品类等例外按平台 profile 或当前官方证据处理。
+- 记住用户明确确认过的平台/品类风格偏好，例如某平台同类商品的图片比例、主图取向、文案语气、陈列节奏或禁用项，下次同平台同品类制作时自动套用为参考。
+- 针对“爆品图”“提升销售”“点击”“停留”等目标，创建商业设计研究计划，把点击钩子、停留机制、信任疑虑和买家问题回写到套图蓝图、文案和 QA。
 - 对最终图片文案做策略 gate，避免无证据的夸张卖点、内部 QA 语言、平台水印或系统标记。
 - 强制保留商品套图总览图，但在日常高质量成品中收敛规划和报告产物，避免把完整工业审计包误跑成普通出图流程。
 - 用身份一致性、几何比例、物理功能、导出规范、总览图和 QA loop guard 降低“生造功能”“商品变形”“多任务图片串流”等风险。
@@ -237,6 +240,8 @@ npm run plan:efficiency -- \
 - 商品身份锁和源图理解摘要，包括 AI 视觉读取文字和条件 OCR 兜底提供的尺寸、型号、功能、标签等事实线索。
 - 必要时的物理功能锁、几何比例锁或微细节锁。
 - 镜头矩阵、场景策略、文案策略和 prompt layer 摘要。
+- 匹配到的平台/品类偏好记忆，例如同平台同类商品延续的视觉特质、风格方向、文案语气和禁用项。
+- 转化关键任务的商业设计研究计划，例如点击钩子、用户停留机制、信任疑虑处理和爆品模式借鉴边界。
 - Anchor batch QA 结论，以及后续只补齐缺失/失败图片的说明。
 - 相关 QA 结论：身份、物理/几何、文案、营销、导出、最终交付。
 - 生图完成后的 tldraw review session URL。多图最终成品会在导出和总览图完成后自动创建并启动画布；单图草稿可跳过，除非用户要求审核或 gate 失败。
@@ -315,6 +320,47 @@ node scripts/platform-context-planner.mjs \
   --category "women bag" \
   --season "summer"
 ```
+
+应用同平台/同品类偏好记忆：
+
+```bash
+npm run memory:platform -- \
+  --mode apply \
+  --platform "Ozon" \
+  --category "women bag" \
+  --locale "ru-RU" \
+  --run-dir runs/demo-ozon-bag
+```
+
+当用户明确确认某个平台/品类风格后，可以记住它：
+
+```bash
+npm run memory:platform -- \
+  --mode remember \
+  --platform "Ozon" \
+  --category "women bag" \
+  --locale "ru-RU" \
+  --trait "3:4 portrait first image with clean marketplace readability" \
+  --style "minimal premium detail gallery" \
+  --copy-tone "short Russian benefit phrasing" \
+  --source-note "user_confirmed_platform_style_trait"
+```
+
+记忆只保存平台/品类层面的视觉、文案和陈列偏好，不保存商品身份、私密业务信息、客户/供应商信息、无证据声明或一次失败反馈。
+
+创建商业设计研究计划：
+
+```bash
+npm run plan:commerce-research -- \
+  --run-dir runs/demo-ozon-bag \
+  --platform "Ozon" \
+  --category "women bag" \
+  --locale "ru-RU" \
+  --goal both \
+  --research-depth compact
+```
+
+这个计划用于把“平台/商品/爆品图研究”收敛成可执行字段：点击钩子、停留机制、信任疑虑、买家问题、画廊叙事、文案节奏，以及需要回写到套图蓝图和 QA 的标准。
 
 运行 QA loop router：
 

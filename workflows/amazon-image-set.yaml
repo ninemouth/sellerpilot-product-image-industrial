@@ -21,9 +21,12 @@ steps:
   - product-url-reader-if-url-provided
   - compact-product-fact-sheet-or-facts-section
   - platform-spec-profile
+  - platform-preference-memory-apply-if-platform-category-match
+  - platform-preference-memory-remember-if-user-confirms-platform-traits
   - platform-context-planner
   - platform-category-web-research-if-triggered-by-freshness-or-conversion-risk
   - platform-category-profile-overlay
+  - commerce-design-research-planner-if-conversion-critical
   - audience-persona
   - compact-market-research-if-triggered
   - product-positioning

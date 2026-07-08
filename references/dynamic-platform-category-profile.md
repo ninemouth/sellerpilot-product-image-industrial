@@ -17,8 +17,31 @@ Do not mutate the global platform profile during a run unless the new finding is
 Use three layers:
 
 1. **Baseline platform profile**: stable constraints, tone, image roles, known risks.
-2. **Dynamic run context**: current category norms, visual tropes, buyer language, season, climate, holiday, region, common scenes, detail conventions, and trend hypotheses.
-3. **Run decision**: what this product should follow, differentiate from, or avoid.
+2. **User-confirmed platform/category preference memory**: durable visual traits, style direction, copy tone, merchandising rhythm, and avoid notes that the user explicitly confirmed for this platform/category.
+3. **Dynamic run context**: current category norms, visual tropes, buyer language, season, climate, holiday, region, common scenes, detail conventions, and trend hypotheses.
+4. **Run decision**: what this product should follow, differentiate from, or avoid.
+
+Apply platform/category preference memory with:
+
+```bash
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/platform-preference-memory.mjs \
+  --mode apply \
+  --platform "Ozon" \
+  --category "women bag" \
+  --run-dir /abs/run
+```
+
+Remember new preferences only when the user explicitly gives or confirms a platform/category style trait:
+
+```bash
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/platform-preference-memory.mjs \
+  --mode remember \
+  --platform "Ozon" \
+  --category "women bag" \
+  --trait "3:4 portrait first image with clean marketplace readability"
+```
+
+Do not store product identity facts, private business data, supplier/customer data, unsupported claims, or one-off generation failures.
 
 ## Overlay Schema
 
@@ -41,6 +64,13 @@ platform_category_profile_overlay:
     regional_trend_scope:
     marketing_trend_intent:
   research_cadence: []
+  platform_preference_memory:
+    overlay_file: memory/platform-preference-overlay.json
+    status:
+    applied_traits: []
+    applied_style_direction: []
+    applied_copy_tone: []
+    applied_avoid: []
   web_research_required:
   query_plan: []
   official_constraints:
@@ -75,4 +105,5 @@ platform_category_profile_overlay:
 
 - Use the overlay for the current run.
 - Promote a finding into `platform-profiles/*.yaml` only after it appears repeatedly across runs or comes from official platform documentation.
+- Store user-confirmed recurring style preferences in platform preference memory, not in `platform-profiles/*.yaml`.
 - Keep trend and category findings in the run directory so the same skill can adapt by platform, category, and date without hardcoding stale assumptions.

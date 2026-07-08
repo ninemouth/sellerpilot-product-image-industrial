@@ -2,6 +2,17 @@
 
 Use this reference during market research and marketing enhancement. The goal is to learn what high-performing category images do well without copying competitor creative.
 
+Before live mining, create a bounded commerce design research plan when conversion, click appeal, dwell time, or bestseller learning is the goal:
+
+```bash
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/commerce-design-research-planner.mjs \
+  --run-dir /abs/run \
+  --platform "Ozon" \
+  --category "women bag" \
+  --goal both \
+  --research-depth compact
+```
+
 ## Core Rule
 
 Borrow patterns, not assets. Do not copy competitor layout, exact copy, brand style, model pose, background, image composition, or claims. Extract reusable design principles and adapt them to the user's product identity and facts.
@@ -48,10 +59,12 @@ bestseller_reference:
 Convert examples into reusable patterns:
 
 - click hook: what makes the first image readable in one second
+- dwell-time mechanism: what makes the shopper keep swiping, zooming, or reading the gallery
 - proof pattern: detail, comparison, scale, before/after, use-case, trust cue
 - scene pattern: where the product lives and why the buyer believes it
 - copy pattern: short phrase rhythm, benefit framing, objection handling
 - layout pattern: product scale, whitespace, typography density, label count
+- gallery sequence: how hero, proof, detail, scale, scene, comparison, and summary build a confidence path
 
 ## Sufficient Borrowing Criteria
 
@@ -77,5 +90,11 @@ Include:
 - references reviewed
 - extracted patterns
 - platform/category implications
-- which patterns are used in the image blueprint
+- which patterns are used in the image blueprint, with updated `buyer_question`, `conversion_task`, `shot_direction`, `copy_intent`, `prompt_layer_needs`, and `qa_acceptance_criteria`
 - rejected patterns and why
+
+## Hard Boundaries
+
+- Do not copy competitor assets, exact layout, exact copy, model pose, brand style, background, image composition, or claims.
+- Do not use a "bestseller" claim in buyer-facing copy unless the user provides evidence that the user's product is a bestseller.
+- Do not add unsupported superiority language such as "top seller", "best", "No.1", or guaranteed conversion language.
