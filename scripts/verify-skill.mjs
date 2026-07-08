@@ -163,6 +163,7 @@ record("workflow loop guard ordering", () => {
       "skill-update-check-first",
       "create-run-skeleton",
       "production-efficiency-plan",
+      "source-asset-normalization-for-card-and-infographic-layouts",
       "source-product-understanding-ai-text-first-ocr-if-needed",
       "source-product-understanding-gate-if-source-facts-or-visible-text",
       "product-identity-lock",
@@ -176,6 +177,7 @@ record("workflow loop guard ordering", () => {
       "image-set-export-gate",
       "anchor-batch-qa-decision-record",
       "localized-final-visible-text-qa-if-locale-needs-review",
+      "product-background-card-consistency-gate",
       "generation-progress-reconcile-before-final-delivery",
       "qa-loop-router",
       "delivery-overview-contact-sheet-if-multi-image-set",
@@ -189,6 +191,8 @@ record("workflow loop guard ordering", () => {
     assertStepBefore(file, steps, "create-run-skeleton", "image-set-export-gate");
     assertStepBefore(file, steps, "production-mode-router", "production-efficiency-plan");
     assertStepBefore(file, steps, "production-efficiency-plan", "compact-image-set-blueprint");
+    assertStepBefore(file, steps, "source-image-enhancement-if-needed", "source-asset-normalization-for-card-and-infographic-layouts");
+    assertStepBefore(file, steps, "source-asset-normalization-for-card-and-infographic-layouts", "source-product-understanding-ai-text-first-ocr-if-needed");
     assertStepBefore(file, steps, "source-product-understanding-ai-text-first-ocr-if-needed", "product-identity-lock");
     assertStepBefore(file, steps, "source-product-understanding-gate-if-source-facts-or-visible-text", "product-identity-lock");
     assertStepBefore(file, steps, "product-identity-lock", "compact-image-set-blueprint");
@@ -201,6 +205,7 @@ record("workflow loop guard ordering", () => {
     assertStepBefore(file, steps, "anchor-batch-generation-loop-if-runtime-available", "anchor-batch-qa-decision-record");
     assertStepBefore(file, steps, "anchor-batch-qa-decision-record", "continue-missing-assets-only");
     assertStepBefore(file, steps, "localized-final-visible-text-qa-if-locale-needs-review", "marketing-quality-gate");
+    assertStepBefore(file, steps, "product-background-card-consistency-gate", "marketing-quality-gate");
     assertStepBefore(file, steps, "image-set-export-gate", "qa-loop-router");
     assertStepBefore(file, steps, "image-set-export-gate", "generation-progress-reconcile-before-final-delivery");
     assertStepBefore(file, steps, "generation-progress-reconcile-before-final-delivery", "qa-loop-router");
@@ -483,6 +488,7 @@ record("run skeleton and gates smoke", () => {
     "00-task-context.yaml",
     "01-goal-contract.yaml",
     "strategy/direction-selection.yaml",
+    "source-normalized/product-normalization-report.json",
     "source-understanding/source-product-understanding.json",
     "research/platform-context-plan.md",
     "blueprint/02-identity-lock.yaml",
@@ -1028,6 +1034,7 @@ record("delivery overview and final gate smoke", () => {
   `, imageDir], { cwd: skillRoot, stdio: "inherit" });
   fs.writeFileSync(path.join(qaDir, "marketing-quality-gate-report.json"), JSON.stringify({ status: "pass", findings: [] }));
   fs.writeFileSync(path.join(qaDir, "copy-strategy-gate-report.json"), JSON.stringify({ status: "pass", findings: [] }));
+  fs.writeFileSync(path.join(qaDir, "product-background-card-consistency-gate-report.json"), JSON.stringify({ status: "pass", findings: [] }));
   run(process.execPath, [
     "scripts/image-set-export-gate.mjs",
     "--run-dir", runDir,
@@ -1264,6 +1271,74 @@ record("marketing gate watermark fail", () => {
   ], { cwd: skillRoot });
   const report = readJson(path.join(dir, "qa", "marketing-quality-gate-report.json"));
   if (report.status !== "fail") throw new Error("marketing gate should reject platform-pack labels.");
+});
+
+record("source asset normalization and product background gate smoke", () => {
+  const dir = tmpDir("sp-verify-source-asset-normalization-");
+  const source = path.join(dir, "source-gray-bg.png");
+  execFileSync(process.execPath, ["-e", `
+    const sharp = require(${JSON.stringify(path.join(os.homedir(), ".cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/sharp"))});
+    const out = process.argv[1];
+    (async () => {
+      const product = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="420" height="420"><rect width="420" height="420" fill="#eeeeee"/><rect x="140" y="95" width="145" height="245" rx="24" fill="#1687d9"/><circle cx="212" cy="210" r="34" fill="#e33"/></svg>');
+      await sharp(product).png().toFile(out);
+    })().catch((e)=>{ console.error(e); process.exit(1); });
+  `, source], { cwd: skillRoot, stdio: "inherit" });
+  const normalizedDir = path.join(dir, "source-normalized");
+  run(process.execPath, [
+    "scripts/normalize-source-product-asset.mjs",
+    "--input", source,
+    "--out-dir", normalizedDir,
+    "--card-color", "#ffffff",
+  ]);
+  const normalization = readJson(path.join(normalizedDir, "product-normalization-report.json"));
+  if (!fs.existsSync(normalization.outputs.product_cutout_transparent)) {
+    throw new Error("source asset normalization should create product-cutout-transparent.png.");
+  }
+  if (!fs.existsSync(normalization.outputs.product_on_card_safe)) {
+    throw new Error("source asset normalization should create product-on-card-safe.png.");
+  }
+  if (!(normalization.normalization.background_coverage > 0.3)) {
+    throw new Error("source asset normalization should remove the edge-connected gray background.");
+  }
+
+  const failingPanels = path.join(dir, "panels-fail.json");
+  fs.writeFileSync(failingPanels, JSON.stringify([
+    {
+      id: "IMG-02",
+      image_role: "parameter card",
+      layout_intent: "white card infographic",
+      card_background_color: "#ffffff",
+      product_asset_path: source,
+    },
+  ], null, 2));
+  spawnSync(process.execPath, [
+    "scripts/product-background-card-consistency-gate.mjs",
+    "--copy-json", failingPanels,
+    "--out-dir", path.join(dir, "qa-fail"),
+  ], { cwd: skillRoot });
+  const fail = readJson(path.join(dir, "qa-fail", "product-background-card-consistency-gate-report.json"));
+  if (fail.status !== "fail" || !fail.findings.some((item) => item.type === "product-background-card-mismatch")) {
+    throw new Error("product background gate should fail a gray no-alpha product asset placed on a white card.");
+  }
+
+  const passingPanels = path.join(dir, "panels-pass.json");
+  fs.writeFileSync(passingPanels, JSON.stringify([
+    {
+      id: "IMG-02",
+      image_role: "parameter card",
+      layout_intent: "white card infographic",
+      card_background_color: "#ffffff",
+      product_normalization_report: path.join(normalizedDir, "product-normalization-report.json"),
+    },
+  ], null, 2));
+  run(process.execPath, [
+    "scripts/product-background-card-consistency-gate.mjs",
+    "--copy-json", passingPanels,
+    "--out-dir", path.join(dir, "qa-pass"),
+  ]);
+  const pass = readJson(path.join(dir, "qa-pass", "product-background-card-consistency-gate-report.json"));
+  if (pass.status === "fail") throw new Error("product background gate should pass with a normalization report and transparent cutout.");
 });
 
 record("marketing gate catches blank module and source-language residue flags", () => {

@@ -43,6 +43,8 @@ Fail the image set if:
 - Most images use the same camera angle or product orientation.
 - Detail grids repeat the same crop while changing only labels, or include blank/irrelevant crops.
 - Final images contain large blank rounded cards, empty visual modules, unused white blocks, or layout slots with no product/copy purpose.
+- Product images placed on white cards, parameter cards, comparison cards, feature cards, or infographics retain a visible gray/white rectangular source background instead of a transparent/card-safe product asset.
+- Product asset edge background differs visibly from the card background color.
 - Final localized images contain source poster text, Chinese/source-language residue, non-target-language residue, or unreviewed mixed-script visible text.
 - Scene images do not show any environmental context, human styling, outfit context, or realistic placement.
 - Text is too small or low contrast for mobile thumbnail reading.

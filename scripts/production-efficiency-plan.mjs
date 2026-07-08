@@ -114,6 +114,7 @@ function buildPlan(ctx) {
       industrial_full_report_pack_only_when: "industrial_audit or repeated failure debug",
       do_not_skip: [
         "source product understanding when source images exist",
+        "source asset normalization when source product imagery is placed on cards/infographics",
         "product identity lock",
         "physical/geometry locks when triggered",
         "visual director shot matrix",
@@ -121,6 +122,7 @@ function buildPlan(ctx) {
         "anchor batch QA before full multi-image generation",
         "generation progress updates after each generated asset",
         "localized final visible-text review when non-zh/non-en final images contain or may contain text",
+        "product-background/card consistency gate when cards or infographics use source assets",
         "export manifest and delivery overview for multi-image sets",
         "final delivery gate",
       ],
@@ -128,6 +130,7 @@ function buildPlan(ctx) {
         "anchor batch QA is missing, failed, blocked, or asks for prompt revision",
         "generation-progress is stale after final images appear",
         "final localized raster review detects source-language or non-target-language residue",
+        "product asset keeps a visible gray/white rectangular background inside a card",
         "marketing QA detects a blank/empty final visual module",
       ],
     },

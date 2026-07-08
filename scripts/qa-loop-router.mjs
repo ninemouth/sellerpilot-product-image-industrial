@@ -469,6 +469,7 @@ function imageIndexFromFile(file) {
 
 function failureCategory(type) {
   if (/source-cutout-used-as-scene/.test(type)) return "identity";
+  if (/product-background-card|product-asset-no-alpha|source-background-normalization|background-card/.test(type)) return "source_asset_normalization";
   if (/geometry|hem-position|garment-length|sleeve-length|neckline|silhouette|crop-top|apparel-length/.test(type)) return "identity_geometry";
   if (/scene|photography|cutout/.test(type)) return "photography_scene";
   if (/micro-detail|logo|trademark|engraving|readable-micro|brand-mark/.test(type)) return "micro_detail";
@@ -495,6 +496,10 @@ function returnNode(type) {
   const map = {
     "weak-source-image": "source-image-enhancement",
     "low-resolution-source": "source-image-enhancement",
+    "product-background-card-mismatch": "source-asset-normalization",
+    "missing-product-asset-background-evidence": "source-asset-normalization",
+    "weak-source-background-normalization": "source-asset-normalization",
+    "product-asset-no-alpha": "source-asset-normalization",
     "missing-product-truth": "product-fact-sheet",
     "unsupported-claim": "product-fact-sheet",
     "capacity-unsupported": "product-fact-sheet",
@@ -575,6 +580,7 @@ function fallbackReturnNode(type) {
   const category = failureCategory(type);
   const map = {
     source_quality: "source-image-enhancement",
+    source_asset_normalization: "source-asset-normalization",
     product_truth: "product-fact-sheet",
     physical_truth: "product-physical-truth-lock",
     identity: "product-identity-lock",
@@ -617,6 +623,10 @@ function nextAction(type, node) {
     "missing-conditional-layer": "Add the required conditional prompt layer selected by the Prompt Layer Architect Brain.",
     "thin-conditional-layer": "Fill the required conditional prompt layer with source-backed details before final prompt delivery.",
     "source-cutout-used-as-scene": "Create or execute a true scene asset request; do not use source cutout as final scene.",
+    "product-background-card-mismatch": "Create or use a transparent/card-safe product asset, then rerender only the affected card/infographic image.",
+    "missing-product-asset-background-evidence": "Record the transparent/card-safe product asset or normalization report before card/infographic layout.",
+    "weak-source-background-normalization": "Inspect or improve source cutout normalization before final layout.",
+    "product-asset-no-alpha": "Prefer a transparent product cutout; keep the no-alpha asset only when its edge background matches the card.",
     "missing-scene-asset": "Create panel-specific generated/photo scene asset, then rerun scene and marketing gates.",
     "scene-is-layout-placeholder": "Replace layout placeholder with true generated/photo scene asset.",
     "internal-copy": "Rewrite final image text into buyer-facing language.",
@@ -676,6 +686,7 @@ function rerunFrom(node) {
     "scene-asset-production": ["scene-asset-production-if-scene-roles", "prompt-layer-gate", "personalized-prompt-delivery", "identity-consistency-gate", "marketing-quality-gate"],
     "generation-request-pack": ["generation-request-pack-if-fallback-or-audit-needed", "generation-runtime-execution-boundary", "identity-consistency-gate"],
     "layout-wireframes": ["layout-wireframes", "layout-composition", "marketing-quality-gate"],
+    "source-asset-normalization": ["source-asset-normalization", "layout-composition", "product-background-card-consistency-gate", "marketing-quality-gate"],
     "localized-copy-pack": ["localized-copy-pack", "copy-strategy-gate", "localized-copy-qa-gate", "layout-composition", "marketing-quality-gate"],
     "visual-director": ["visual-director", "image-set-blueprint", "prompt-layer-gate"],
     "export-packaging": ["export-packaging", "image-set-export-gate"],
@@ -684,6 +695,9 @@ function rerunFrom(node) {
 }
 
 function doNotRerun(node, type) {
+  if (node === "source-asset-normalization" || /product-background-card|product-asset-no-alpha|source-background-normalization/.test(type)) {
+    return ["product-fact-sheet", "platform-category-web-research", "commerce-design-research", "full-image-set-generation"];
+  }
   if (/copy|layout|export/.test(node) || /internal-copy|bad-filename|wrong-image-count/.test(type)) {
     return ["source-image-enhancement", "product-fact-sheet", "platform-category-web-research", "scene-asset-generation-loop"];
   }

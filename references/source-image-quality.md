@@ -43,6 +43,36 @@ Use the enhanced image for product parsing, deterministic layouts, and GPT built
 
 When multiple source images exist, enhance each user-owned source image, but keep role labels and evidence boundaries separate. Do not merge conflicting images into one invented product.
 
+## Source Asset Normalization
+
+For white cards, parameter cards, comparison cards, feature cards, and clean marketplace infographics, do not place the flattened user source image directly into a card if it carries a gray/white rectangular backdrop.
+
+After enhancement, create a layout-safe product master:
+
+```bash
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/normalize-source-product-asset.mjs \
+  --input /abs/run/source-enhanced/source-enhanced.png \
+  --out-dir /abs/run/source-normalized \
+  --card-color "#ffffff"
+```
+
+Outputs:
+
+```text
+source-normalized/product-cutout-transparent.png
+source-normalized/product-on-card-safe.png
+source-normalized/product-normalization-report.json
+```
+
+Use `product-cutout-transparent.png` for card and infographic layouts when alpha is reliable. Use `product-on-card-safe.png` only when the renderer cannot preserve alpha. Keep the original/enhanced source image for product understanding, visible-text reading, and identity evidence.
+
+Fail or send to visual review when:
+
+- product edges are white, reflective, transparent, hairy, perforated, blade-like, or otherwise hard to cut out.
+- the source image background remains visible as a rectangle inside a card.
+- the product asset has no alpha and its edge background differs from the card color.
+- the panel lacks a transparent/card-safe product asset or normalization report.
+
 ## Source Product Understanding
 
 After enhancement, run source product understanding. The image may contain text, labels, tags, packaging, dimensions, warnings, installation callouts, model names, or scale cues that are product facts, not decorative pixels.

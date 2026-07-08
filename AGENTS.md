@@ -11,7 +11,7 @@ Product Image Orchestrator Agent
 
 本 Agent 不应直接把任务简化为“一次出图”。日常 Codex 对话应选择最轻但能保护成品质量的模式：单图草稿或明确速度优先才用 fast generation mode；高质量多图成品默认用 quality production mode；用户要求工业级审计、完整报告、迁移 SellerPilot 或开发验证时，才执行完整 Harness + Loop：
 
-Intent -> Normalize -> Mode Router -> Efficiency Plan -> Brief Intake Gate -> Source Photo Preflight/Enhance -> Source Product Understanding with AI Text Read and Conditional OCR -> Product Identity Lock -> Triggered Platform/Category Context -> Compact Image-Set Planning -> Visual Director Shot Matrix -> Buyer-Facing Copy -> Localized Copy QA when locale needs review -> Prompt Layer Brain -> Codex-Native GPT Built-In Image Generation Anchor Batch -> Identity/Marketing/Final Visible Text/Export QA -> Delivery Overview -> Continue Missing Assets Only -> Unified QA Loop Router -> Post-Generation tldraw Auto Start -> Final Delivery Gate -> Native Canvas Review -> Revision -> Export
+Intent -> Normalize -> Mode Router -> Efficiency Plan -> Brief Intake Gate -> Source Photo Preflight/Enhance -> Source Asset Normalization for Transparent/Card-Safe Product Master -> Source Product Understanding with AI Text Read and Conditional OCR -> Product Identity Lock -> Triggered Platform/Category Context -> Compact Image-Set Planning -> Visual Director Shot Matrix -> Buyer-Facing Copy -> Localized Copy QA when locale needs review -> Prompt Layer Brain -> Codex-Native GPT Built-In Image Generation Anchor Batch -> Identity/Marketing/Final Visible Text/Product Background/Card/Export QA -> Delivery Overview -> Continue Missing Assets Only -> Unified QA Loop Router -> Post-Generation tldraw Auto Start -> Final Delivery Gate -> Native Canvas Review -> Revision -> Export
 
 ## Non-negotiable Rules
 
@@ -50,6 +50,8 @@ Intent -> Normalize -> Mode Router -> Efficiency Plan -> Brief Intake Gate -> So
 32. 对俄语、德语、阿拉伯语这类 localized copy 场景，在正式出图前必须再过一层 localized-copy-qa / translation-qa gate；它要检查源文案追溯、复核说明、回译/语义复核、局部市场语言依据，以及 RTL 方向或脚本一致性，不能只靠 copy-strategy-gate 通过就放行。
 33. 本地化最终成图导出后必须检查实际 raster 可见文字：优先用 Codex 视觉复核或结构化 `final-visible-text-review.json`，只有不确定、文字太小、复杂脚本或风险声明时才使用 OCR；目标语言为俄语/德语/阿拉伯语等时，中文源海报字、源语言残留、非目标语言残留、RTL/脚本不一致必须阻断最终交付。
 34. 多图高质量成品最终交付前必须校验 `generated-assets/generation-progress.json`、当前 run manifest 和 anchor batch QA 决策。若最终图已存在但 progress 仍是 `planned`/`not_started` 且没有 completed_images，或 4 张以上套图缺少 `qa_decision=continue/pass` 的 anchor batch 证据，Final Delivery Gate 必须失败；只能用当前 run 的 manifest reconcile 进度，不得整套重做来掩盖卡点。
+35. 凡是商品被放入白色 card、参数卡、对比卡、卖点信息图或干净棚拍卡片中，必须优先使用 `source-normalized/product-cutout-transparent.png` 或 `source-normalized/product-on-card-safe.png`，不得直接把带灰底/白底矩形的用户源图整张贴进 card。若透明抠图不稳定，必须记录风险并用 card-safe 白底母版或人工/视觉复核。
+36. 最终交付前必须运行 product-background-card-consistency gate。商品底图边缘背景与 card 背景灰度/色彩不一致、可见矩形底、灰底残留、缺少透明/card-safe 素材证据时，不得通过最终交付；只返回 `source-asset-normalization -> layout-composition` 重做受影响图片。
 
 ## Default Workflow
 
@@ -62,6 +64,7 @@ Fast generation mode uses this compact workflow unless the user requests a full 
 - brief-intake-gate
 - strategy-direction-options/user-handoff-if-rough
 - source-photo-preflight/enhance-if-needed
+- source-asset-normalization/transparent-or-card-safe-product-master
 - source-product-understanding/ai-text-first-ocr-if-needed
 - product-identity-lock
 - product-physical-truth-lock-if-function/use/scale-sensitive
@@ -78,6 +81,7 @@ Fast generation mode uses this compact workflow unless the user requests a full 
 - anchor-batch-qa-decision and generation-progress updates
 - focused identity/physical-function/marketing/export QA
 - final localized visible-text review when locale needs review
+- product-background-card-consistency-gate
 - final-images-manifest
 - delivery-overview-contact-sheet
 - production-efficiency-plan

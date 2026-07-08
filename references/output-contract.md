@@ -12,6 +12,9 @@ generation-summary.md  # concise product identity, visual strategy, prompt, and 
 brief-intake/brief-intake-gate-report.json  # only when clarifications or assumptions are material
 generated-assets/generation-progress.json  # for multi-image sets and long-running generation
 generated-assets/anchor-batch-qa-decision.json  # required for 4+ image quality production pacing
+source-normalized/product-cutout-transparent.png  # card/infographic product master when source image is used in layout
+source-normalized/product-on-card-safe.png  # fallback when alpha cannot be preserved
+source-normalized/product-normalization-report.json
 planning/production-efficiency-plan.json  # triggered/skipped work and stage budgets
 blueprint/quality-production-blueprint.json  # compact image-set planning for quality production multi-image finals
 qa/qa-loop-state.json                     # persisted retry signatures and loop guard state
@@ -45,6 +48,7 @@ layout-drafts/09-sketch-self-review.md
 09-localized-copy-pack.md
 qa/localized-copy-qa-report.md
 qa/final-visible-text-review.json  # conditional post-export localized raster text review evidence
+qa/product-background-card-consistency-gate-report.md
 10-generation-request-pack.yaml
 10-final-generation-prompts.md
 11-final-personalized-prompt-delivery.md
@@ -88,6 +92,7 @@ qa/product-physics-fact-gate-report.json
 qa/source-product-understanding-gate-report.json
 qa/localized-copy-qa-report.json
 qa/final-visible-text-review.json
+qa/product-background-card-consistency-gate-report.json
 qa/qa-loop-routing-decision.json
 qa/qa-loop-state.json
 qa/final-delivery-gate-report.json

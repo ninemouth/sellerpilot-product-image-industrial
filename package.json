@@ -17,7 +17,9 @@
     "plan:efficiency": "node scripts/production-efficiency-plan.mjs",
     "memory:platform": "node scripts/platform-preference-memory.mjs",
     "plan:commerce-research": "node scripts/commerce-design-research-planner.mjs",
+    "normalize:source-asset": "node scripts/normalize-source-product-asset.mjs",
     "qa:localized-copy": "node scripts/localized-copy-qa-gate.mjs",
+    "qa:product-background": "node scripts/product-background-card-consistency-gate.mjs",
     "progress:reconcile": "node scripts/reconcile-generation-progress.mjs",
     "launch:canvas": "node scripts/post-generation-tldraw-launcher.mjs",
     "wait:review": "node scripts/wait-for-review-completion.mjs"

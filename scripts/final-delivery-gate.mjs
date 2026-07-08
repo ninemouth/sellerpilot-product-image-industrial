@@ -54,7 +54,7 @@ if (!allowMissingGates) {
       message: "No qa/*-report.json files were found. Final delivery requires upstream gate evidence.",
     });
   }
-  for (const requiredName of ["marketing-quality-gate-report.json", "copy-strategy-gate-report.json", "image-set-export-gate-report.json"]) {
+  for (const requiredName of ["marketing-quality-gate-report.json", "copy-strategy-gate-report.json", "product-background-card-consistency-gate-report.json", "image-set-export-gate-report.json"]) {
     if (!reports.some((item) => item.name === requiredName)) {
       findings.push({
         severity: "fail",

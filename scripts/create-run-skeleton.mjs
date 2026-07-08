@@ -47,6 +47,7 @@ const runId = safeRunId(args["run-id"] || [
 for (const dir of [
   "source-original",
   "source-enhanced",
+  "source-normalized",
   "source-understanding",
   "brief-intake",
   "strategy",
@@ -113,6 +114,25 @@ writeIfMissing(path.join(outDir, "source-understanding", "source-product-underst
     geometry_lock_fields: [],
     prompt_forbidden_changes: [],
   },
+}, null, 2) + "\n");
+
+writeIfMissing(path.join(outDir, "source-normalized", "product-normalization-report.json"), JSON.stringify({
+  schema_version: "sellerpilot.source_asset_normalization.v1",
+  status: "not_run",
+  input: null,
+  outputs: {
+    product_cutout_transparent: null,
+    product_on_card_safe: null,
+  },
+  normalization: {
+    method: "pending",
+    card_color: "#ffffff",
+    estimated_source_background_rgb: null,
+    threshold: null,
+    background_coverage: null,
+    layout_use_policy: "Cards and infographics should use transparent/card-safe product assets, not a flattened source image with a visible gray rectangle.",
+  },
+  warnings: [],
 }, null, 2) + "\n");
 
 writeRunContext(outDir, {

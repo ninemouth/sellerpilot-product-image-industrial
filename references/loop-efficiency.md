@@ -19,7 +19,8 @@ Quality production mode runs the full quality-critical path without generating t
 2. Select production mode with `production-mode-router.mjs`.
 3. Write `planning/production-efficiency-plan.json` with triggered work, skipped work, time budgets, and the progress update policy.
 4. Run Brief Intake Gate. Ask only high-value questions; otherwise record assumptions and continue.
-5. Build Source Product Understanding with AI visual text reading first, run OCR only when visual text is visible/uncertain/important, then create Product Identity Lock before visual planning.
+5. Build a transparent/card-safe source product asset for card and infographic layouts when user source imagery will be placed on white cards.
+6. Build Source Product Understanding with AI visual text reading first, run OCR only when visual text is visible/uncertain/important, then create Product Identity Lock before visual planning.
 6. Trigger physical truth, geometry, micro-detail, product URL reading, live platform research, or market research only when the product/request contains those risk signals.
 7. Create strategy direction options when the user request is rough/open, then continue with the harness-selected option if the user has no preference.
 8. Build compact image-set planning: source facts, identity/physical locks, platform baseline/triggered research, buyer question per image, Visual Director shot matrix, copy intent, prompt layers, and QA criteria.
@@ -61,10 +62,11 @@ Quality production mode runs the full quality-critical path without generating t
 11. Run a focused anchor QA against identity, scene direction, role diversity, and obvious platform mismatch.
 12. Continue only missing/failed assets after anchor QA passes. Reuse approved assets; do not regenerate the full set.
 13. Compose final layouts.
-14. Run copy, localized final visible-text when needed, marketing diversity, export, and final delivery QA.
-15. Reconcile `generated-assets/generation-progress.json` from the current run manifest only when final images exist but the progress file is stale; do not regenerate approved images just to fix bookkeeping.
-16. For generated multi-image final sets, create and auto-start the run-scoped tldraw workspace after export/overview. For single-image drafts, create a review surface only when requested, when a gate fails, or when revision feedback is the next action. Prefer the shared tldraw service session over per-run dev servers.
-17. Convert user annotations into Revision Brief when feedback exists.
+14. Run product-background/card consistency QA before marketing QA when card/infographic layouts use source product assets.
+15. Run copy, localized final visible-text when needed, marketing diversity, export, and final delivery QA.
+16. Reconcile `generated-assets/generation-progress.json` from the current run manifest only when final images exist but the progress file is stale; do not regenerate approved images just to fix bookkeeping.
+17. For generated multi-image final sets, create and auto-start the run-scoped tldraw workspace after export/overview. For single-image drafts, create a review surface only when requested, when a gate fails, or when revision feedback is the next action. Prefer the shared tldraw service session over per-run dev servers.
+18. Convert user annotations into Revision Brief when feedback exists.
 
 Fast mode should not create the full industrial run skeleton, every research artifact, every gate JSON, or a tldraw workspace by default. Escalate to industrial audit mode only when the user asks for evidence, migration artifacts, debug traces, or a repeated failure needs deeper routing.
 
@@ -122,6 +124,7 @@ If a gate fails, report the failing gate and the smallest next action:
 - product identity drift -> regenerate only failed assets using stronger source-image reference, or ask for more source angles
 - repeated angle/detail/copy -> revise Visual Direction Brief and rerun only affected images
 - blank/empty final visual module -> rerender or regenerate only that image/layout section
+- product background/card mismatch -> run source asset normalization and rerender only affected card/infographic layouts
 - localized final raster contains source-language or non-target-language residue -> rerender/regenerate affected localized image text/layout only
 - text/layout issue -> rerender layout only
 - review widget unavailable -> use tldraw workspace JSON/completion payload/screenshot evidence and state widget limitation

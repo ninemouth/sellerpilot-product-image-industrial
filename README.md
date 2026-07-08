@@ -16,6 +16,7 @@
 - **Ozon 比例规则**：普通品类默认按 `3:4` 竖版商品图导出，Ozon Fresh 食品类等例外按平台 profile 或当前官方证据处理；导出 gate 会从当前任务的 `platform/category` 自动推断比例。
 - **平台/品类偏好记忆**：用户明确确认过的某平台同类商品图片特质、风格方向、文案语气、陈列节奏和禁用项，会保存为 platform preference memory；后续同平台/同品类任务会先读取该记忆，再结合当前商品事实和最新调研决定是否采用。
 - **商业设计研究计划**：当任务目标涉及“爆品图”“提升销售”“点击”“停留”或品类竞争时，skill 会生成 commerce design research plan，把点击钩子、停留机制、信任疑虑、买家问题、画廊叙事和文案节奏回写到套图蓝图与 QA 标准。
+- **源素材规范化**：商品要进入白色 card、参数卡、对比卡或卖点信息图前，会生成透明商品母版或白卡安全母版，避免把带灰底/白底矩形的源图整张贴进 card。
 - **本地化文案复核**：当目标语言属于俄语、德语、阿拉伯语这类复杂本地化场景时，正式出图前会再过一层 localized-copy-qa / translation-qa gate，检查源文案追溯、复核说明、回译或语义复核、局部市场语言依据，以及 RTL / 脚本方向。
 - **最终成图文字复核**：本地化成品导出后，会对最终图片里的可见文字做轻量复核；优先使用 Codex 视觉检查或结构化复核记录，只有不确定时才使用 OCR，避免俄语/德语/阿拉伯语图片里残留中文海报字、源图文字或非目标语言。
 - **验证闭环**：`npm run verify` 覆盖 Ozon 3:4 导出、平台记忆 apply/remember、商业设计研究 planner、总览图、tldraw 自动启动、跨任务图片隔离和 QA retry budget。
@@ -26,6 +27,7 @@
 - 支持 Amazon、TikTok Shop、小红书、拼多多、抖音、Temu、Shopee/Lazada、Etsy、Mercado Libre、SHEIN、Ozon、Wildberries 等平台基线。
 - 在正式生产前，为粗略需求给出 2-3 个商业方向；用户不选时，harness 会自动选择一个方向继续。
 - 从源图中提取商品身份、可见文字、尺寸线索、材料/结构/功能信息，并把这些事实传递到后续图像生成和 QA。
+- 为 card/信息图/参数图生成透明或白卡安全商品素材，并检查商品底色与 card 背景是否一致。
 - 针对时令、气候、节假日、区域趋势和营销热词创建平台上下文计划。
 - 对 Ozon 普通品类默认执行 `3:4` 竖版商品图比例；Ozon Fresh 食品类等例外按平台 profile 或当前官方证据处理。
 - 记住用户明确确认过的平台/品类风格偏好，例如某平台同类商品的图片比例、主图取向、文案语气、陈列节奏或禁用项，下次同平台同品类制作时自动套用为参考。
@@ -250,6 +252,8 @@ npm run plan:efficiency -- \
 
 如果源图里有文字、尺寸、型号、警告、材料、兼容性或安装信息，skill 会尝试识别并锁定这些事实。
 
+如果商品需要放入白色卡片、参数卡、功能卡或对比卡，最好提供干净商品图；skill 会尝试生成 `source-normalized/product-cutout-transparent.png` 和 `source-normalized/product-on-card-safe.png`，用于后续排版，避免出现商品灰底矩形和 card 白底不一致的问题。
+
 ## 输出通常包含
 
 `quality_production` 默认输出：
@@ -261,12 +265,14 @@ npm run plan:efficiency -- \
 - `planning/production-efficiency-plan.json`，用于说明本次哪些工作会触发、哪些会跳过、阶段预算和长耗时进度规则。
 - `blueprint/quality-production-blueprint.json` 紧凑套图规划，保留每张图的角色、买家问题、镜头、文案意图、prompt layer 和 QA 标准。
 - 商品身份锁和源图理解摘要，包括 AI 视觉读取文字和条件 OCR 兜底提供的尺寸、型号、功能、标签等事实线索。
+- 源素材规范化结果，例如透明商品母版、白卡安全母版和 `source-normalized/product-normalization-report.json`。
 - 必要时的物理功能锁、几何比例锁或微细节锁。
 - 镜头矩阵、场景策略、文案策略和 prompt layer 摘要。
 - 匹配到的平台/品类偏好记忆，例如同平台同类商品延续的视觉特质、风格方向、文案语气和禁用项。
 - 转化关键任务的商业设计研究计划，例如点击钩子、用户停留机制、信任疑虑处理和爆品模式借鉴边界。
 - Anchor batch QA 结论，以及后续只补齐缺失/失败图片的说明。
 - 相关 QA 结论：身份、物理/几何、文案、本地化最终可见文字、营销、导出、最终交付。
+- 商品底图/card 一致性 QA，避免最终图中出现可见灰底矩形、商品底色和白卡底色不一致。
 - 生图完成后的 tldraw review session URL。多图最终成品会在导出和总览图完成后自动创建并启动画布；单图草稿可跳过，除非用户要求审核或 gate 失败。
 
 `fast_generation` 会输出更精简的成品、摘要和 QA；它主要用于单图、草稿或明确速度优先的任务。
@@ -311,6 +317,24 @@ npm run plan:efficiency -- \
   --mode-report runs/demo-amazon-bag/mode/production-mode-router-report.json \
   --image-count 8 \
   --has-source-image true
+```
+
+生成透明/白卡安全商品母版：
+
+```bash
+npm run normalize:source-asset -- \
+  --input runs/demo-amazon-bag/source-enhanced/source-enhanced.png \
+  --out-dir runs/demo-amazon-bag/source-normalized \
+  --card-color "#ffffff"
+```
+
+检查商品底图和 card 背景是否一致：
+
+```bash
+npm run qa:product-background -- \
+  --copy-json runs/demo-amazon-bag/blueprint/panels.json \
+  --run-dir runs/demo-amazon-bag \
+  --out-dir runs/demo-amazon-bag/qa
 ```
 
 导出后同步/修复生图进度文件：

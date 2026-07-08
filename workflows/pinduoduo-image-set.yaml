@@ -18,6 +18,7 @@ steps:
   - source-image-set-manifest-if-multiple-images
   - source-image-quality-gate
   - source-image-enhancement-if-needed
+  - source-asset-normalization-for-card-and-infographic-layouts
   - source-product-understanding-ai-text-first-ocr-if-needed
   - source-product-understanding-gate-if-source-facts-or-visible-text
   - product-image-parser
@@ -70,6 +71,7 @@ steps:
   - product-physics-fact-gate-if-function-use-or-scale-sensitive
   - marketing-diversity-gate
   - localized-final-visible-text-qa-if-locale-needs-review
+  - product-background-card-consistency-gate
   - marketing-quality-gate
   - image-set-export-gate
   - generation-progress-reconcile-before-final-delivery

@@ -108,7 +108,8 @@ For normal chat, do not create every artifact listed in the full output contract
    - `xiaohongshu-image-pack.yaml` for Xiaohongshu cover and seed image packs.
    - Other supported platform profiles such as 京东/JD, 抖音/Douyin, SHEIN, Temu, Mercado Libre, Shopee LatAm/Brazil, Falabella, Ozon, Etsy, and Wildberries/WB use the master workflow plus their `platform-profiles/*.yaml` baseline and a run-level platform/category overlay.
 4. Run source image quality preflight. If the user provides multiple images, build a source image set manifest and enhance each user-owned source image before parsing/generation. If photos are low quality, cluttered, dark, small, or handheld, enhance them with the bundled scripts before parsing/generation.
-4a. Create Source Product Understanding from the original/enhanced source image before identity lock or prompt work. Use Codex visual inspection first to recognize product type, structure, components, material/color, physical size cues, scale references, visible text, labels, warnings, dimensions, specs, and function clues. Run local OCR only when AI visual reading detects visible text, is uncertain, cannot confidently transcribe text, or the text may reveal size, model, compatibility, warning, certification, installation, material, quantity, or weight. Record verified text-derived facts and propagate them into identity lock, physical truth lock, geometry lock, and prompt layers. Do not generate over these facts or silently drop them.
+4a. Create a normalized product asset for card/infographic/layout use before layout planning. Use `source-normalized/product-cutout-transparent.png` when alpha is reliable, or `source-normalized/product-on-card-safe.png` when a renderer cannot preserve alpha. Do not paste a flattened source image with a gray/white rectangular backdrop into a white card. Keep the original/enhanced source image for source understanding and identity evidence.
+4b. Create Source Product Understanding from the original/enhanced source image before identity lock or prompt work. Use Codex visual inspection first to recognize product type, structure, components, material/color, physical size cues, scale references, visible text, labels, warnings, dimensions, specs, and function clues. Run local OCR only when AI visual reading detects visible text, is uncertain, cannot confidently transcribe text, or the text may reveal size, model, compatibility, warning, certification, installation, material, quantity, or weight. Record verified text-derived facts and propagate them into identity lock, physical truth lock, geometry lock, and prompt layers. Do not generate over these facts or silently drop them.
 5. Create a Product Identity Lock from all source/enhanced images and Source Product Understanding before generation. Lock silhouette, proportions, color family, material appearance, hardware, closure, straps/handles, accessories, logo/markings, distinctive details, and text-derived facts that affect physical size/function. If no source image exists, do not call generated images identity-preserving.
 5a. For physical products, load `references/product-physical-truth.md`. Create `blueprint/02b-product-physical-truth.json` before shot matrix or prompt work whenever the set shows installation, use steps, scale, cable/strap routing, moving parts, fixtures, fasteners, load, waterproofing, or product function. Lock confirmed functions, confirmed user actions, forbidden generated functions, and scale reference. Do not show invented use mechanisms such as unsupported press locks, adhesive/magnetic mounting, waterproof electrical behavior, extra moving parts, or inconsistent product size across images. Run `product-physics-fact-gate.mjs` before final delivery when physical function or scale appears in the image set.
 6. Load only the relevant baseline platform profile from `platform-profiles/`. For Ozon, the baseline export ratio is `3:4` portrait for normal categories; the Ozon Fresh food exception is `1:1` unless current official evidence says otherwise.
@@ -297,6 +298,15 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
 ```
 
 ```bash
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/normalize-source-product-asset.mjs \
+  --input /abs/run/source-enhanced/source-enhanced.png \
+  --out-dir /abs/run/source-normalized \
+  --card-color "#ffffff"
+```
+
+Use this after source enhancement and before card/infographic layout composition. It creates `product-cutout-transparent.png`, `product-on-card-safe.png`, and `product-normalization-report.json`. Use the transparent/card-safe product asset for white cards, feature cards, comparison panels, parameter cards, and clean marketplace infographics. Do not use it as the only source for product understanding; original/enhanced images still carry evidence such as labels, scale cues, shadows, and visible text.
+
+```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/create-source-product-understanding.mjs \
   --image /abs/run/source-enhanced/source-enhanced.png \
   --out-dir /abs/run/source-understanding \
@@ -335,6 +345,15 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
 ```
 
 Use the marketing gate before final export to catch unjustified repeated camera angles, repeated source images, thin scene direction, and internal-facing copy such as `不虚标`, `以源图为准`, `QA`, or `风险` in final image text.
+
+```bash
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/product-background-card-consistency-gate.mjs \
+  --copy-json /abs/run/blueprint/panels.json \
+  --run-dir /abs/run \
+  --out-dir /abs/run/qa
+```
+
+Run this before marketing QA and final delivery for panels that place products on white cards, parameter cards, comparison cards, feature cards, or infographic layouts. It blocks visible gray/white source-image rectangles, product edge backgrounds that differ from the card color, and missing transparent/card-safe product asset evidence. Fix by rerunning source asset normalization and rerendering only the affected layout images.
 
 ```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/copy-strategy-gate.mjs \
@@ -449,7 +468,7 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
 
 Use the final delivery gate after all QA gates and before telling the user a set is complete. It aggregates upstream gate reports, blocks delivery when required generation is unavailable, requires a delivery overview contact sheet for multi-image sets, and rejects draft/placeholder/wireframe assets in `final-images`. A technical export pass is not enough for ecommerce image acceptance.
 
-For multi-image sets it also checks `00-task-context.yaml`, stale generation progress, and anchor batch QA evidence. If final images exist but progress is still `planned`/`not_started` with no completed images, reconcile progress from the current run manifest before final delivery. If a 4+ image set lacks an anchor batch decision of `continue`/`pass`, generate and review the anchor batch before continuing the full set.
+For multi-image sets it also checks `00-task-context.yaml`, stale generation progress, anchor batch QA evidence, and product-background/card consistency evidence. If final images exist but progress is still `planned`/`not_started` with no completed images, reconcile progress from the current run manifest before final delivery. If a 4+ image set lacks an anchor batch decision of `continue`/`pass`, generate and review the anchor batch before continuing the full set. If product/card background consistency fails, normalize the source product asset and rerender only affected card/infographic layouts.
 
 ```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/qa-loop-router.mjs \
