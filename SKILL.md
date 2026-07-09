@@ -151,7 +151,7 @@ The planner is a budgeted research contract, not a competitor-copy license. Extr
 14a. For apparel, bags, shoes, furniture, tools, and other proportion-sensitive products, load `references/identity-geometry-lock.md`. Create or update `geometry/source-geometry.json` before generation and run `identity-geometry-gate.mjs` on generated assets before final delivery. Apparel must preserve garment length, hem position, collar-to-hem ratio, sleeve length class, neckline shape, and silhouette; a normal jersey must not become a crop top unless supported by source/user input.
 15. For multi-image sets, use generation pacing: generate and QA a small anchor batch first, then continue with only missing/failed assets. Do not spend a full run serially generating all images before checking identity, scene direction, and role diversity.
 15a. When the user provides prior generated outputs and asks to continue, audit, optimize, or revise them, load `references/failed-output-regeneration.md` first. Classify failures such as watermark/platform-pack labels, weak graphic design, generic photography treatment, unclear micro-detail handling, identity drift, fake scenes, or repeated layouts; keep approved assets and rerun only the smallest affected upstream node.
-15b. For long-running generation, update `generated-assets/generation-progress.json` after each generated asset and give the user a concise status update at least every 5 minutes. If a run exceeds 15 minutes, report completed images, pending images, likely slow factor such as image generation/network latency, and the smallest next action. Do not silently restart the whole set to appear busy.
+15b. For long-running generation, update `generated-assets/generation-progress.json` after each generated asset and give the user a concise status update at least every 5 minutes. If a run exceeds 15 minutes, or after final export before QA loop/final handoff, run `runtime-watchdog.mjs` to classify the delay as active generation/network wait, gate churn, ready-but-not-closed, or stalled no progress. Do not silently restart the whole set to appear busy.
 16. Load the risk and QA references before writing final outputs:
    - `policies/risk-boundaries.md`
    - `policies/qa-checklist.md`
@@ -408,6 +408,13 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
 ```
 
 Use this after image export when `generated-assets/generation-progress.json` is stale but the current run-scoped final-images manifest is correct. It updates progress evidence without regenerating approved images. It does not replace anchor batch QA.
+
+```bash
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/runtime-watchdog.mjs \
+  --run-dir /abs/run
+```
+
+Use this when a run exceeds 15 minutes and after final export before QA loop/final handoff. It reads the current run's production efficiency plan, `generated-assets/generation-progress.json`, final manifest, overview, QA loop state, and final gate reports. It writes `qa/runtime-watchdog-report.json` and classifies the run as `active_generation_wait`, `gate_churn_detected`, `ready_but_not_closed`, `local_planning_or_gate_stall`, or `blocked_stalled_no_progress`. If it says to stop automatic regeneration, do not restart the full set; report the status and run only the smallest next action.
 
 ```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/product-physics-fact-gate.mjs \

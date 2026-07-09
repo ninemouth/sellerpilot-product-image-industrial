@@ -57,6 +57,17 @@ function tmpDir(prefix) {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
 }
 
+function setRecursiveMtime(dir, date) {
+  if (!fs.existsSync(dir)) return;
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) setRecursiveMtime(full, date);
+    fs.utimesSync(full, date, date);
+  }
+  fs.utimesSync(dir, date, date);
+}
+
 function requireBundled(name) {
   try {
     return require(name);
@@ -181,6 +192,7 @@ record("workflow loop guard ordering", () => {
       "text-layout-proof-gate-before-final-export-if-visible-copy",
       "product-background-card-consistency-gate",
       "generation-progress-reconcile-before-final-delivery",
+      "runtime-watchdog-before-qa-loop",
       "qa-loop-router",
       "delivery-overview-contact-sheet-if-multi-image-set",
       "post-generation-tldraw-auto-start-if-generated-images",
@@ -214,6 +226,8 @@ record("workflow loop guard ordering", () => {
     assertStepBefore(file, steps, "image-set-export-gate", "qa-loop-router");
     assertStepBefore(file, steps, "image-set-export-gate", "generation-progress-reconcile-before-final-delivery");
     assertStepBefore(file, steps, "generation-progress-reconcile-before-final-delivery", "qa-loop-router");
+    assertStepBefore(file, steps, "generation-progress-reconcile-before-final-delivery", "runtime-watchdog-before-qa-loop");
+    assertStepBefore(file, steps, "runtime-watchdog-before-qa-loop", "qa-loop-router");
     assertStepBefore(file, steps, "qa-loop-router", "delivery-overview-contact-sheet-if-multi-image-set");
     assertStepBefore(file, steps, "delivery-overview-contact-sheet-if-multi-image-set", "final-delivery-gate");
     assertStepBefore(file, steps, "delivery-overview-contact-sheet-if-multi-image-set", "post-generation-tldraw-auto-start-if-generated-images");
@@ -1213,6 +1227,88 @@ record("final delivery gate blocks stale progress and missing anchor decision", 
   const acceptedAnchor = readJson(path.join(qaDir, "final-delivery-gate-report.json"));
   if (acceptedAnchor.findings.some((item) => item.type === "missing-anchor-batch-qa-decision")) {
     throw new Error("final gate should accept anchor batch QA decision recorded inside generation-progress.json.");
+  }
+});
+
+record("runtime watchdog classifies long-running stalls", () => {
+  const now = "2026-07-09T10:00:00.000Z";
+
+  const readyRun = path.join(tmpDir("sp-verify-watchdog-ready-"), "run");
+  fs.mkdirSync(path.join(readyRun, "export"), { recursive: true });
+  fs.mkdirSync(path.join(readyRun, "generated-assets"), { recursive: true });
+  fs.writeFileSync(path.join(readyRun, "export", "final-images-manifest.json"), JSON.stringify({
+    schema_version: "sellerpilot.final_images_manifest.v1",
+    image_count: 2,
+    images: [
+      { id: "IMG-01", file: "IMG-01-main-product.png", path: path.join(readyRun, "final-images", "IMG-01-main-product.png") },
+      { id: "IMG-02", file: "IMG-02-detail-view.png", path: path.join(readyRun, "final-images", "IMG-02-detail-view.png") },
+    ],
+  }, null, 2));
+  fs.writeFileSync(path.join(readyRun, "generated-assets", "generation-progress.json"), JSON.stringify({
+    schema_version: "sellerpilot.generation_progress.v1",
+    status: "completed",
+    created_at: "2026-07-09T09:50:00.000Z",
+    updated_at: "2026-07-09T09:59:00.000Z",
+    image_count: 2,
+    completed_images: ["IMG-01-main-product.png", "IMG-02-detail-view.png"],
+    pending_images: [],
+    failed_images: [],
+  }, null, 2));
+  const ready = spawnSync(process.execPath, [
+    "scripts/runtime-watchdog.mjs",
+    "--run-dir", readyRun,
+    "--now", now,
+  ], { cwd: skillRoot, encoding: "utf8" });
+  if (ready.status === 0) throw new Error("ready-but-not-closed watchdog should exit non-zero to force handoff closure.");
+  const readyReport = readJson(path.join(readyRun, "qa", "runtime-watchdog-report.json"));
+  if (readyReport.classification !== "ready_but_not_closed" || !readyReport.decision.stop_automatic_regeneration) {
+    throw new Error("watchdog should classify manifest-without-final-handoff as ready_but_not_closed.");
+  }
+
+  const churnRun = path.join(tmpDir("sp-verify-watchdog-churn-"), "run");
+  fs.mkdirSync(path.join(churnRun, "qa"), { recursive: true });
+  fs.writeFileSync(path.join(churnRun, "qa", "qa-loop-state.json"), JSON.stringify({
+    schema_version: "sellerpilot.qa_loop_state.v1",
+    signatures: {
+      scene: { attempts: 3, retry_budget: 2 },
+    },
+  }, null, 2));
+  const churn = spawnSync(process.execPath, [
+    "scripts/runtime-watchdog.mjs",
+    "--run-dir", churnRun,
+    "--now", now,
+  ], { cwd: skillRoot, encoding: "utf8" });
+  if (churn.status === 0) throw new Error("gate churn watchdog should exit non-zero.");
+  const churnReport = readJson(path.join(churnRun, "qa", "runtime-watchdog-report.json"));
+  if (churnReport.classification !== "gate_churn_detected" || churnReport.status !== "blocked") {
+    throw new Error("watchdog should classify exhausted QA state as gate_churn_detected.");
+  }
+
+  const stalledRun = path.join(tmpDir("sp-verify-watchdog-stall-"), "run");
+  fs.mkdirSync(path.join(stalledRun, "generated-assets"), { recursive: true });
+  fs.writeFileSync(path.join(stalledRun, "generated-assets", "generation-progress.json"), JSON.stringify({
+    schema_version: "sellerpilot.generation_progress.v1",
+    status: "generating",
+    created_at: "2026-07-09T09:00:00.000Z",
+    updated_at: "2026-07-09T09:00:00.000Z",
+    image_count: 8,
+    completed_images: ["IMG-01-main-product.png"],
+    pending_images: ["IMG-02-scene.png", "IMG-03-detail.png"],
+    failed_images: [],
+  }, null, 2));
+  setRecursiveMtime(stalledRun, new Date("2026-07-09T09:00:00.000Z"));
+  const stalled = spawnSync(process.execPath, [
+    "scripts/runtime-watchdog.mjs",
+    "--run-dir", stalledRun,
+    "--now", now,
+    "--warn-after-seconds", "900",
+    "--block-after-seconds", "1800",
+    "--stale-after-seconds", "900",
+  ], { cwd: skillRoot, encoding: "utf8" });
+  if (stalled.status === 0) throw new Error("stalled watchdog should exit non-zero.");
+  const stalledReport = readJson(path.join(stalledRun, "qa", "runtime-watchdog-report.json"));
+  if (stalledReport.classification !== "blocked_stalled_no_progress" || !stalledReport.decision.user_update_required) {
+    throw new Error("watchdog should block stale long-running production without recent activity.");
   }
 });
 

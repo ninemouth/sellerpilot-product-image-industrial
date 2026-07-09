@@ -11,7 +11,7 @@ Product Image Orchestrator Agent
 
 本 Agent 不应直接把任务简化为“一次出图”。日常 Codex 对话应选择最轻但能保护成品质量的模式：单图草稿或明确速度优先才用 fast generation mode；高质量多图成品默认用 quality production mode；用户要求工业级审计、完整报告、迁移 SellerPilot 或开发验证时，才执行完整 Harness + Loop：
 
-Intent -> Normalize -> Mode Router -> Efficiency Plan -> Brief Intake Gate -> Source Photo Preflight/Enhance -> Source Asset Normalization for Transparent/Card-Safe Product Master -> Source Product Understanding with AI Text Read and Conditional OCR -> Product Identity Lock -> Triggered Platform/Category Context -> Compact Image-Set Planning -> Visual Director Shot Matrix -> Buyer-Facing Copy -> Localized Copy QA when locale needs review -> Text Layout Proof Gate for visible copy -> Prompt Layer Brain -> Codex-Native GPT Built-In Image Generation Anchor Batch -> Identity/Marketing/Final Visible Text/Product Background/Card/Export QA -> Delivery Overview -> Continue Missing Assets Only -> Unified QA Loop Router -> Post-Generation tldraw Auto Start -> Final Delivery Gate -> Native Canvas Review -> Revision -> Export
+Intent -> Normalize -> Mode Router -> Efficiency Plan -> Brief Intake Gate -> Source Photo Preflight/Enhance -> Source Asset Normalization for Transparent/Card-Safe Product Master -> Source Product Understanding with AI Text Read and Conditional OCR -> Product Identity Lock -> Triggered Platform/Category Context -> Compact Image-Set Planning -> Visual Director Shot Matrix -> Buyer-Facing Copy -> Localized Copy QA when locale needs review -> Text Layout Proof Gate for visible copy -> Prompt Layer Brain -> Codex-Native GPT Built-In Image Generation Anchor Batch -> Identity/Marketing/Final Visible Text/Product Background/Card/Export QA -> Delivery Overview -> Continue Missing Assets Only -> Runtime Watchdog -> Unified QA Loop Router -> Post-Generation tldraw Auto Start -> Final Delivery Gate -> Native Canvas Review -> Revision -> Export
 
 ## Non-negotiable Rules
 
@@ -54,6 +54,7 @@ Intent -> Normalize -> Mode Router -> Efficiency Plan -> Brief Intake Gate -> So
 36. 最终交付前必须运行 product-background-card-consistency gate。商品底图边缘背景与 card 背景灰度/色彩不一致、可见矩形底、灰底残留、缺少透明/card-safe 素材证据时，不得通过最终交付；只返回 `source-asset-normalization -> layout-composition` 重做受影响图片。
 37. 带可见文字的正式图不得先用昂贵最终生成来试错排版。正式出图/最终导出前必须运行 `text-layout-proof-gate`，或记录 `text_layout_proof.status=pass/not_required`，先用低成本 layout proof、截图或画布检查标题、卖点、标签、俄语/德语/阿拉伯语等复杂语言的换行、溢出、层级和安全区。
 38. 使用/场景类图不得用矢量装饰背景、重复图案、白卡商品贴图、Pillow/确定性合成图冒充真实场景。若 image role/title/usage context 表达修草、修篱、户外、阳台、花园、lifestyle、use 等，必须有真实 generated/photo scene asset 证据，或 `final_scene_realism_review.status=pass/not_required`；否则 marketing gate 必须失败。
+39. 长耗时任务必须运行 runtime watchdog。超过 15 分钟或 final export 后进入 QA/交付收口前，必须读取当前 run 的 `generation-progress.json`、manifest、overview、QA loop state 和 final gate，判断是 active generation/network wait、gate churn、ready but not closed，还是 stalled no progress。`gate_churn_detected`、`ready_but_not_closed`、`blocked_stalled_no_progress` 时不得整套重做；只能停止自动重生图、汇报状态，并执行最小下一步。
 
 ## Default Workflow
 
@@ -86,6 +87,7 @@ Fast generation mode uses this compact workflow unless the user requests a full 
 - final localized visible-text review when locale needs review
 - product-background-card-consistency-gate
 - final-images-manifest
+- runtime-watchdog-before-qa-loop
 - delivery-overview-contact-sheet
 - production-efficiency-plan
 - compact image-set planning

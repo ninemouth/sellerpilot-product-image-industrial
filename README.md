@@ -236,7 +236,7 @@ npm run plan:efficiency -- \
 
 这个计划不会降低成图质量。它的作用是把完整工业工作流收敛为当次任务真正需要的质量路径：保留源图理解、身份锁、紧凑套图规划、prompt layer、anchor batch、关键 QA、总览图和最终画布；跳过未触发的 URL 读取、完整市场研究、完整爆品挖掘、预生成画布和多份长报告。
 
-高质量多图任务还会写入 `generated-assets/generation-progress.json`。每生成一张图都应更新 completed / pending / failed；导出 manifest 后如果发现进度文件落后，可以用 `npm run progress:reconcile` 从当前 run 的 manifest 回填进度，避免已经完成的图片因为机械进度文件过期而反复重跑。
+高质量多图任务还会写入 `generated-assets/generation-progress.json`。每生成一张图都应更新 completed / pending / failed；导出 manifest 后如果发现进度文件落后，可以用 `npm run progress:reconcile` 从当前 run 的 manifest 回填进度，避免已经完成的图片因为机械进度文件过期而反复重跑。长任务超过 15 分钟，或最终导出后进入 QA/交付收口前，应运行 runtime watchdog，判断当前是在正常等待生图/网络、QA gate 空转、成品已有但未收口，还是已经无进展卡住。
 
 ## 推荐输入
 
@@ -346,6 +346,20 @@ npm run progress:reconcile -- \
 ```
 
 这个命令只根据当前任务的 `export/final-images-manifest.json` 更新 `generated-assets/generation-progress.json`，不会重新生图，也不会替代 anchor batch QA。它用于修复“图片已经导出，但进度仍显示 planned / not_started”的卡点。
+
+长任务/卡点诊断：
+
+```bash
+npm run watchdog:runtime -- \
+  --run-dir runs/demo-amazon-bag
+```
+
+它会写入 `qa/runtime-watchdog-report.json`，常见分类包括：
+
+- `active_generation_wait`：还在合理等待生图或网络，继续 pending assets。
+- `gate_churn_detected`：QA 重试预算耗尽，停止自动重生图，修最早失败 gate。
+- `ready_but_not_closed`：final manifest 已有图，但 overview/tldraw/final handoff 没收口，不要重生图。
+- `blocked_stalled_no_progress`：超过阈值且无文件进展，停止自动流程并汇报最小下一步。
 
 生图完成后启动/复用 tldraw 画布：
 
@@ -541,6 +555,7 @@ OCR 没有结果：
 
 最终交付被 QA 阻塞：
 
+- 先运行 `npm run watchdog:runtime -- --run-dir <run-dir>` 判断是等待、生图失败、gate 空转，还是已生成未收口。
 - 查看 `qa/qa-loop-routing-decision.json`。
 - 查看 `qa/qa-loop-state.json` 是否已经超过重试预算。
 - 按 `return_node` 修最小上游节点，不要整套重做。

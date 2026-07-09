@@ -21,6 +21,7 @@
     "qa:localized-copy": "node scripts/localized-copy-qa-gate.mjs",
     "qa:text-layout": "node scripts/text-layout-proof-gate.mjs",
     "qa:product-background": "node scripts/product-background-card-consistency-gate.mjs",
+    "watchdog:runtime": "node scripts/runtime-watchdog.mjs",
     "progress:reconcile": "node scripts/reconcile-generation-progress.mjs",
     "launch:canvas": "node scripts/post-generation-tldraw-launcher.mjs",
     "wait:review": "node scripts/wait-for-review-completion.mjs"

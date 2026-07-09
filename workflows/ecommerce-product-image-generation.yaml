@@ -150,6 +150,7 @@ steps:
   - marketing-quality-gate
   - image-set-export-gate
   - generation-progress-reconcile-before-final-delivery
+  - runtime-watchdog-before-qa-loop
   - qa-loop-router
   - delivery-overview-contact-sheet-if-multi-image-set
   - post-generation-tldraw-auto-start-if-generated-images
