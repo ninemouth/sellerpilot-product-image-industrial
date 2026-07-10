@@ -12,6 +12,8 @@ generation-summary.md  # concise product identity, visual strategy, prompt, and 
 brief-intake/brief-intake-gate-report.json  # only when clarifications or assumptions are material
 generated-assets/generation-progress.json  # for multi-image sets and long-running generation
 generated-assets/anchor-batch-qa-decision.json  # required for 4+ image quality production pacing
+memory/store-style-memory.md  # conditional saved store style overlay when a named store is applied
+memory/store-style-overlay.json  # conditional apply status and source path for store style memory
 source-normalized/product-cutout-transparent.png  # card/infographic product master when source image is used in layout
 source-normalized/product-on-card-safe.png  # fallback when alpha cannot be preserved
 source-normalized/product-normalization-report.json
@@ -78,6 +80,9 @@ Conditional artifacts:
 
 ```text
 source-image-set-manifest.json
+memory/store-style-draft.md
+memory/store-style-memory.md
+memory/store-style-overlay.json
 research/platform-category-profile-overlay.yaml
 research/bestseller-design-mining.md
 research/bestseller-patterns.yaml

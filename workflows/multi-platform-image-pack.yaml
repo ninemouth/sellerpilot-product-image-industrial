@@ -25,6 +25,8 @@ steps:
   - platform-spec-profile
   - platform-preference-memory-apply-if-platform-category-match
   - platform-preference-memory-remember-if-user-confirms-platform-traits
+  - store-style-memory-create-or-update-if-user-requests-store-style
+  - store-style-memory-apply-if-store-mentioned
   - platform-context-planner
   - platform-category-web-research-if-triggered-by-freshness-or-conversion-risk
   - platform-category-profile-overlay

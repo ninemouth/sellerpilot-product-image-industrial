@@ -11,8 +11,10 @@
 
 ## 最新更新
 
-2026-07-08 版本重点增强了平台适配、风格记忆和商业研究闭环：
+2026-07-10 版本重点增强了店铺统一风格记忆、ThinkAI 版继承和商业研究闭环：
 
+- **店铺统一风格记忆**：用户可以在对话里说“创建店铺 xxx 的统一风格”并粘贴店铺地址；skill 会先分析店铺页面、给出 2-3 个统一风格方向，经过用户确认后才把店铺风格保存成 Markdown 记忆。后续生图只要提到该店铺或同一 URL，就会自动把这份 MD 作为店铺/品牌风格层加载。
+- **双版本共享记忆能力**：原版 `sellerpilot-product-image-industrial` 和 ThinkAI 版 `sellerpilot-product-image-industrial-thinkai` 都继承店铺统一风格记忆流程；ThinkAI 版仍使用 `gpt-image-2`，但风格分析、确认和 MD 记忆写入逻辑保持一致。
 - **Ozon 比例规则**：普通品类默认按 `3:4` 竖版商品图导出，Ozon Fresh 食品类等例外按平台 profile 或当前官方证据处理；导出 gate 会从当前任务的 `platform/category` 自动推断比例。
 - **平台/品类偏好记忆**：用户明确确认过的某平台同类商品图片特质、风格方向、文案语气、陈列节奏和禁用项，会保存为 platform preference memory；后续同平台/同品类任务会先读取该记忆，再结合当前商品事实和最新调研决定是否采用。
 - **商业设计研究计划**：当任务目标涉及“爆品图”“提升销售”“点击”“停留”或品类竞争时，skill 会生成 commerce design research plan，把点击钩子、停留机制、信任疑虑、买家问题、画廊叙事和文案节奏回写到套图蓝图与 QA 标准。
@@ -31,6 +33,7 @@
 - 针对时令、气候、节假日、区域趋势和营销热词创建平台上下文计划。
 - 对 Ozon 普通品类默认执行 `3:4` 竖版商品图比例；Ozon Fresh 食品类等例外按平台 profile 或当前官方证据处理。
 - 记住用户明确确认过的平台/品类风格偏好，例如某平台同类商品的图片比例、主图取向、文案语气、陈列节奏或禁用项，下次同平台同品类制作时自动套用为参考。
+- 为单个用户店铺建立统一视觉风格记忆：先分析店铺 URL，提出 2-3 个方向，确认后保存为 Markdown；后续同店铺商品图会自动应用该风格层。
 - 针对“爆品图”“提升销售”“点击”“停留”等目标，创建商业设计研究计划，把点击钩子、停留机制、信任疑虑和买家问题回写到套图蓝图、文案和 QA。
 - 对最终图片文案做策略 gate，避免无证据的夸张卖点、内部 QA 语言、平台水印或系统标记。
 - 强制保留商品套图总览图，但在日常高质量成品中收敛规划和报告产物，避免把完整工业审计包误跑成普通出图流程。
@@ -79,6 +82,34 @@ npm install
 ```text
 请使用 $sellerpilot-product-image-industrial-thinkai 为 Amazon US 做 7 张 listing 图片。
 ```
+
+### 店铺统一风格记忆
+
+如果你希望同一个店铺未来的商品图保持统一视觉风格，可以直接在 Codex / ChatGPT 的 Codex agent 对话里说：
+
+```text
+请使用 $sellerpilot-product-image-industrial 创建店铺 Luna Bridal 的统一风格，店铺地址是 https://example.com/store
+```
+
+ThinkAI 版也支持同样流程：
+
+```text
+请使用 $sellerpilot-product-image-industrial-thinkai 创建店铺 Luna Bridal 的统一风格，店铺地址是 https://example.com/store
+```
+
+Codex 会先分析店铺页面证据，给出 2-3 个统一风格方向，并询问少量关键偏好。只有你确认最终方向后，它才会写入持久 Markdown 记忆。后续生图可以这样调用：
+
+```text
+请使用 $sellerpilot-product-image-industrial 为 Luna Bridal 这个店铺生成 Amazon US 婚礼包 7 图套图，沿用店铺统一风格。
+```
+
+店铺风格记忆默认保存到：
+
+```text
+${SELLERPILOT_IMAGE_SKILL_MEMORY:-$HOME/.codex/sellerpilot-product-image-industrial}/store-style-memory/*.md
+```
+
+这份 MD 只保存店铺/品牌风格层，例如定位、受众、配色、字体、摄影方向、版式节奏、文案语气和禁用项；它不会覆盖当前商品原图身份、平台规则、物理事实、合规边界或用户本次明确要求。
 
 ### ThinkAI gpt-image-2 运行时
 
@@ -535,6 +566,50 @@ npm run memory:platform -- \
 ```
 
 记忆只保存平台/品类层面的视觉、文案和陈列偏好，不保存商品身份、私密业务信息、客户/供应商信息、无证据声明或一次失败反馈。
+
+创建店铺统一风格草稿：
+
+```bash
+npm run memory:store-style -- \
+  --mode draft \
+  --store-name "Luna Bridal" \
+  --store-url "https://example.com/store" \
+  --platform "Amazon" \
+  --category "bridal clutch" \
+  --analysis "Store reads as soft bridal, pearl detail, warm neutral styling." \
+  --recommendation "Elegant warm ivory bridal system with restrained typography." \
+  --run-dir runs/demo-luna-bridal
+```
+
+用户确认方向后保存为持久 Markdown 记忆：
+
+```bash
+npm run memory:store-style -- \
+  --mode remember \
+  --store-name "Luna Bridal" \
+  --store-url "https://example.com/store" \
+  --confirmed true \
+  --confirmed-by user \
+  --positioning "soft premium bridal accessories" \
+  --visual-trait "warm ivory backgrounds with pearl-detail closeups" \
+  --palette "ivory, champagne gold, soft shadow gray" \
+  --typography "thin elegant serif for headlines, simple sans for specs" \
+  --photography "macro pearl texture, hand-held bridal scene, clean tabletop hero" \
+  --layout "airy composition with product dominant and small trust details" \
+  --copy-tone "short graceful bridal wording" \
+  --avoid "no loud discount badges or unrelated party props" \
+  --prompt-directive "apply store style as a brand layer after product identity lock" \
+  --evidence "confirmed after store URL review and user approval"
+```
+
+后续任务加载店铺风格：
+
+```bash
+npm run memory:store-style -- \
+  --mode apply \
+  --store-name "Luna Bridal" \
+  --run-dir runs/demo-luna-bridal
+```
 
 创建商业设计研究计划：
 

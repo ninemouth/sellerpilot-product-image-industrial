@@ -181,6 +181,8 @@ record("workflow loop guard ordering", () => {
       "product-physical-truth-lock-if-function-use-or-scale-sensitive",
       "platform-preference-memory-apply-if-platform-category-match",
       "platform-preference-memory-remember-if-user-confirms-platform-traits",
+      "store-style-memory-create-or-update-if-user-requests-store-style",
+      "store-style-memory-apply-if-store-mentioned",
       "commerce-design-research-planner-if-conversion-critical",
       "copy-strategy-gate",
       "localized-copy-qa-gate-if-locale-needs-review",
@@ -211,6 +213,8 @@ record("workflow loop guard ordering", () => {
     assertStepBefore(file, steps, "source-product-understanding-gate-if-source-facts-or-visible-text", "product-identity-lock");
     assertStepBefore(file, steps, "product-identity-lock", "compact-image-set-blueprint");
     assertStepBefore(file, steps, "platform-preference-memory-apply-if-platform-category-match", "platform-context-planner");
+    assertStepBefore(file, steps, "store-style-memory-apply-if-store-mentioned", "platform-context-planner");
+    assertStepBefore(file, steps, "store-style-memory-apply-if-store-mentioned", "compact-image-set-blueprint");
     assertStepBefore(file, steps, "commerce-design-research-planner-if-conversion-critical", "audience-persona");
     assertStepBefore(file, steps, "compact-image-set-blueprint", "prompt-layer-stack");
     assertStepBefore(file, steps, "product-physical-truth-lock-if-function-use-or-scale-sensitive", "product-physics-fact-gate-if-function-use-or-scale-sensitive");
@@ -817,6 +821,90 @@ record("platform preference memory smoke", () => {
   }
   if (!overlay.use_policy.includes("Do not override current user instructions")) {
     throw new Error("platform preference overlay should include a use policy boundary.");
+  }
+});
+
+record("store style memory smoke", () => {
+  const root = tmpDir("sp-verify-store-style-memory-");
+  const memoryRoot = path.join(root, "memory-root");
+  const runDir = path.join(root, "run");
+  run(process.execPath, [
+    "scripts/create-run-skeleton.mjs",
+    "--out-dir", runDir,
+    "--platform", "Amazon",
+    "--category", "bridal clutch",
+  ]);
+  const draftOut = run(process.execPath, [
+    "scripts/store-style-memory.mjs",
+    "--memory-root", memoryRoot,
+    "--mode", "draft",
+    "--store-name", "Luna Bridal",
+    "--store-url", "https://example.com/store?utm=secret",
+    "--platform", "Amazon",
+    "--category", "bridal clutch",
+    "--analysis", "Current store reads as soft bridal, pearl detail, warm neutral styling.",
+    "--recommendation", "Elegant warm ivory bridal system with close detail shots and restrained typography.",
+    "--run-dir", runDir,
+  ]);
+  const draft = JSON.parse(draftOut);
+  if (draft.status !== "draft_ready") throw new Error("store style draft should be created before confirmation.");
+  if (!fs.existsSync(path.join(runDir, "memory", "store-style-draft.md"))) {
+    throw new Error("store style draft should be written into the run memory folder.");
+  }
+  const blockedOut = run(process.execPath, [
+    "scripts/store-style-memory.mjs",
+    "--memory-root", memoryRoot,
+    "--mode", "remember",
+    "--store-name", "Luna Bridal",
+    "--store-url", "https://example.com/store",
+    "--visual-trait", "warm ivory background",
+  ]);
+  if (JSON.parse(blockedOut).status !== "blocked_needs_user_confirmation") {
+    throw new Error("store style memory must require explicit user confirmation before saving.");
+  }
+  const rememberedOut = run(process.execPath, [
+    "scripts/store-style-memory.mjs",
+    "--memory-root", memoryRoot,
+    "--mode", "remember",
+    "--store-name", "Luna Bridal",
+    "--store-url", "https://example.com/store?utm=secret",
+    "--platform", "Amazon",
+    "--category", "bridal clutch",
+    "--confirmed", "true",
+    "--confirmed-by", "user",
+    "--positioning", "soft premium bridal accessories",
+    "--audience", "brides seeking elegant pearl evening bags",
+    "--visual-trait", "warm ivory background with pearl-detail closeups",
+    "--palette", "ivory, champagne gold, soft shadow gray",
+    "--typography", "thin elegant serif for headline, simple sans for specs",
+    "--photography", "macro pearl texture, hand-held bridal scene, clean tabletop hero",
+    "--layout", "airy composition with product dominant and small trust details",
+    "--copy-tone", "short graceful bridal wording",
+    "--avoid", "no loud discount badges or unrelated party props",
+    "--prompt-directive", "apply store style as a brand layer after product identity lock",
+    "--evidence", "confirmed after store URL review and user approval",
+  ]);
+  const remembered = JSON.parse(rememberedOut);
+  if (remembered.status !== "remembered") throw new Error("confirmed store style memory should be remembered.");
+  const memoryMd = fs.readFileSync(remembered.memory_path, "utf8");
+  if (!memoryMd.includes("# Store Style Memory: Luna Bridal") || !memoryMd.includes("Prompt Directives")) {
+    throw new Error("store style memory should be saved as a durable Markdown document.");
+  }
+  run(process.execPath, [
+    "scripts/store-style-memory.mjs",
+    "--memory-root", memoryRoot,
+    "--mode", "apply",
+    "--store-name", "Luna Bridal",
+    "--run-dir", runDir,
+  ]);
+  const overlay = readJson(path.join(runDir, "memory", "store-style-overlay.json"));
+  if (overlay.status !== "applied") throw new Error("store style memory should apply by store name.");
+  const appliedMd = fs.readFileSync(path.join(runDir, "memory", "store-style-memory.md"), "utf8");
+  if (!appliedMd.includes("warm ivory background")) {
+    throw new Error("applied store style Markdown should be copied into the run memory folder.");
+  }
+  if (!overlay.use_policy.includes("source product identity")) {
+    throw new Error("store style overlay should preserve product identity boundary.");
   }
 });
 

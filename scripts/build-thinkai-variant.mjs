@@ -50,7 +50,7 @@ function applyThinkAiVariant(baseDir) {
     [/^name:\s*sellerpilot-product-image-industrial$/m, `name: ${variantName}`],
     [
       /^description: (.+)$/m,
-      "description: ThinkAI gpt-image-2 variant of SellerPilot Product Image Industrial. Use when Codex needs to create, plan, review, or revise ecommerce product image sets through the ThinkAI OpenAI-compatible image runtime with model gpt-image-2.",
+      "description: ThinkAI gpt-image-2 variant of SellerPilot Product Image Industrial. Use when Codex needs to create, plan, review, or revise ecommerce product image sets and store unified visual style memory through the ThinkAI OpenAI-compatible image runtime with model gpt-image-2. Trigger for 店铺统一风格, store style memory, 商品图, 产品图, and ecommerce image-set production.",
     ],
     [
       /Actual production image generation defaults to Codex-native GPT built-in image generation[\s\S]*?Use that native path for real raster outputs unless the user explicitly selects the ThinkAI `gpt-image-2` provider\./,

@@ -55,6 +55,9 @@ Intent -> Normalize -> Mode Router -> Efficiency Plan -> Brief Intake Gate -> So
 37. 带可见文字的正式图不得先用昂贵最终生成来试错排版。正式出图/最终导出前必须运行 `text-layout-proof-gate`，或记录 `text_layout_proof.status=pass/not_required`，先用低成本 layout proof、截图或画布检查标题、卖点、标签、俄语/德语/阿拉伯语等复杂语言的换行、溢出、层级和安全区。
 38. 使用/场景类图不得用矢量装饰背景、重复图案、白卡商品贴图、Pillow/确定性合成图冒充真实场景。若 image role/title/usage context 表达修草、修篱、户外、阳台、花园、lifestyle、use 等，必须有真实 generated/photo scene asset 证据，或 `final_scene_realism_review.status=pass/not_required`；否则 marketing gate 必须失败。
 39. 长耗时任务必须运行 runtime watchdog。超过 15 分钟或 final export 后进入 QA/交付收口前，必须读取当前 run 的 `generation-progress.json`、manifest、overview、QA loop state 和 final gate，判断是 active generation/network wait、gate churn、ready but not closed，还是 stalled no progress。`gate_churn_detected`、`ready_but_not_closed`、`blocked_stalled_no_progress` 时不得整套重做；只能停止自动重生图、汇报状态，并执行最小下一步。
+40. 当用户通过 `sellerpilot-product-image-industrial` 或 `sellerpilot-product-image-industrial-thinkai` 说“创建店铺 xxx 的统一风格”、提供店铺地址或要求保存店铺风格时，必须先分析店铺 URL/页面证据，给出 2-3 个统一风格方向和少量高价值问题；确认前只能写当前 run 的 `memory/store-style-draft.md`，不得写入持久记忆。
+41. 用户确认店铺统一风格后，才允许把店铺风格写入 `${SELLERPILOT_IMAGE_SKILL_MEMORY:-$HOME/.codex/sellerpilot-product-image-industrial}/store-style-memory/*.md`。店铺风格记忆只能保存定位、受众、视觉特质、配色、字体、摄影/场景、版式、文案语气、禁用项、prompt 指令和证据摘要；不得保存商品身份、私密业务数据、客户/供应商信息、凭证、无证据高风险声明或一次性失败反馈。
+42. 后续生图请求中只要命中已保存店铺名或店铺 URL，必须在平台上下文、视觉总监、prompt layer 和 QA 前加载当前 run 的 `memory/store-style-memory.md` 与 `memory/store-style-overlay.json`。该记忆是店铺/品牌风格层，不得覆盖当前用户指令、源商品身份、物理事实、平台规则、合规边界或实时调研。
 
 ## Default Workflow
 
@@ -73,6 +76,8 @@ Fast generation mode uses this compact workflow unless the user requests a full 
 - product-physical-truth-lock-if-function/use/scale-sensitive
 - platform-preference-memory-apply-if-platform-category-match
 - platform-preference-memory-remember-if-user-confirms-platform-traits
+- store-style-memory-create-or-update-if-user-requests-store-style
+- store-style-memory-apply-if-store-mentioned
 - platform/category baseline plus targeted research when useful
 - commerce-design-research-planner-if-conversion-dwell-bestseller-triggered
 - feature/audience/scene trigger summary
@@ -104,6 +109,7 @@ Industrial audit mode uses the full workflow:
 - product-physical-truth-lock
 - platform-spec-profile
 - platform-preference-memory
+- store-style-memory
 - audience-persona
 - market-research
 - commerce-design-research-planner

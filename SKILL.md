@@ -1,6 +1,6 @@
 ---
 name: sellerpilot-product-image-industrial
-description: Use when Codex needs to create, plan, review, or revise industrial ecommerce product image sets for SellerPilot-style workflows, including Amazon listing images, TikTok Shop images, Xiaohongshu image packs, multi-platform product image packs, competitor-reference redesigns, product image QA, localized commerce copy, and product fact-sheet based visual generation. Trigger for Chinese or English requests about 商品图, 产品图, 电商套图, Amazon 7 image sets, listing images, product-image generation, product-image prompts, competitor image redesign, or SellerPilot product image production.
+description: Use when Codex needs to create, plan, review, or revise industrial ecommerce product image sets for SellerPilot-style workflows, including Amazon listing images, TikTok Shop images, Xiaohongshu image packs, multi-platform product image packs, competitor-reference redesigns, product image QA, localized commerce copy, store unified visual style memory, and product-fact-sheet based visual generation. Trigger for Chinese or English requests about 商品图, 产品图, 电商套图, Amazon 7 image sets, listing images, product-image generation, product-image prompts, competitor image redesign, 店铺统一风格, store style memory, or SellerPilot product image production.
 ---
 
 # SellerPilot Product Image Industrial
@@ -62,6 +62,8 @@ or:
 Do not require the user to recite the industrial workflow, QA policy, generation boundary, blocked-runtime behavior, model name, tool name, or review-canvas rules. Infer the missing production steps from the product/category/platform request, then run the workflow conservatively. If the user asks for "生成图片/套图" and the task needs product-bearing generation, attempt Codex-native built-in image generation through the system `imagegen` skill / built-in `image_gen` tool when available, unless the user explicitly selects ThinkAI `gpt-image-2`. Only create a request pack as fallback or audit evidence when generation cannot be executed or when the user explicitly asks for it.
 
 The long strict prompt is an internal acceptance policy, not a required user prompt.
+
+Store style memory is also a natural user request. If the user says "创建店铺 xxx 的统一风格", "保存店铺视觉风格", or similar and provides a store URL, first analyze the store/page evidence, then show 2-3 unified style directions and ask only high-value questions. Write a durable Markdown store memory only after the user confirms the final direction. Later product image requests that name the store or reuse the URL must apply that Markdown as a store/brand style layer before platform context planning and prompt layering.
 
 ## Brief Intake Gate
 
@@ -125,6 +127,9 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
 ```
 
 Use `memory/platform-preference-overlay.json` only as confirmed platform/category style memory. It may influence visual traits, style direction, copy tone, merchandising rhythm, and avoid notes, but it must not override current user instructions, source product identity, official platform rules, physical truth, or fresh research. If the current user explicitly gives or confirms platform-level traits such as "Ozon 同类女包要保持 3:4、干净主图、俄语短文案", remember those traits after classification with `--mode remember`. Do not store product identity facts, private business data, supplier/customer details, unsupported claims, or one-off generation failures.
+
+6b. If the request names a saved store or includes a matching store URL, apply store style memory before platform context planning, audience positioning, visual direction, prompt layering, and QA. If the user asks to create or update a store's unified style, analyze the store URL/page evidence, show 2-3 directions, ask only high-value questions, and save the durable Markdown only after confirmation. Use `memory/store-style-memory.md` as a store/brand style layer only; it must not override current user instructions, source product identity, physical truth, official platform constraints, safety/compliance boundaries, or fresh category research.
+
 7. Run platform/category research with web search only when the target platform/category tone is unclear, recent, or conversion-critical, or when season/climate/holiday/region/hotword copy materially affects conversion. Treat platform YAML as a baseline, not complete live truth. Load `references/contextual-platform-research.md` when season, climate, holiday, region, trend, or marketing language matters. Create `research/platform-context-plan.json` and a run-level platform/category overlay from current research. If no trigger exists, use the platform profile baseline and record `skip_use_platform_yaml_baseline` in the efficiency plan.
 7a. When the task is conversion-critical, dwell-time-sensitive, category-competitive, or the user asks for "爆品/提升销售/停留/点击", run the commerce design research planner before audience positioning, shot matrix, copy, and prompt layers:
 
@@ -277,6 +282,52 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
 ```
 
 Use platform preference memory only for durable platform/category visual, copy, and merchandising preferences that the user explicitly gives or confirms. Apply it at the start of later same-platform/same-category runs with `--mode apply --run-dir /abs/run`. The store lives outside task runs at `${SELLERPILOT_IMAGE_SKILL_MEMORY:-$HOME/.codex/sellerpilot-product-image-industrial}/platform-preference-memory.json`; run overlays are copied into `memory/platform-preference-overlay.json`.
+
+Use store style memory when the user asks to create/update a store's unified style or when a later generation request names a saved store. For creation/update, analyze the store URL/page evidence first, create a run-local draft, show 2-3 directions, and do not save durable memory until the user confirms:
+
+```bash
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/store-style-memory.mjs \
+  --mode draft \
+  --store-name "Luna Bridal" \
+  --store-url "https://example.com/store" \
+  --platform "Amazon" \
+  --category "bridal clutch" \
+  --analysis "Store reads as soft bridal, pearl detail, warm neutral styling." \
+  --recommendation "Elegant warm ivory bridal system with restrained typography." \
+  --run-dir /abs/run
+```
+
+After user confirmation, save the durable Markdown:
+
+```bash
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/store-style-memory.mjs \
+  --mode remember \
+  --store-name "Luna Bridal" \
+  --store-url "https://example.com/store" \
+  --confirmed true \
+  --confirmed-by user \
+  --positioning "soft premium bridal accessories" \
+  --visual-trait "warm ivory backgrounds with pearl-detail closeups" \
+  --palette "ivory, champagne gold, soft shadow gray" \
+  --typography "thin elegant serif for headlines, simple sans for specs" \
+  --photography "macro pearl texture, hand-held bridal scene, clean tabletop hero" \
+  --layout "airy composition with product dominant and small trust details" \
+  --copy-tone "short graceful bridal wording" \
+  --avoid "no loud discount badges or unrelated party props" \
+  --prompt-directive "apply store style as a brand layer after product identity lock" \
+  --evidence "confirmed after store URL review and user approval"
+```
+
+For later generation requests that name a saved store or include a matching store URL, apply store style memory before platform context planning, audience/visual direction, prompt layering, and QA:
+
+```bash
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/store-style-memory.mjs \
+  --mode apply \
+  --store-name "Luna Bridal" \
+  --run-dir /abs/run
+```
+
+Use `memory/store-style-memory.md` only as a durable store/brand visual layer. It may shape palette, typography, photography direction, layout rhythm, copy tone, avoid notes, and prompt directives, but it must not override current user instructions, source product identity, physical truth, official platform constraints, compliance boundaries, or fresh category research. The durable Markdown lives under `${SELLERPILOT_IMAGE_SKILL_MEMORY:-$HOME/.codex/sellerpilot-product-image-industrial}/store-style-memory/`.
 
 ```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/commerce-design-research-planner.mjs \
