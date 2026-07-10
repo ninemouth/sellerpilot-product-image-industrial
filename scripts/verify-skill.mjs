@@ -262,6 +262,7 @@ record("thinkai runtime contract", () => {
     'DEFAULT_BASE_URL = "https://www.thinkai.tv/v1"',
     'DEFAULT_MODEL = "gpt-image-2"',
     "THINKAI_API_KEY",
+    "spawnSync(\"curl\"",
     "/images/generations",
     "/images/edits",
     "response_format",

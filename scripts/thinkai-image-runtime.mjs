@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 
 const DEFAULT_BASE_URL = "https://www.thinkai.tv/v1";
 const DEFAULT_MODEL = "gpt-image-2";
@@ -193,54 +194,90 @@ function buildEditRequest({ model, prompt, imagePaths, maskPath, size, quality, 
 }
 
 async function executeGeneration({ baseUrl, apiKey, request }) {
-  const response = await fetch(`${baseUrl}${request.endpoint}`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      Accept: "*/*",
-      "User-Agent": DEFAULT_USER_AGENT,
-    },
-    body: JSON.stringify(request.body),
+  return requestJsonWithCurl({
+    url: `${baseUrl}${request.endpoint}`,
+    apiKey,
+    body: request.body,
+    label: "Image generation request failed",
   });
-  return readJsonResponse(response, "Image generation request failed");
 }
 
 async function executeEdit({ baseUrl, apiKey, request }) {
-  const form = new FormData();
-  for (const [key, value] of Object.entries(request.fields)) form.append(key, value);
-  for (const imagePath of request.imagePaths) {
-    form.append("image", await fileBlob(imagePath), path.basename(imagePath));
+  const curlArgs = [
+    "--silent",
+    "--show-error",
+    "--fail",
+    "--connect-timeout",
+    "30",
+    "--max-time",
+    "1800",
+    "-X",
+    "POST",
+    `${baseUrl}${request.endpoint}`,
+    "-H",
+    `Authorization: Bearer ${apiKey}`,
+    "-H",
+    "Accept: */*",
+    "-H",
+    `User-Agent: ${DEFAULT_USER_AGENT}`,
+  ];
+  for (const [key, value] of Object.entries(request.fields)) {
+    curlArgs.push("-F", `${key}=${value}`);
   }
-  if (request.maskPath) form.append("mask", await fileBlob(request.maskPath), path.basename(request.maskPath));
-
-  const response = await fetch(`${baseUrl}${request.endpoint}`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      Accept: "*/*",
-      "User-Agent": DEFAULT_USER_AGENT,
-    },
-    body: form,
-  });
-  return readJsonResponse(response, "Image edit request failed");
+  for (const imagePath of request.imagePaths) {
+    curlArgs.push("-F", `image=@${imagePath};type=${contentType(imagePath)}`);
+  }
+  if (request.maskPath) {
+    curlArgs.push("-F", `mask=@${request.maskPath};type=image/png`);
+  }
+  const text = runCurl(curlArgs, "Image edit request failed");
+  return parseJsonPayload(text, "Image edit request failed");
 }
 
-async function readJsonResponse(response, prefix) {
-  const text = await response.text();
-  if (!response.ok) {
-    throw new Error(`${prefix} with HTTP ${response.status}: ${text.slice(0, 1000)}`);
-  }
+function requestJsonWithCurl({ url, apiKey, body, label }) {
+  const text = runCurl([
+    "--silent",
+    "--show-error",
+    "--fail",
+    "--connect-timeout",
+    "30",
+    "--max-time",
+    "1800",
+    "-X",
+    "POST",
+    url,
+    "-H",
+    `Authorization: Bearer ${apiKey}`,
+    "-H",
+    "Content-Type: application/json",
+    "-H",
+    "Accept: */*",
+    "-H",
+    `User-Agent: ${DEFAULT_USER_AGENT}`,
+    "--data-binary",
+    JSON.stringify(body),
+  ], label);
+  return parseJsonPayload(text, label);
+}
+
+function runCurl(curlArgs, label) {
+  const result = spawnSync("curl", curlArgs, {
+    encoding: "buffer",
+    maxBuffer: 100 * 1024 * 1024,
+  });
+  if (result.status === 0) return result.stdout.toString("utf8");
+  const stderr = result.stderr.toString("utf8").trim();
+  const stdout = result.stdout.toString("utf8").trim();
+  const detail = stderr || stdout || `curl exited with ${result.status}`;
+  throw new Error(`${label}: ${detail}`);
+}
+
+function parseJsonPayload(text, label) {
   try {
     return JSON.parse(text);
   } catch (error) {
-    throw new Error(`${prefix}: non-JSON response ${text.slice(0, 1000)}`);
+    throw new Error(`${label}: non-JSON response ${String(text).slice(0, 1000)}`);
   }
-}
-
-async function fileBlob(filePath) {
-  const bytes = await fs.promises.readFile(filePath);
-  return new Blob([bytes], { type: contentType(filePath) });
 }
 
 function contentType(filePath) {
@@ -275,17 +312,28 @@ async function writeImagesFromResponse(response, dir) {
 
 async function downloadImageBytes(url) {
   if (!url) throw new Error("Image response item is missing url.");
-  const response = await fetch(url, {
-    headers: {
-      Accept: "*/*",
-      "User-Agent": DEFAULT_USER_AGENT,
-    },
+  const result = spawnSync("curl", [
+    "-L",
+    "--silent",
+    "--show-error",
+    "--fail",
+    "--connect-timeout",
+    "30",
+    "--max-time",
+    "900",
+    "-H",
+    "Accept: */*",
+    "-H",
+    `User-Agent: ${DEFAULT_USER_AGENT}`,
+    url,
+  ], {
+    encoding: "buffer",
+    maxBuffer: 200 * 1024 * 1024,
   });
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Image download failed with HTTP ${response.status}: ${text.slice(0, 1000)}`);
-  }
-  return Buffer.from(await response.arrayBuffer());
+  if (result.status === 0 && result.stdout?.length) return result.stdout;
+  const stderr = result.stderr.toString("utf8").trim();
+  const stdout = result.stdout.toString("utf8").trim();
+  throw new Error(`Image download failed: ${stderr || stdout || `curl exited with ${result.status}`}`);
 }
 
 function detectPngSize(bytes) {
