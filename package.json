@@ -15,6 +15,7 @@
     "sync:codex": "node scripts/sync-to-codex-skill.mjs --skill-name sellerpilot-product-image-industrial",
     "build:variant:thinkai": "node scripts/build-thinkai-variant.mjs",
     "sync:thinkai": "npm run build:variant:thinkai && node scripts/sync-to-codex-skill.mjs --source dist/sellerpilot-product-image-industrial-thinkai --skill-name sellerpilot-product-image-industrial-thinkai",
+    "configure:thinkai": "node scripts/configure-thinkai-runtime.mjs",
     "check:update": "node scripts/check-skill-update.mjs",
     "route:mode": "node scripts/production-mode-router.mjs",
     "plan:efficiency": "node scripts/production-efficiency-plan.mjs",

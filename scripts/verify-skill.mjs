@@ -254,7 +254,9 @@ record("no legacy provider naming", () => {
 
 record("thinkai runtime contract", () => {
   const runtimePath = path.join(skillRoot, "scripts", "thinkai-image-runtime.mjs");
+  const configurePath = path.join(skillRoot, "scripts", "configure-thinkai-runtime.mjs");
   if (!fs.existsSync(runtimePath)) throw new Error("scripts/thinkai-image-runtime.mjs is missing.");
+  if (!fs.existsSync(configurePath)) throw new Error("scripts/configure-thinkai-runtime.mjs is missing.");
   const runtime = fs.readFileSync(runtimePath, "utf8");
   for (const token of [
     'DEFAULT_BASE_URL = "https://www.thinkai.tv/v1"',
@@ -272,6 +274,20 @@ record("thinkai runtime contract", () => {
     "--output-dir", tmpDir("sp-verify-thinkai-runtime-"),
     "--dry-run",
   ]);
+  const configDir = tmpDir("sp-verify-thinkai-config-");
+  const configOut = run(process.execPath, [
+    "scripts/configure-thinkai-runtime.mjs",
+    "--skill-dir", configDir,
+    "--api-key", "verify-key",
+  ]);
+  const configSummary = JSON.parse(configOut);
+  const config = readJson(path.join(configDir, ".thinkai-image-runtime.json"));
+  if (configSummary.model !== "gpt-image-2" || config.model !== "gpt-image-2") {
+    throw new Error("ThinkAI config script must write model gpt-image-2.");
+  }
+  if (config.api_key !== "verify-key") {
+    throw new Error("ThinkAI config script did not write the supplied API key.");
+  }
   const docs = [
     "README.md",
     "SKILL.md",

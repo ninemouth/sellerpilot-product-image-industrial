@@ -88,11 +88,11 @@ ThinkAI 版使用本仓库的 `scripts/thinkai-image-runtime.mjs`。最简单的
 export THINKAI_API_KEY="<YOUR_THINKAI_API_KEY>"
 ```
 
-也可以在 ThinkAI skill 安装目录复制本地配置样例，填入 key；这个文件已被 `.gitignore` 排除：
+也可以让 Codex 写入安装目录里的本地配置文件；这个文件已被 `.gitignore` 排除：
 
 ```bash
 cd ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial-thinkai
-cp .thinkai-image-runtime.example.json .thinkai-image-runtime.json
+npm run configure:thinkai -- --api-key "<YOUR_THINKAI_API_KEY>"
 ```
 
 运行时默认 base URL 是 `https://www.thinkai.tv/v1`，默认模型固定为 `gpt-image-2`。可用 dry-run 检查请求快照，不会真实调用网络：
@@ -149,15 +149,30 @@ ThinkAI 版是从同一仓库构建出来的完整 skill 包，避免在 GitHub 
 3. 运行 npm run verify。
 4. 运行 npm run build:variant:thinkai。
 5. 运行 npm run sync:thinkai，把生成的 dist/sellerpilot-product-image-industrial-thinkai 安装到 ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial-thinkai。
-6. 安装后请验证 SKILL.md 的 name 是 sellerpilot-product-image-industrial-thinkai，并提醒我重启 Codex。
+6. 安装后请验证 SKILL.md 的 name 是 sellerpilot-product-image-industrial-thinkai。
+7. 检查是否已有 THINKAI_API_KEY 环境变量；如果没有，请向我索取 ThinkAI API key。
+8. 拿到 key 后运行：
+   cd ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial-thinkai
+   npm run configure:thinkai -- --api-key '<我提供的KEY>'
+9. 验证 ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial-thinkai/.thinkai-image-runtime.json 存在、权限尽量为 600、model 是 gpt-image-2。不要在回复里打印 key。
+10. 运行一次不联网不扣费的 dry-run：
+   npm run generate:thinkai -- --prompt 'verify dry run' --output-dir /tmp/sellerpilot-thinkai-dry-run --dry-run
+11. 完成后提醒我重启 Codex。
 
 不要覆盖 sellerpilot-product-image-industrial 原版。
 ```
 
-如果需要保存 ThinkAI key，可以继续在对话里让 Codex 执行：
+如果只需要补配 key，可以继续在对话里让 Codex 执行：
 
 ```text
-请在 ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial-thinkai/.thinkai-image-runtime.json 写入我的 ThinkAI API key，并确认该文件不会提交到 Git。
+请帮我配置 ThinkAI 版 SellerPilot 商品图 skill 的 API key：
+
+1. 检查 ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial-thinkai 是否存在。
+2. 如果当前环境没有 THINKAI_API_KEY，请向我索取 ThinkAI API key。
+3. 拿到 key 后进入安装目录并运行：
+   npm run configure:thinkai -- --api-key '<我提供的KEY>'
+4. 验证 .thinkai-image-runtime.json 存在、model 是 gpt-image-2、权限尽量为 600。
+5. 不要在回复里打印 key，不要把 .thinkai-image-runtime.json 提交到 Git。
 ```
 
 ### 方式 3：在终端用 skill-installer 安装原版
