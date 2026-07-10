@@ -9,9 +9,9 @@ description: Use when Codex needs to create, plan, review, or revise industrial 
 
 Use this skill as the Codex chat/project entrypoint for SellerPilot-style ecommerce product image production. It turns product URLs, source product images, competitor references, platform targets, audience context, and style requirements into generated product images plus only the planning, QA, and review artifacts needed for the selected mode.
 
-Actual production image generation must target Codex-native GPT built-in image generation. In Codex chat/project contexts, the normal execution layer is the system `imagegen` skill using the built-in `image_gen` tool. Use that native path for real raster outputs whenever the user asks to generate ecommerce images and the current host exposes it.
+Actual production image generation defaults to Codex-native GPT built-in image generation. In Codex chat/project contexts, the normal execution layer is the system `imagegen` skill using the built-in `image_gen` tool. Use that native path for real raster outputs unless the user explicitly selects the ThinkAI `gpt-image-2` provider.
 
-This skill owns the SellerPilot industrial workflow: product truth, identity locks, source-photo enhancement, platform/category research, visual strategy, photography direction, prompt layering, QA routing, review surfaces, and export rules. It may call the system `imagegen` skill / built-in `image_gen` as the production execution layer; it must not create one-off image-generation wrappers, silently switch to API/CLI fallback, or claim deterministic layout drafts as final generated product images.
+This skill owns the SellerPilot industrial workflow: product truth, identity locks, source-photo enhancement, platform/category research, visual strategy, photography direction, prompt layering, QA routing, review surfaces, and export rules. It may call the system `imagegen` skill / built-in `image_gen` as the default production execution layer, or the repo-local ThinkAI runtime when explicitly selected; it must not create one-off image-generation wrappers, silently switch to API/CLI fallback, or claim deterministic layout drafts as final generated product images.
 
 The final generation prompt is a personalized production brief, not a generic fixed prompt. Build it only after product truth, market/platform context, audience, commerce strategy, creative direction, photography treatment, layout intent, and self-review have shaped the image goal. Request packs are fallback or audit artifacts, not the default user-facing deliverable.
 
@@ -59,7 +59,7 @@ or:
 生成一张拼多多女包主图。
 ```
 
-Do not require the user to recite the industrial workflow, QA policy, generation boundary, blocked-runtime behavior, model name, tool name, or review-canvas rules. Infer the missing production steps from the product/category/platform request, then run the workflow conservatively. If the user asks for "生成图片/套图" and the task needs product-bearing generation, attempt Codex-native built-in image generation through the system `imagegen` skill / built-in `image_gen` tool when available. Only create a request pack as fallback or audit evidence when generation cannot be executed or when the user explicitly asks for it.
+Do not require the user to recite the industrial workflow, QA policy, generation boundary, blocked-runtime behavior, model name, tool name, or review-canvas rules. Infer the missing production steps from the product/category/platform request, then run the workflow conservatively. If the user asks for "生成图片/套图" and the task needs product-bearing generation, attempt Codex-native built-in image generation through the system `imagegen` skill / built-in `image_gen` tool when available, unless the user explicitly selects ThinkAI `gpt-image-2`. Only create a request pack as fallback or audit evidence when generation cannot be executed or when the user explicitly asks for it.
 
 The long strict prompt is an internal acceptance policy, not a required user prompt.
 
@@ -147,7 +147,7 @@ The planner is a budgeted research contract, not a competitor-copy license. Extr
 11. Create sketches or layout wireframes before final generation prompts when the set is complete, scene-heavy, layout-heavy, or final quality depends on composition. In quality production, use compact wireframe notes inside the image-set plan unless a separate layout artifact is needed. Load `references/sketch-to-final-production.md` for complete image sets, scene-heavy work, or any run where final quality matters.
 12. Create a Graphic Design Direction Brief and Visual Direction Brief before full image generation. A design director must define typography hierarchy, safe zones, overlay style, text density, mobile legibility, set-level layout variation, and the visible-mark decision. Default visible-mark decision is absolute prohibition: no watermark, platform-pack label, system mark, or arbitrary corner mark unless the user explicitly requested that exact mark and the run records `watermark_authorization` with exact text, placement, purpose, and image scope before prompt/layout work. A visual director must define the shot matrix, camera angles, crops, lighting, scene logic, prop/model context, buyer-facing copy intent, and A-H editable regions for every image. Do not allow final image copy to sound like internal QA notes.
 13. If the user asks for 场景图, 上身图, 模特图, lifestyle, outfit, commute, cafe, street, or `含场景图`, load `references/scene-asset-production.md`. Scene and use-case roles require real generated/photo scene assets or an explicit final scene realism review. A product cutout on a decorative layout, repeated vector background, white product card pasted onto a fake environment, or Pillow/deterministic composite is a layout proof at most, not a final scene image.
-14. Load `references/prompt-layering-subloop.md`, `references/personalized-prompt-delivery.md`, and `references/gpt-built-in-image-generation-policy.md` before final product-bearing image generation. Use the Prompt Layer Architect Brain to decide mandatory and conditional layers, then prepare a personalized built-in image generation request with source image references when available, identity locks, commercial intent, photography treatment, layout intent, QA expectations, and retry policy. If the current Codex/runtime surface exposes the system `imagegen` skill and built-in `image_gen` tool, execute the request through that native path. If it cannot execute required image-reference generation, stop at request pack/layout draft and mark final generation blocked.
+14. Load `references/prompt-layering-subloop.md`, `references/personalized-prompt-delivery.md`, and `references/gpt-built-in-image-generation-policy.md` before final product-bearing image generation. Use the Prompt Layer Architect Brain to decide mandatory and conditional layers, then prepare a personalized built-in image generation request with source image references when available, identity locks, commercial intent, photography treatment, layout intent, QA expectations, and retry policy. If the current Codex/runtime surface exposes the system `imagegen` skill / built-in `image_gen` tool, execute the request through that native path. If it cannot execute required image-reference generation, stop at request pack/layout draft and mark final generation blocked.
 14a. For apparel, bags, shoes, furniture, tools, and other proportion-sensitive products, load `references/identity-geometry-lock.md`. Create or update `geometry/source-geometry.json` before generation and run `identity-geometry-gate.mjs` on generated assets before final delivery. Apparel must preserve garment length, hem position, collar-to-hem ratio, sleeve length class, neckline shape, and silhouette; a normal jersey must not become a crop top unless supported by source/user input.
 15. For multi-image sets, use generation pacing: generate and QA a small anchor batch first, then continue with only missing/failed assets. Do not spend a full run serially generating all images before checking identity, scene direction, and role diversity.
 15a. When the user provides prior generated outputs and asks to continue, audit, optimize, or revise them, load `references/failed-output-regeneration.md` first. Classify failures such as watermark/platform-pack labels, weak graphic design, generic photography treatment, unclear micro-detail handling, identity drift, fake scenes, or repeated layouts; keep approved assets and rerun only the smallest affected upstream node.
@@ -164,6 +164,20 @@ The planner is a budgeted research contract, not a competitor-copy license. Extr
 ## Bundled Scripts
 
 Use bundled scripts for deterministic support work. They do not replace Codex-native image generation.
+
+For explicit ThinkAI provider runs or for the ThinkAI variant:
+
+```bash
+THINKAI_API_KEY="<key>" \
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/thinkai-image-runtime.mjs \
+  --prompt "<final personalized prompt>" \
+  --image /abs/source-product.png \
+  --size 2k \
+  --quality hd \
+  --output-dir /abs/run/generated-assets/anchor-01
+```
+
+The runtime also reads `${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/.thinkai-image-runtime.json` when an environment key is not set. Keep that local config uncommitted.
 
 For skill development and release hygiene:
 

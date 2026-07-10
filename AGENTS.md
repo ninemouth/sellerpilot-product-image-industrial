@@ -24,8 +24,8 @@ Intent -> Normalize -> Mode Router -> Efficiency Plan -> Brief Intake Gate -> So
 7. 不承诺 CTR、CVR、ROAS、ACOS 或销量提升。
 8. 最终导出前必须运行 QA。
 9. 用户在无限画布的标注是结构化修订输入。
-10. 生产级生图目标提供方必须是 Codex/GPT 内置生图能力。Codex chat/project 中默认通过系统 `imagegen` skill / 内置 `image_gen` 工具执行真实栅格生图。
-11. 不得自造一次性生图 wrapper、静默切换 API/CLI fallback，或把确定性 layout draft 冒充最终生成图。允许把系统 `imagegen` / `image_gen` 作为 Codex 原生执行层。
+10. 生产级生图目标提供方默认是 Codex/GPT 内置生图能力。Codex chat/project 中默认通过系统 `imagegen` skill / 内置 `image_gen` 工具执行真实栅格生图。用户明确选择 ThinkAI 版或 `gpt-image-2` provider 时，才使用本仓库 `scripts/thinkai-image-runtime.mjs`。
+11. 不得自造一次性生图 wrapper、静默切换 API/CLI fallback，或把确定性 layout draft 冒充最终生成图。允许把系统 `imagegen` / `image_gen` 作为 Codex 原生执行层；用户显式选择 ThinkAI provider 时，允许使用本仓库 `scripts/thinkai-image-runtime.mjs`。
 12. 最终 generation prompt 不是起点，必须由前置商品事实、平台/品类调研、人群定位、商业策略、摄影处理、草图/线框和自审结果共同生成。
 13. Prompt Layer Architect Brain 必须决定每张图的必备层与条件层；缺少强制层或触发条件层时，不得进入最终生图。
 14. 任一 gate 失败后必须运行统一 QA Loop Router，返回最早责任节点，只重跑受影响资产或布局，不得默认整套重做。

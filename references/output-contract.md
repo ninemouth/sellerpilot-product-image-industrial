@@ -532,7 +532,7 @@ For GPT built-in image generation, separate:
 
 - Final personalized prompts with `provider: gpt-built-in-image-generation`.
 - Request packs only when fallback/audit evidence is needed.
-- Execution boundary: Codex chat/project should execute through the system `imagegen` skill / built-in `image_gen` tool when available; non-Codex hosts may execute through SellerPilot or another explicit host runtime.
+- Execution boundary: Codex chat/project should execute through the system `imagegen` skill / built-in `image_gen` tool by default; ThinkAI installs or explicit ThinkAI provider selections execute through `scripts/thinkai-image-runtime.mjs` with `gpt-image-2`. Non-Codex hosts may execute through SellerPilot or another explicit host runtime.
 - Forbidden execution shortcuts: ad-hoc one-off SDK wrappers, silent CLI/API fallback, and deterministic layout renderers masquerading as final scene generation.
 - Final prompts ready for runtime/host-app image generation. These prompts must be personalized production handoffs created after strategy, sketches, photography treatment, layout intent, and self-review.
 - Prompt layer stack with Prompt Layer Architect Brain decision, mandatory layers, conditional layers, layer order, locked layers, and conflict notes.

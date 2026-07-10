@@ -116,7 +116,7 @@ record("frontmatter", () => {
   const end = skillMd.indexOf("\n---", 4);
   if (end < 0) throw new Error("SKILL.md frontmatter is not closed.");
   const frontmatter = skillMd.slice(4, end);
-  if (!/^name:\s*sellerpilot-product-image-industrial$/m.test(frontmatter)) {
+  if (!/^name:\s*sellerpilot-product-image-industrial(?:-thinkai)?$/m.test(frontmatter)) {
     throw new Error("SKILL.md frontmatter name is missing or wrong.");
   }
   if (!/^description:\s*\S/m.test(frontmatter)) {
@@ -250,6 +250,37 @@ record("no legacy provider naming", () => {
     }
   }
   if (offenders.length) throw new Error(`Legacy provider naming remains in: ${offenders.join(", ")}`);
+});
+
+record("thinkai runtime contract", () => {
+  const runtimePath = path.join(skillRoot, "scripts", "thinkai-image-runtime.mjs");
+  if (!fs.existsSync(runtimePath)) throw new Error("scripts/thinkai-image-runtime.mjs is missing.");
+  const runtime = fs.readFileSync(runtimePath, "utf8");
+  for (const token of [
+    'DEFAULT_BASE_URL = "https://www.thinkai.tv/v1"',
+    'DEFAULT_MODEL = "gpt-image-2"',
+    "THINKAI_API_KEY",
+    "/images/generations",
+    "/images/edits",
+    "response_format",
+  ]) {
+    if (!runtime.includes(token)) throw new Error(`ThinkAI runtime missing ${token}`);
+  }
+  run(process.execPath, [
+    "scripts/thinkai-image-runtime.mjs",
+    "--prompt", "verify dry run",
+    "--output-dir", tmpDir("sp-verify-thinkai-runtime-"),
+    "--dry-run",
+  ]);
+  const docs = [
+    "README.md",
+    "SKILL.md",
+    "references/gpt-built-in-image-generation-policy.md",
+  ].map((file) => [file, fs.readFileSync(path.join(skillRoot, file), "utf8")]);
+  for (const [file, text] of docs) {
+    if (!text.includes("gpt-image-2")) throw new Error(`${file} must name gpt-image-2.`);
+    if (!text.includes("thinkai-image-runtime.mjs")) throw new Error(`${file} must name the ThinkAI runtime script.`);
+  }
 });
 
 record("tldraw lockfile", () => {

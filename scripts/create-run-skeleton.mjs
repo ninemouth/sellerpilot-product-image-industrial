@@ -706,7 +706,7 @@ writeIfMissing(path.join(outDir, "prompt-pack", "10-final-generation-prompts.md"
   "# Final Generation Prompts",
   "",
   "- Provider: GPT built-in image generation",
-  "- Execution boundary: Codex native imagegen/image_gen or host app executes generation",
+  "- Execution boundary: Codex-native `imagegen` / `image_gen` or host app executes generation",
   "- In Codex, use the system `imagegen` skill / built-in `image_gen` tool when available.",
   "- Request packs are fallback/audit evidence, not the default user-facing deliverable.",
   "- Do not use ad-hoc wrappers, silent CLI/API fallback, or deterministic layout drafts as final generation.",

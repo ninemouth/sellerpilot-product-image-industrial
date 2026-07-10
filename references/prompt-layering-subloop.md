@@ -106,7 +106,7 @@ Add these only when needed:
 2. Run prompt layer gate.
 3. If layer stack fails, revise the failed layer or upstream artifact.
 4. Compress layers into final personalized generation prompt.
-5. Execute through Codex-native built-in image generation when available.
+5. Execute through Codex-native imagegen/image_gen when available.
 6. Run post-generation gates.
 7. If output fails, route failure back to layer or upstream node.
 8. Revise only the failed layer and regenerate only affected image.

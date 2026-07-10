@@ -1,7 +1,7 @@
 # Test Cases
 
 ## Case 1: product naked image to Amazon set
-Expected: final generated images when Codex-native generation is available, plus compact identity/blueprint/QA notes in fast mode or full Fact Sheet/Blueprint/QA artifacts in industrial audit mode.
+Expected: final generated images when the Codex-native `imagegen` / `image_gen` is available, plus compact identity/blueprint/QA notes in fast mode or full Fact Sheet/Blueprint/QA artifacts in industrial audit mode.
 
 ## Case 2: competitor reference redesign
 Expected: competitor analysis only, no copying, differentiated strategy.
@@ -39,8 +39,11 @@ Expected: create Product Identity Lock before generation; generated image must f
 ## Case 12: generator cannot use image reference
 Expected: produce prompt pack or layout draft only; do not label the output as final identity-preserving product imagery.
 
-## Case 12B: Codex-native image generation is available
+## Case 12B: Codex-native imagegen/image_gen generation is available
 Expected: a normal chat request for generated ecommerce images uses the system `imagegen` skill / built-in `image_gen` tool as the execution layer, saves independent final image files, and records concise identity/QA notes. It must not stop at a request pack or claim `blocked_runtime_unavailable`.
+
+## Case 12D: ThinkAI gpt-image-2 variant is selected
+Expected: a normal chat request through `sellerpilot-product-image-industrial-thinkai`, or an explicit ThinkAI provider request, uses `scripts/thinkai-image-runtime.mjs` with model `gpt-image-2`, saves independent final image files, and records concise identity/QA notes when the ThinkAI runtime and key are available.
 
 ## Case 12C: runtime has no GPT built-in image generation / image-reference access
 Expected: produce `10-generation-request-pack.yaml`, final generation prompt pack, layout draft, QA plan, and `generation_status: blocked_runtime_unavailable`. Do not claim final generated ecommerce images were produced.

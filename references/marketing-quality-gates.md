@@ -82,7 +82,7 @@ Reject the blueprint if this matrix is missing or if it cannot explain why each 
 
 When the user asks for actual images and includes scene images:
 
-- Use GPT built-in image generation prompts for the lifestyle/wearing/scene assets, then execute them through Codex-native image generation or the host app when available.
+- Use GPT built-in image generation prompts for the lifestyle/wearing/scene assets, then execute them through the Codex-native `imagegen` / `image_gen` or the host app when available.
 - Use deterministic rendering only for text-heavy infographics, size charts, QA-safe summaries, and final layout composition.
 - If image generation is unavailable, clearly label the output as wireframe/layout draft and do not call it final scene imagery.
 - Do not use flat vector people, generic body silhouettes, placeholder UI blocks, or icon scenes as final lifestyle imagery.

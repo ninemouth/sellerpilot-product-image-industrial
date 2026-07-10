@@ -55,7 +55,8 @@ if (args.help) usage();
 
 const source = path.resolve(args.source || new URL("..", import.meta.url).pathname);
 const codexHome = process.env.CODEX_HOME || path.join(os.homedir(), ".codex");
-const dest = path.resolve(args.dest || path.join(codexHome, "skills", "sellerpilot-product-image-industrial"));
+const skillName = String(args["skill-name"] || "sellerpilot-product-image-industrial");
+const dest = path.resolve(args.dest || path.join(codexHome, "skills", skillName));
 const backupRoot = path.resolve(args["backup-root"] || path.join(codexHome, "skill-backups"));
 
 if (!fs.existsSync(path.join(source, "SKILL.md"))) {
@@ -70,7 +71,7 @@ if (!args["skip-verify"]) {
 let backupDir = null;
 if (fs.existsSync(dest) && !args["no-backup"]) {
   fs.mkdirSync(backupRoot, { recursive: true });
-  backupDir = path.join(backupRoot, `sellerpilot-product-image-industrial-${timestamp()}`);
+  backupDir = path.join(backupRoot, `${skillName}-${timestamp()}`);
   console.log(`Backing up installed skill to ${backupDir}`);
   run("rsync", ["-a", `${dest}/`, `${backupDir}/`], { cwd: source, stdio: "inherit" });
 }
@@ -84,6 +85,7 @@ run("rsync", [
   "--exclude", "node_modules/",
   "--exclude", "runs/",
   "--exclude", "outputs/",
+  "--exclude", "dist/",
   "--exclude", ".DS_Store",
   `${source}/`,
   `${dest}/`,
@@ -118,7 +120,7 @@ function buildReleaseMetadata({ source: sourceDir, dest: destDir }) {
   const packageJson = readJson(path.join(sourceDir, "package.json")) || {};
   return {
     schema_version: "sellerpilot.skill_release.v1",
-    skill_name: "sellerpilot-product-image-industrial",
+    skill_name: skillName,
     package_version: packageJson.version || "",
     source_path: sourceDir,
     dest_path: destDir,

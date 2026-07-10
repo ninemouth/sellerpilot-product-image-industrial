@@ -3,8 +3,10 @@ node_modules/
 assets/tldraw-review-workspace/node_modules/
 runs/
 outputs/
+dist/
 *.log
 .cache/
 .sellerpilot-skill-release.json
+.thinkai-image-runtime.json
 work/*
 !work/README.md

@@ -4,11 +4,11 @@ Use this reference whenever a run reaches final product-bearing image generation
 
 ## Provider Boundary
 
-The required production generation provider for this skill is GPT model built-in image generation. In Codex chat/project contexts, the exposed native execution layer is the system `imagegen` skill using the built-in `image_gen` tool. Do not require the user to name the tool or model.
+The required production generation provider for this skill defaults to GPT model built-in image generation. In Codex chat/project contexts, the exposed native execution layer is the system `imagegen` skill using the built-in `image_gen` tool. Do not require the user to name the tool or model. If the user explicitly selects the ThinkAI provider or installs the ThinkAI variant, use the repo-local `scripts/thinkai-image-runtime.mjs` runtime with model `gpt-image-2`.
 
 This skill prepares the research, identity locks, visual direction, copy, final generation prompts, QA expectations, review surfaces, and any audit artifacts requested by the user. When running inside Codex and the system `imagegen` skill / built-in `image_gen` tool is available, use that native path to execute real raster image generation. Outside Codex, the host runtime, SellerPilot app, or an explicitly available execution layer performs the actual GPT built-in image generation step.
 
-Do not create ad-hoc SDK/API wrappers, silently use CLI fallback, or treat deterministic renderers as model generation. CLI/API fallback requires explicit user request or confirmation according to the system `imagegen` skill rules.
+Do not create ad-hoc SDK/API wrappers, silently use CLI fallback, or treat deterministic renderers as model generation. Codex `imagegen` / `image_gen` is the default execution layer; ThinkAI `gpt-image-2` is allowed only when explicitly selected by the user or by the installed ThinkAI variant. If the selected runtime cannot execute the request, stop with `blocked_runtime_unavailable` or emit the request pack as audit evidence.
 
 If the current runtime cannot execute GPT built-in image generation with required image references, stop before final identity-preserving production and output only:
 
@@ -34,16 +34,17 @@ Text-only generation is allowed only for non-product backgrounds, abstract helpe
 
 ## Generation Request Schema
 
-Every generated image request should include the fields needed by the selected mode. Fast mode may keep a compact per-image request summary plus the final prompt actually sent to `imagegen` / `image_gen`. Industrial audit mode should keep the complete schema below as audit evidence.
+Every generated image request should include the fields needed by the selected mode. Fast mode may keep a compact per-image request summary plus the final prompt actually sent to Codex-native `imagegen` / `image_gen`. Industrial audit mode should keep the complete schema below as audit evidence.
 
 Complete schema:
 
 ```yaml
 provider: gpt-built-in-image-generation
-execution_boundary: codex_native_imagegen_or_host_runtime_executes_generation
+execution_boundary: codex_native_imagegen_or_host_app_executes_generation
 allowed_execution_layers:
   - system imagegen skill
   - built-in image_gen tool
+  - scripts/thinkai-image-runtime.mjs when ThinkAI provider is explicitly selected
   - host app GPT built-in image generation
 forbidden_execution_layers:
   - ad-hoc one-off SDK wrapper
@@ -93,9 +94,9 @@ retry_policy:
 
 ## Execution Result Contract
 
-After Codex or the host app executes generation, record:
+After Codex, ThinkAI, or the host app executes generation, record:
 
-- executed_by: Codex `imagegen` / `image_gen`, SellerPilot app, or named external execution layer.
+- executed_by: Codex-native `imagegen` / `image_gen`, ThinkAI `gpt-image-2` runtime, SellerPilot app, or named external execution layer.
 - provider: `gpt-built-in-image-generation`.
 - generation prompt or request-pack path.
 - generated image file path.

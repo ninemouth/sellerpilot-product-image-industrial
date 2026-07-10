@@ -2,7 +2,7 @@ workflow_id: competitive-redesign
 name: Competitive Redesign
 version: 1.4.0
 inherits: ecommerce-product-image-generation
-goal: Use competitor references for analysis only and create differentiated GPT built-in image generation prompts; execute generation through Codex-native or host runtime when available.
+goal: Use competitor references for analysis only and create differentiated GPT built-in image generation prompts; execute generation through the Codex-native imagegen/image_gen or host runtime when available.
 steps:
   - resolve-skill-root
   - skill-update-check-first

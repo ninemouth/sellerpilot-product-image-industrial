@@ -12,6 +12,9 @@
   "scripts": {
     "verify": "node scripts/verify-skill.mjs",
     "sync": "node scripts/sync-to-codex-skill.mjs",
+    "sync:codex": "node scripts/sync-to-codex-skill.mjs --skill-name sellerpilot-product-image-industrial",
+    "build:variant:thinkai": "node scripts/build-thinkai-variant.mjs",
+    "sync:thinkai": "npm run build:variant:thinkai && node scripts/sync-to-codex-skill.mjs --source dist/sellerpilot-product-image-industrial-thinkai --skill-name sellerpilot-product-image-industrial-thinkai",
     "check:update": "node scripts/check-skill-update.mjs",
     "route:mode": "node scripts/production-mode-router.mjs",
     "plan:efficiency": "node scripts/production-efficiency-plan.mjs",
@@ -21,6 +24,7 @@
     "qa:localized-copy": "node scripts/localized-copy-qa-gate.mjs",
     "qa:text-layout": "node scripts/text-layout-proof-gate.mjs",
     "qa:product-background": "node scripts/product-background-card-consistency-gate.mjs",
+    "generate:thinkai": "node scripts/thinkai-image-runtime.mjs",
     "watchdog:runtime": "node scripts/runtime-watchdog.mjs",
     "progress:reconcile": "node scripts/reconcile-generation-progress.mjs",
     "launch:canvas": "node scripts/post-generation-tldraw-launcher.mjs",
