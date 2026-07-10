@@ -256,7 +256,7 @@ npm run build:variant:thinkai
 npm run sync:thinkai
 ```
 
-同步脚本会先备份旧版本，再把对应 skill 包同步到 Codex skills 目录，并验证两边文件一致。`sync:codex` 和 `sync:thinkai` 使用不同安装名，因此可以并存。
+同步脚本会先备份旧版本，再把对应 skill 包同步到 Codex skills 目录，并验证两边文件一致。`sync:codex` 和 `sync:thinkai` 使用不同安装名，因此可以并存。同步时会把当前 GitHub 分支写入 `.sellerpilot-skill-release.json`，后续 update check 会自动对比同一个分支，而不是固定检查 `main`。
 
 ### 方式 5：更新已经安装过的 skill
 
@@ -669,7 +669,14 @@ npm run verify
 npm run sync -- --source "$PWD"
 ```
 
-`npm run sync` 会备份旧安装版、同步当前源码、验证开发目录和安装目录一致，并写入 `.sellerpilot-skill-release.json`。后续 `check:update` 会用这个 release metadata 判断本地安装版是否落后于 GitHub。
+`npm run sync` 会备份旧安装版、同步当前源码、验证开发目录和安装目录一致，并写入 `.sellerpilot-skill-release.json`。后续 `check:update` 会用这个 release metadata 判断本地安装版是否落后于 GitHub。同步脚本默认记录当前 git upstream 分支；如果你需要明确指定分支，可以使用：
+
+```bash
+node scripts/sync-to-codex-skill.mjs \
+  --skill-name sellerpilot-product-image-industrial-thinkai \
+  --source dist/sellerpilot-product-image-industrial-thinkai \
+  --remote-branch codex/integrate-image2-thinkai-gpt-image-2
+```
 
 ## QA 和防循环机制
 

@@ -198,6 +198,7 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
 ```
 
 Use this after verification when a development copy must update the installed Codex skill. It backs up the installed skill, rsyncs the source with safe excludes, and verifies the installed copy matches the source.
+The sync script writes `.sellerpilot-skill-release.json` into the installed skill. It records the current git upstream branch, or the current local branch when no upstream exists, as `remote_branch`; pass `--remote-branch <branch>` only when installing a build artifact that should track a specific GitHub branch.
 
 ```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/check-skill-update.mjs \

@@ -431,6 +431,27 @@ record("skill update checker smoke", () => {
   }
 });
 
+record("skill sync release metadata branch smoke", () => {
+  const dir = tmpDir("sp-verify-sync-release-");
+  const dest = path.join(dir, "installed-skill");
+  run(process.execPath, [
+    "scripts/sync-to-codex-skill.mjs",
+    "--source", skillRoot,
+    "--dest", dest,
+    "--skill-name", "sellerpilot-product-image-industrial",
+    "--remote-branch", "codex/test-branch",
+    "--skip-verify",
+    "--no-backup",
+  ]);
+  const release = readJson(path.join(dest, ".sellerpilot-skill-release.json"));
+  if (release.remote_branch !== "codex/test-branch") {
+    throw new Error("sync release metadata should preserve the configured remote branch for update checks.");
+  }
+  if (!release.local_commit || !release.remote_url) {
+    throw new Error("sync release metadata should include local commit and remote url.");
+  }
+});
+
 record("production update gate contract", () => {
   const skill = fs.readFileSync(path.join(skillRoot, "SKILL.md"), "utf8");
   const agents = fs.readFileSync(path.join(skillRoot, "AGENTS.md"), "utf8");

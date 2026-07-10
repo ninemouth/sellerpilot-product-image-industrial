@@ -22,7 +22,7 @@ function parseArgs(argv) {
 
 function usage() {
   console.error(`Usage:
-node scripts/sync-to-codex-skill.mjs [--source /abs/skill] [--dest /abs/codex/skill] [--skip-verify] [--no-backup]
+node scripts/sync-to-codex-skill.mjs [--source /abs/skill] [--dest /abs/codex/skill] [--remote-branch branch] [--skip-verify] [--no-backup]
 
 Runs verification by default, backs up the installed skill, rsyncs this project
 to the Codex skill directory, and verifies the source/destination diff is clean.`);
@@ -98,6 +98,7 @@ run("diff", [
   "--exclude", "node_modules",
   "--exclude", "runs",
   "--exclude", "outputs",
+  "--exclude", "dist",
   "--exclude", ".cache",
   "--exclude", ".sellerpilot-skill-release.json",
   "--exclude", ".DS_Store",
@@ -127,9 +128,16 @@ function buildReleaseMetadata({ source: sourceDir, dest: destDir }) {
     local_commit: gitValue(sourceDir, ["rev-parse", "HEAD"]),
     local_branch: gitValue(sourceDir, ["rev-parse", "--abbrev-ref", "HEAD"]),
     remote_url: gitValue(sourceDir, ["config", "--get", "remote.origin.url"]) || normalizeGitUrl(packageJson.repository?.url) || "",
-    remote_branch: "main",
+    remote_branch: args["remote-branch"] || detectRemoteBranch(sourceDir) || "main",
     synced_at: new Date().toISOString(),
   };
+}
+
+function detectRemoteBranch(cwd) {
+  const upstream = gitValue(cwd, ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"]);
+  if (upstream) return upstream.replace(/^[^/]+\//, "");
+  const branch = gitValue(cwd, ["rev-parse", "--abbrev-ref", "HEAD"]);
+  return branch && branch !== "HEAD" ? branch : "";
 }
 
 function gitValue(cwd, gitArgs) {
