@@ -28,6 +28,7 @@
 - 根据商品原图、商品 URL、竞品参考图、目标平台、国家/语言、目标人群和风格要求，规划并生成电商商品图套图。
 - 支持 Amazon、TikTok Shop、小红书、拼多多、抖音、Temu、Shopee/Lazada、Etsy、Mercado Libre、SHEIN、Ozon、Wildberries 等平台基线。
 - 在正式生产前，为粗略需求给出 2-3 个商业方向；用户不选时，harness 会自动选择一个方向继续。
+- 支持单张正式商品图制作，例如一张主图、场景图、详情图或草稿图；单图会保留 manifest 和 QA，但不会强制生成套图总览或 anchor batch。
 - 从源图中提取商品身份、可见文字、尺寸线索、材料/结构/功能信息，并把这些事实传递到后续图像生成和 QA。
 - 为 card/信息图/参数图生成透明或白卡安全商品素材，并检查商品底色与 card 背景是否一致。
 - 针对时令、气候、节假日、区域趋势和营销热词创建平台上下文计划。
@@ -340,6 +341,7 @@ test ! -e ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industria
 这个 skill 不是永远使用 fast generation mode。它会根据任务目标选择最轻但能保护图片质量的模式：
 
 - `fast_generation`：单张、低风险、草稿或用户明确要求快速时使用。
+- `single-image quality production`：用户只要一张高质量主图/场景图/详情图时使用；它是正式交付路径，不会被强制扩展成多图套图。
 - `quality_production`：高质量商品套图和最终成品的默认模式。它会保留源图理解、身份锁、紧凑套图规划、视觉导演、prompt layer、anchor batch、关键 QA 和总览图，但不会默认生成完整工业审计包。
 - `revision_repair`：用户给出批注、截图对比或要求修改已有图片时使用，只重跑受影响资产。
 - `industrial_audit`：用户要求完整 workflow、迁移 SellerPilot、gate report、审计证据或开发验证时使用。
@@ -412,7 +414,7 @@ npm run plan:efficiency -- \
 - Anchor batch QA 结论，以及后续只补齐缺失/失败图片的说明。
 - 相关 QA 结论：身份、物理/几何、文案、本地化最终可见文字、营销、导出、最终交付。
 - 商品底图/card 一致性 QA，避免最终图中出现可见灰底矩形、商品底色和白卡底色不一致。
-- 生图完成后的 tldraw review session URL。多图最终成品会在导出和总览图完成后自动创建并启动画布；单图草稿可跳过，除非用户要求审核或 gate 失败。
+- 生图完成后的 tldraw review session URL。多图最终成品会在导出和总览图完成后自动创建并启动画布；单张正式图在用户要求审核、gate 需要视觉交接或进入修订时也可以启动画布。
 
 `fast_generation` 会输出更精简的成品、摘要和 QA；它主要用于单图、草稿或明确速度优先的任务。
 

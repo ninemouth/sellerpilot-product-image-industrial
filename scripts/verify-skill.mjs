@@ -545,6 +545,26 @@ record("production mode router smoke", () => {
     throw new Error("quality production should preserve compact image-set planning.");
   }
 
+  const singleQualityDir = path.join(dir, "single-quality");
+  run(process.execPath, [
+    "scripts/production-mode-router.mjs",
+    "--out-dir", singleQualityDir,
+    "--user-text", "生成一张高质量场景主图",
+    "--image-count", "1",
+    "--quality-target", "high",
+    "--scene-requested", "true",
+  ]);
+  const singleQuality = readJson(path.join(singleQualityDir, "production-mode-router-report.json"));
+  if (singleQuality.selected_mode !== "quality_production") {
+    throw new Error(`single high-quality image should route to quality_production, got ${singleQuality.selected_mode}`);
+  }
+  if (!singleQuality.execution_policy.required_quality_path.includes("single-image-generation")) {
+    throw new Error("single quality production should use the single-image path.");
+  }
+  if (singleQuality.execution_policy.required_quality_path.includes("anchor-batch-imagegen") || singleQuality.execution_policy.required_quality_path.includes("overview-contact-sheet")) {
+    throw new Error("single quality production should not require anchor batch or delivery overview.");
+  }
+
   const fastDir = path.join(dir, "fast");
   run(process.execPath, [
     "scripts/production-mode-router.mjs",
@@ -601,6 +621,35 @@ record("production efficiency plan smoke", () => {
   const progress = readJson(path.join(runDir, "generated-assets", "generation-progress.json"));
   if (progress.next_action !== "build compact image-set planning before anchor batch") {
     throw new Error("efficiency plan should initialize generation progress.");
+  }
+
+  const singleRunDir = path.join(tmpDir("sp-verify-single-efficiency-"), "run");
+  const singleModeDir = path.join(singleRunDir, "mode");
+  run(process.execPath, [
+    "scripts/production-mode-router.mjs",
+    "--out-dir", singleModeDir,
+    "--user-text", "生成一张高质量场景主图",
+    "--image-count", "1",
+    "--quality-target", "high",
+    "--scene-requested", "true",
+  ]);
+  run(process.execPath, [
+    "scripts/production-efficiency-plan.mjs",
+    "--run-dir", singleRunDir,
+    "--mode-report", path.join(singleModeDir, "production-mode-router-report.json"),
+    "--image-count", "1",
+    "--scene-requested", "true",
+  ]);
+  const singlePlan = readJson(path.join(singleRunDir, "planning", "production-efficiency-plan.json"));
+  if (singlePlan.quality_contract.compact_image_set_planning_required) {
+    throw new Error("single-image quality production should not require compact image-set planning.");
+  }
+  if (!singlePlan.quality_contract.single_image_delivery_allowed) {
+    throw new Error("single-image quality production should explicitly allow single-image delivery.");
+  }
+  const singleProgress = readJson(path.join(singleRunDir, "generated-assets", "generation-progress.json"));
+  if (singleProgress.next_action !== "build single-image visual plan before final generation") {
+    throw new Error("single-image efficiency plan should initialize a single-image next action.");
   }
 });
 
@@ -1197,6 +1246,45 @@ record("export gate pass and draft fail", () => {
   ], { cwd: skillRoot });
   const report = readJson(path.join(dir, "qa-fail", "image-set-export-gate-report.json"));
   if (report.status !== "fail") throw new Error("export gate should reject draft final image.");
+
+  const singleRunDir = path.join(tmpDir("sp-verify-single-export-"), "run");
+  const singleDir = path.join(singleRunDir, "final-images");
+  const singleQaDir = path.join(singleRunDir, "qa");
+  run(process.execPath, [
+    "scripts/create-run-skeleton.mjs",
+    "--out-dir", singleRunDir,
+    "--platform", "Amazon",
+    "--category", "hero image",
+    "--run-id", "verify-single-image",
+  ]);
+  execFileSync(process.execPath, ["-e", `
+    const sharp = require(${JSON.stringify(path.join(os.homedir(), ".cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/sharp"))});
+    const dir = process.argv[1];
+    (async () => { await sharp({create:{width:1200,height:1200,channels:4,background:'#fff'}}).png().toFile(dir + '/IMG-01-main-product.png'); })().catch((e)=>{ console.error(e); process.exit(1); });
+  `, singleDir], { cwd: skillRoot, stdio: "inherit" });
+  run(process.execPath, [
+    "scripts/image-set-export-gate.mjs",
+    "--run-dir", singleRunDir,
+    "--image-dir", singleDir,
+    "--out-dir", singleQaDir,
+    "--expected-count", "1",
+    "--require-square",
+  ]);
+  const singleExport = readJson(path.join(singleQaDir, "image-set-export-gate-report.json"));
+  if (singleExport.status !== "pass" || singleExport.exported_count !== 1) {
+    throw new Error("export gate should allow intentional single-image delivery with --expected-count 1.");
+  }
+  run(process.execPath, [
+    "scripts/image-set-export-gate.mjs",
+    "--run-dir", singleRunDir,
+    "--image-dir", singleDir,
+    "--out-dir", path.join(singleRunDir, "qa-single-unspecified"),
+    "--require-square",
+  ]);
+  const singleUnspecified = readJson(path.join(singleRunDir, "qa-single-unspecified", "image-set-export-gate-report.json"));
+  if (singleUnspecified.status !== "pass") {
+    throw new Error("export gate should allow single-image delivery when no multi-image expected count is specified.");
+  }
 });
 
 record("ozon export ratio gate smoke", () => {
@@ -1323,6 +1411,41 @@ record("delivery overview and final gate smoke", () => {
   run(process.execPath, ["scripts/final-delivery-gate.mjs", "--run-dir", runDir]);
   const finalGate = readJson(path.join(qaDir, "final-delivery-gate-report.json"));
   if (finalGate.status !== "pass") throw new Error("final gate should pass when overview and gates are present.");
+
+  const singleRunDir = path.join(tmpDir("sp-verify-single-final-"), "run");
+  const singleImageDir = path.join(singleRunDir, "final-images");
+  const singleQaDir = path.join(singleRunDir, "qa");
+  run(process.execPath, [
+    "scripts/create-run-skeleton.mjs",
+    "--out-dir", singleRunDir,
+    "--platform", "Amazon",
+    "--category", "single hero image",
+    "--run-id", "verify-single-final",
+  ]);
+  execFileSync(process.execPath, ["-e", `
+    const sharp = require(${JSON.stringify(path.join(os.homedir(), ".cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/sharp"))});
+    const dir = process.argv[1];
+    (async () => { await sharp({create:{width:1200,height:1200,channels:4,background:'#fff'}}).png().toFile(dir + '/IMG-01-main-product.png'); })().catch((e)=>{ console.error(e); process.exit(1); });
+  `, singleImageDir], { cwd: skillRoot, stdio: "inherit" });
+  fs.writeFileSync(path.join(singleQaDir, "marketing-quality-gate-report.json"), JSON.stringify({ status: "pass", findings: [] }));
+  fs.writeFileSync(path.join(singleQaDir, "copy-strategy-gate-report.json"), JSON.stringify({ status: "pass", findings: [] }));
+  fs.writeFileSync(path.join(singleQaDir, "product-background-card-consistency-gate-report.json"), JSON.stringify({ status: "pass", findings: [] }));
+  run(process.execPath, [
+    "scripts/image-set-export-gate.mjs",
+    "--run-dir", singleRunDir,
+    "--image-dir", singleImageDir,
+    "--out-dir", singleQaDir,
+    "--expected-count", "1",
+    "--require-square",
+  ]);
+  run(process.execPath, ["scripts/final-delivery-gate.mjs", "--run-dir", singleRunDir]);
+  const singleFinalGate = readJson(path.join(singleQaDir, "final-delivery-gate-report.json"));
+  if (singleFinalGate.status !== "pass") {
+    throw new Error("final gate should pass intentional single-image delivery without a delivery overview.");
+  }
+  if (singleFinalGate.findings.some((item) => item.type === "missing-delivery-overview")) {
+    throw new Error("final gate should not require delivery overview for intentional single-image delivery.");
+  }
 });
 
 record("final delivery gate requires localized copy qa for non english locales", () => {
@@ -2342,6 +2465,50 @@ record("post-generation tldraw launcher smoke", () => {
   const manifest = readJson(path.join(runDir, "review-workspace", "data", "import-manifest.json"));
   if (manifest.workspace?.image_manifest !== path.join(runDir, "export", "final-images-manifest.json")) {
     throw new Error("post-generation launcher should build tldraw workspace from final-images manifest.");
+  }
+
+  const singleRunDir = path.join(tmpDir("sp-verify-single-post-tldraw-"), "run");
+  const singleImageDir = path.join(singleRunDir, "final-images");
+  const singleQaDir = path.join(singleRunDir, "qa");
+  const sharedRoot = path.join(singleRunDir, "shared-canvas-service");
+  run(process.execPath, [
+    "scripts/create-run-skeleton.mjs",
+    "--out-dir", singleRunDir,
+    "--platform", "Amazon",
+    "--category", "single hero",
+    "--run-id", "single-post-tldraw-verify",
+  ]);
+  execFileSync(process.execPath, ["-e", `
+    const sharp = require(${JSON.stringify(path.join(os.homedir(), ".cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/sharp"))});
+    const dir = process.argv[1];
+    (async () => { await sharp({create:{width:1200,height:1200,channels:4,background:'#fff'}}).png().toFile(dir + '/IMG-01-main-product.png'); })().catch((e)=>{ console.error(e); process.exit(1); });
+  `, singleImageDir], { cwd: skillRoot, stdio: "inherit" });
+  run(process.execPath, [
+    "scripts/image-set-export-gate.mjs",
+    "--run-dir", singleRunDir,
+    "--image-dir", singleImageDir,
+    "--out-dir", singleQaDir,
+    "--expected-count", "1",
+    "--require-square",
+  ]);
+  run(process.execPath, [
+    "scripts/post-generation-tldraw-launcher.mjs",
+    "--run-dir", singleRunDir,
+    "--manifest", path.join(singleRunDir, "export", "final-images-manifest.json"),
+    "--title", "Single Image tldraw Verify",
+    "--session-id", "single-post-tldraw-verify",
+    "--shared-root", sharedRoot,
+    "--wait-ms", "30000",
+  ], { maxBuffer: 50 * 1024 * 1024 });
+  const singleReport = readJson(path.join(singleQaDir, "post-generation-tldraw-launch-report.json"));
+  if (singleReport.status !== "ready" || !singleReport.url) {
+    throw new Error("post-generation launcher should auto-start a ready tldraw session for single-image review handoff.");
+  }
+  const state = readJson(path.join(sharedRoot, "data", "shared-server-state.json"));
+  if (state?.pid) {
+    try {
+      process.kill(Number(state.pid), "SIGTERM");
+    } catch {}
   }
 });
 

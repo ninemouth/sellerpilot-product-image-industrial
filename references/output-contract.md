@@ -23,6 +23,8 @@ qa/qa-loop-state.json                     # persisted retry signatures and loop 
 review-workspace/  # required after generated multi-image final sets; otherwise only when review/revision is requested or needed
 ```
 
+Intentional single-image delivery is a valid final output. It must include one independent image in `final-images/`, a run-scoped `export/final-images-manifest.json`, focused QA/final delivery evidence, and no draft/placeholder assets. It does not require `overview/SET-OVERVIEW-contact-sheet.png`, anchor batch QA, or multi-image blueprint unless the user requested a set or visual review/revision requires a canvas handoff.
+
 Fast mode may keep compact internal notes for source quality, identity lock, shot matrix, and QA, but it should not create the full industrial artifact tree unless needed. Quality production should keep image-set planning compact by using `blueprint/quality-production-blueprint.json` as the executable combined artifact rather than separate verbose industrial reports.
 
 Industrial audit mode must include these artifacts:

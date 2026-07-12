@@ -93,11 +93,12 @@ function selectMode(flags, ctx) {
 }
 
 function modePolicy(mode, flags) {
+  const singleImage = !flags.multi_image_set;
   const common = {
     update_check: "cache-first non-blocking",
     efficiency_plan: "write production-efficiency-plan before heavy planning or generation",
-    tldraw: "for generated multi-image final sets, auto-start after export and overview; for single-image drafts, start only when review, gate failure, or revision feedback is next",
-    generation_pacing: "use anchor batch before full multi-image generation",
+    tldraw: "for generated multi-image final sets, auto-start after export and overview; for single-image finals, auto-start when review is requested or a gate/revision handoff needs visual markup",
+    generation_pacing: "use anchor batch before full multi-image generation; single-image requests may generate one final image directly after identity/prompt checks",
     rerun_policy: "rerun only missing or failed assets",
   };
   if (mode === "fast_generation") {
@@ -108,9 +109,25 @@ function modePolicy(mode, flags) {
     };
   }
   if (mode === "quality_production") {
+    const singleImagePath = [
+      "brief-intake",
+      "direction-options-if-rough",
+      "source-understanding-ai-text-first-ocr-if-needed",
+      "identity-lock",
+      flags.physical_function_risk ? "physical-truth-lock-and-gate" : "physical-truth-check-if-triggered",
+      flags.platform_research_needed ? "targeted-platform-research" : "cached-platform-profile",
+      "single-image-visual-plan",
+      "copy-strategy-gate-if-visible-copy",
+      "localized-copy-qa-gate-if-locale-needs-review",
+      "prompt-layer-gate",
+      "single-image-generation",
+      "identity-marketing-export-final-gates",
+      "final-image-manifest",
+      "tldraw-only-if-review-or-gate-handoff",
+    ];
     return {
       ...common,
-      required_quality_path: [
+      required_quality_path: singleImage ? singleImagePath : [
         "brief-intake",
         "direction-options-if-rough",
         "source-understanding-ai-text-first-ocr-if-needed",

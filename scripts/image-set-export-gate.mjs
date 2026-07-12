@@ -80,11 +80,11 @@ if (expectedCount && files.length !== expectedCount) {
     message: `Expected ${expectedCount} exported images, found ${files.length}.`,
   });
 }
-if (files.length === 1) {
+if (files.length === 1 && expectedCount && expectedCount !== 1 && !args["allow-single"]) {
   findings.push({
     severity: "fail",
     type: "single-file-delivery",
-    message: "Only one image file was exported. A contact sheet or preview cannot replace independent final images.",
+    message: "Only one image file was exported for a multi-image set. A contact sheet or preview cannot replace independent final images. For intentional single-image delivery, pass --expected-count 1 or --allow-single.",
   });
 }
 

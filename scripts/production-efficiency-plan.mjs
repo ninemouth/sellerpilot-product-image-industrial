@@ -72,7 +72,7 @@ if (!fs.existsSync(progressPath)) {
     completed_images: [],
     pending_images: [],
     failed_images: [],
-    next_action: "build compact image-set planning before anchor batch",
+    next_action: plan.progress_update_policy.next_action,
     progress_update_policy: plan.progress_update_policy,
   }, null, 2));
 }
@@ -107,10 +107,12 @@ function buildPlan(ctx) {
     image_count: ctx.imageCount || null,
     signals: ctx.signals,
     quality_contract: {
-      compact_image_set_planning_required: !fastMode || ctx.signals.multi_image_set,
+      compact_image_set_planning_required: ctx.signals.multi_image_set && (!fastMode || ctx.signals.multi_image_set),
       compact_image_set_planning_path: "blueprint/quality-production-blueprint.json",
       compact_image_set_planning_sections: planningSections,
       delivery_overview_required_for_multi_image_sets: true,
+      single_image_delivery_allowed: true,
+      single_image_planning_path: "blueprint/single-image-production-plan.json",
       industrial_full_report_pack_only_when: "industrial_audit or repeated failure debug",
       do_not_skip: [
         "source product understanding when source images exist",
@@ -119,12 +121,12 @@ function buildPlan(ctx) {
         "physical/geometry locks when triggered",
         "visual director shot matrix",
         "prompt layer gate",
-        "anchor batch QA before full multi-image generation",
+        "anchor batch QA before full multi-image generation; single-image runs may generate one final image directly after identity and prompt checks",
         "generation progress updates after each generated asset",
         "localized final visible-text review when non-zh/non-en final images contain or may contain text",
         "text layout proof before expensive final generation/export when visible copy is present",
         "product-background/card consistency gate when cards or infographics use source assets",
-        "export manifest and delivery overview for multi-image sets",
+        "export manifest for every run and delivery overview for multi-image sets",
         "final delivery gate",
       ],
       early_stop_conditions: [
@@ -147,7 +149,7 @@ function buildPlan(ctx) {
       market_research: ctx.signals.platform_research_needed ? "compact_pattern_scan_only_if_conversion_critical" : "skip",
       physical_truth_gate: ctx.signals.physical_function_risk ? "required" : "triggered_only_if_image_roles_show_function_or_scale",
       scene_asset_generation: ctx.signals.scene_requested ? "required_for_scene_roles" : "skip",
-      tldraw_start: ctx.signals.multi_image_set ? "single_post_export_shared_service_launch" : "only_if_requested_or_gate_failed",
+      tldraw_start: ctx.signals.multi_image_set ? "single_post_export_shared_service_launch" : "only_if_requested_gate_failed_or_revision_handoff",
     },
     skip_by_default: auditMode ? [] : [
       "full industrial report pack",
@@ -174,6 +176,9 @@ function buildPlan(ctx) {
       user_visible_update_interval_seconds: 300,
       long_running_threshold_seconds: 900,
       if_generation_exceeds_threshold: "report completed/pending assets and continue only missing assets",
+      next_action: ctx.signals.multi_image_set
+        ? "build compact image-set planning before anchor batch"
+        : "build single-image visual plan before final generation",
     },
   };
 }
@@ -215,19 +220,30 @@ function runShape(mode, signals) {
   if (mode === "industrial_audit") {
     return ["full artifact skeleton", "complete reports", "all triggered gates", "review workspace", "final delivery"];
   }
-  const shape = [
-    "brief intake with assumptions",
-    "source understanding and identity lock",
-    "compact image-set planning",
-    "prompt layer gate",
-    "anchor batch",
-    "anchor QA",
-    "continue missing assets only",
-    "focused final gates",
-    "export manifest",
-    "overview",
-  ];
-  if (signals.multi_image_set) shape.push("post-generation tldraw auto-start");
+  const shape = signals.multi_image_set
+    ? [
+      "brief intake with assumptions",
+      "source understanding and identity lock",
+      "compact image-set planning",
+      "prompt layer gate",
+      "anchor batch",
+      "anchor QA",
+      "continue missing assets only",
+      "focused final gates",
+      "export manifest",
+      "overview",
+      "post-generation tldraw auto-start",
+    ]
+    : [
+      "brief intake with assumptions",
+      "source understanding and identity lock",
+      "single-image visual plan",
+      "prompt layer gate",
+      "single final image generation",
+      "focused final gates",
+      "export manifest",
+      "tldraw only if review/gate handoff needs markup",
+    ];
   shape.push("final delivery gate");
   return shape;
 }
