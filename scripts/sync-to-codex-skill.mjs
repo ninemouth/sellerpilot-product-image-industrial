@@ -87,6 +87,7 @@ run("rsync", [
   "--exclude", "outputs/",
   "--exclude", "dist/",
   "--exclude", ".DS_Store",
+  "--exclude", ".thinkai-image-runtime.json",
   `${source}/`,
   `${dest}/`,
 ], { cwd: source, stdio: "inherit" });
@@ -101,6 +102,7 @@ run("diff", [
   "--exclude", "dist",
   "--exclude", ".cache",
   "--exclude", ".sellerpilot-skill-release.json",
+  "--exclude", ".thinkai-image-runtime.json",
   "--exclude", ".DS_Store",
   source,
   dest,

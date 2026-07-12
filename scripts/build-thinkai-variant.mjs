@@ -142,6 +142,12 @@ function applyThinkAiVariant(baseDir) {
     [/Codex imagegen 原版/g, "ThinkAI gpt-image-2 版"],
   ]);
 
+  replaceInFile(path.join(baseDir, "agents", "openai.yaml"), [
+    [/display_name:\s*"SellerPilot Product Image"/, 'display_name: "SellerPilot Product Image ThinkAI"'],
+    [/short_description:\s*".+"/, 'short_description: "Generate and review ecommerce product images with the ThinkAI gpt-image-2 runtime, industrial workflow, QA gates, and optional tldraw canvas."'],
+    [/default_prompt:\s*".+"/, `default_prompt: "Use $${variantName} to generate an ecommerce product image or image set with ThinkAI gpt-image-2 from my product image, product facts, and target platform."`],
+  ]);
+
   replaceInFile(path.join(baseDir, "package.json"), [
     [/"name": "sellerpilot-product-image-industrial"/, `"name": "${variantName}"`],
   ]);

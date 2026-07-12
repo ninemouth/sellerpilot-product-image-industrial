@@ -124,6 +124,27 @@ record("frontmatter", () => {
   }
 });
 
+record("openai agent display metadata", () => {
+  const skillMd = fs.readFileSync(path.join(skillRoot, "SKILL.md"), "utf8");
+  const isThinkAi = /^name:\s*sellerpilot-product-image-industrial-thinkai$/m.test(skillMd);
+  const metadata = fs.readFileSync(path.join(skillRoot, "agents", "openai.yaml"), "utf8");
+  if (isThinkAi) {
+    if (!/display_name:\s*"SellerPilot Product Image ThinkAI"/.test(metadata)) {
+      throw new Error("ThinkAI variant must have a distinct OpenAI display_name.");
+    }
+    if (!metadata.includes("$sellerpilot-product-image-industrial-thinkai")) {
+      throw new Error("ThinkAI variant default prompt must reference the ThinkAI skill name.");
+    }
+  } else {
+    if (!/display_name:\s*"SellerPilot Product Image"/.test(metadata)) {
+      throw new Error("Base skill OpenAI display_name should remain SellerPilot Product Image.");
+    }
+    if (/display_name:\s*"SellerPilot Product Image ThinkAI"/.test(metadata)) {
+      throw new Error("Base skill display_name must not be changed to the ThinkAI variant name.");
+    }
+  }
+});
+
 record("node syntax", () => {
   for (const file of listFiles(path.join(skillRoot, "scripts"), (item) => item.endsWith(".mjs"))) {
     run(process.execPath, ["--check", file]);
@@ -449,6 +470,10 @@ record("skill sync release metadata branch smoke", () => {
   }
   if (!release.local_commit || !release.remote_url) {
     throw new Error("sync release metadata should include local commit and remote url.");
+  }
+  const pkg = readJson(path.join(skillRoot, "package.json"));
+  if (!pkg.scripts?.["sync:thinkai"]?.includes("--remote-branch $(git rev-parse --abbrev-ref HEAD)")) {
+    throw new Error("sync:thinkai should pass the current git branch because dist/ is not a git checkout.");
   }
 });
 
