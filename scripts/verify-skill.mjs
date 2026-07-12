@@ -475,6 +475,33 @@ record("skill sync release metadata branch smoke", () => {
   if (!pkg.scripts?.["sync:thinkai"]?.includes("--remote-branch $(git rev-parse --abbrev-ref HEAD)")) {
     throw new Error("sync:thinkai should pass the current git branch because dist/ is not a git checkout.");
   }
+  const distLikeSource = path.join(dir, "dist-like-source");
+  const distLikeDest = path.join(dir, "dist-like-installed");
+  fs.mkdirSync(distLikeSource, { recursive: true });
+  fs.writeFileSync(path.join(distLikeSource, "SKILL.md"), [
+    "---",
+    "name: sellerpilot-product-image-industrial-thinkai",
+    "description: test",
+    "---",
+    "",
+  ].join("\n"));
+  fs.writeFileSync(path.join(distLikeSource, "package.json"), JSON.stringify({
+    version: "0.1.0",
+    repository: { type: "git", url: "https://github.com/ninemouth/sellerpilot-product-image-industrial.git" },
+  }, null, 2));
+  run(process.execPath, [
+    "scripts/sync-to-codex-skill.mjs",
+    "--source", distLikeSource,
+    "--dest", distLikeDest,
+    "--skill-name", "sellerpilot-product-image-industrial-thinkai",
+    "--remote-branch", "codex/test-branch",
+    "--skip-verify",
+    "--no-backup",
+  ]);
+  const distLikeRelease = readJson(path.join(distLikeDest, ".sellerpilot-skill-release.json"));
+  if (!distLikeRelease.local_commit || distLikeRelease.remote_branch !== "codex/test-branch") {
+    throw new Error("sync release metadata should preserve branch and local commit for dist-like sources without .git.");
+  }
 });
 
 record("production update gate contract", () => {
