@@ -472,8 +472,21 @@ record("skill sync release metadata branch smoke", () => {
     throw new Error("sync release metadata should include local commit and remote url.");
   }
   const pkg = readJson(path.join(skillRoot, "package.json"));
-  if (!pkg.scripts?.["sync:thinkai"]?.includes("--remote-branch $(git rev-parse --abbrev-ref HEAD)")) {
-    throw new Error("sync:thinkai should pass the current git branch because dist/ is not a git checkout.");
+  const syncThinkAi = pkg.scripts?.["sync:thinkai"] || "";
+  if (syncThinkAi.includes("$(")) {
+    throw new Error("sync:thinkai must be cross-platform and avoid Bash command substitution.");
+  }
+  for (const required of [
+    "scripts/sync-to-codex-skill.mjs",
+    "--source dist/sellerpilot-product-image-industrial-thinkai",
+    "--skill-name sellerpilot-product-image-industrial-thinkai",
+  ]) {
+    if (!syncThinkAi.includes(required)) {
+      throw new Error(`sync:thinkai should include ${required}.`);
+    }
+  }
+  if (pkg.scripts?.["paths:codex"] !== "node scripts/codex-path-info.mjs") {
+    throw new Error("package.json should expose paths:codex for OS-aware Codex install paths.");
   }
   const distLikeSource = path.join(dir, "dist-like-source");
   const distLikeDest = path.join(dir, "dist-like-installed");
@@ -501,6 +514,46 @@ record("skill sync release metadata branch smoke", () => {
   const distLikeRelease = readJson(path.join(distLikeDest, ".sellerpilot-skill-release.json"));
   if (!distLikeRelease.local_commit || distLikeRelease.remote_branch !== "codex/test-branch") {
     throw new Error("sync release metadata should preserve branch and local commit for dist-like sources without .git.");
+  }
+  const distLikeFallbackDest = path.join(dir, "dist-like-installed-fallback");
+  run(process.execPath, [
+    "scripts/sync-to-codex-skill.mjs",
+    "--source", distLikeSource,
+    "--dest", distLikeFallbackDest,
+    "--skill-name", "sellerpilot-product-image-industrial-thinkai",
+    "--skip-verify",
+    "--no-backup",
+  ]);
+  const fallbackRelease = readJson(path.join(distLikeFallbackDest, ".sellerpilot-skill-release.json"));
+  const currentBranch = run("git", ["rev-parse", "--abbrev-ref", "HEAD"]).trim();
+  if (!fallbackRelease.local_commit || !fallbackRelease.remote_branch) {
+    throw new Error("sync release metadata should infer local commit and branch for dist-like sources from the repo cwd.");
+  }
+  if (currentBranch !== "HEAD" && fallbackRelease.remote_branch !== currentBranch) {
+    throw new Error("dist-like sync without --remote-branch should track the current repo branch.");
+  }
+});
+
+record("codex path info smoke", () => {
+  const out = run(process.execPath, ["scripts/codex-path-info.mjs"]);
+  const report = JSON.parse(out);
+  if (!report.platform || !report.os_type || !report.codex_home || !report.skills_dir) {
+    throw new Error("codex path info should include platform, os type, codex home, and skills dir.");
+  }
+  if (!report.installed_skills?.sellerpilot_product_image_industrial || !report.installed_skills?.sellerpilot_product_image_industrial_thinkai) {
+    throw new Error("codex path info should include both SellerPilot skill install paths.");
+  }
+  if (!report.thinkai_config?.endsWith(path.join("sellerpilot-product-image-industrial-thinkai", ".thinkai-image-runtime.json"))) {
+    throw new Error("codex path info should include the ThinkAI local config path.");
+  }
+  const dir = tmpDir("sp-verify-codex-paths-");
+  const customOut = run(process.execPath, ["scripts/codex-path-info.mjs", "--codex-home", dir]);
+  const custom = JSON.parse(customOut);
+  if (custom.codex_home !== path.resolve(dir) || !custom.skills_dir.startsWith(path.resolve(dir))) {
+    throw new Error("codex path info should honor --codex-home for custom installs.");
+  }
+  if (!custom.installed_skills.sellerpilot_product_image_industrial_thinkai.startsWith(custom.skills_dir)) {
+    throw new Error("custom ThinkAI skill path should be under the reported skills dir.");
   }
 });
 

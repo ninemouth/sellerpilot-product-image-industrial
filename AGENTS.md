@@ -59,6 +59,7 @@ Intent -> Normalize -> Mode Router -> Efficiency Plan -> Brief Intake Gate -> So
 40. 当用户通过 `sellerpilot-product-image-industrial` 或 `sellerpilot-product-image-industrial-thinkai` 说“创建店铺 xxx 的统一风格”、提供店铺地址或要求保存店铺风格时，必须先分析店铺 URL/页面证据，给出 2-3 个统一风格方向和少量高价值问题；确认前只能写当前 run 的 `memory/store-style-draft.md`，不得写入持久记忆。
 41. 用户确认店铺统一风格后，才允许把店铺风格写入 `${SELLERPILOT_IMAGE_SKILL_MEMORY:-$HOME/.codex/sellerpilot-product-image-industrial}/store-style-memory/*.md`。店铺风格记忆只能保存定位、受众、视觉特质、配色、字体、摄影/场景、版式、文案语气、禁用项、prompt 指令和证据摘要；不得保存商品身份、私密业务数据、客户/供应商信息、凭证、无证据高风险声明或一次性失败反馈。
 42. 后续生图请求中只要命中已保存店铺名或店铺 URL，必须在平台上下文、视觉总监、prompt layer 和 QA 前加载当前 run 的 `memory/store-style-memory.md` 与 `memory/store-style-overlay.json`。该记忆是店铺/品牌风格层，不得覆盖当前用户指令、源商品身份、物理事实、平台规则、合规边界或实时调研。
+43. 安装、更新、同步、配置 ThinkAI key 的说明必须自动识别或明确区分 macOS/Linux/Windows 路径。优先使用 `npm run paths:codex` / `scripts/codex-path-info.mjs` 输出当前系统路径；不得只给 `${CODEX_HOME:-$HOME/.codex}` 这类 Unix-only 路径作为唯一答案。
 
 ## Default Workflow
 

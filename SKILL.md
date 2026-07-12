@@ -21,6 +21,14 @@ Installed capability root:
 ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial
 ```
 
+On Windows the default root is:
+
+```text
+%USERPROFILE%\.codex\skills\sellerpilot-product-image-industrial
+```
+
+When giving install/update instructions, do not assume a Unix path. Prefer `node scripts/codex-path-info.mjs` or `npm run paths:codex` from a development clone to report the current OS, Codex home, skills directory, both installed skill paths, and the ThinkAI local config path. Respect `CODEX_HOME` when it is set.
+
 When developing this skill outside the installed capability root, verify the development copy first, then sync it into the installed root with the bundled release script. Do not hand-copy partial files.
 
 Do not copy competitor visuals, invent product facts, auto-publish assets, or promise CTR, CVR, ROAS, ACOS, ranking, or sales lift.
@@ -194,11 +202,17 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
 Use this before shipping skill changes. It validates frontmatter, script syntax, JSON/YAML, legacy provider naming, tldraw dependency lock, gate behavior, renderer scene boundaries, export failures, marketing failures, and review workspace creation.
 
 ```bash
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/codex-path-info.mjs
+```
+
+Use this before giving install, update, sync, or ThinkAI key-configuration paths. It auto-detects macOS, Linux, and Windows Codex directories, honors `CODEX_HOME`, and prints both installed skill paths plus the ThinkAI `.thinkai-image-runtime.json` path.
+
+```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/sync-to-codex-skill.mjs \
   --source /abs/development-copy
 ```
 
-Use this after verification when a development copy must update the installed Codex skill. It backs up the installed skill, rsyncs the source with safe excludes, and verifies the installed copy matches the source.
+Use this after verification when a development copy must update the installed Codex skill. It backs up the installed skill, copies the source with safe excludes, and verifies the installed copy matches the source. The sync is implemented in Node and does not require Unix `rsync`, `diff`, or Bash command substitution, so it works on macOS, Linux, and Windows.
 The sync script writes `.sellerpilot-skill-release.json` into the installed skill. It records the current git upstream branch, or the current local branch when no upstream exists, as `remote_branch`; pass `--remote-branch <branch>` only when installing a build artifact that should track a specific GitHub branch.
 
 ```bash

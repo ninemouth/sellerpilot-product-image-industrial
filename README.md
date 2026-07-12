@@ -74,7 +74,7 @@ npm install
 - `sellerpilot-product-image-industrial`：原版，默认使用 Codex `imagegen` / `image_gen` 作为生产生图执行层。
 - `sellerpilot-product-image-industrial-thinkai`：ThinkAI 版，默认使用 ThinkAI OpenAI-compatible runtime，模型固定为 `gpt-image-2`。
 
-两个版本可以同时安装在 `${CODEX_HOME:-$HOME/.codex}/skills/` 下。日常对话里直接点名即可：
+两个版本可以同时安装在 Codex skills 目录下。路径会按操作系统自动识别；可先运行 `npm run paths:codex` 查看本机实际目录。日常对话里直接点名即可：
 
 ```text
 请使用 $sellerpilot-product-image-industrial 为 Amazon US 做 7 张 listing 图片。
@@ -120,10 +120,17 @@ ThinkAI 版使用本仓库的 `scripts/thinkai-image-runtime.mjs`。最简单的
 export THINKAI_API_KEY="<YOUR_THINKAI_API_KEY>"
 ```
 
-也可以让 Codex 写入安装目录里的本地配置文件；这个文件已被 `.gitignore` 排除：
+也可以让 Codex 写入安装目录里的本地配置文件；这个文件已被 `.gitignore` 排除。先用 `npm run paths:codex` 查看 ThinkAI 版安装路径，或使用下面的默认路径：
 
 ```bash
 cd ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial-thinkai
+npm run configure:thinkai -- --api-key "<YOUR_THINKAI_API_KEY>"
+```
+
+Windows PowerShell 默认路径示例：
+
+```powershell
+cd "$env:USERPROFILE\.codex\skills\sellerpilot-product-image-industrial-thinkai"
 npm run configure:thinkai -- --api-key "<YOUR_THINKAI_API_KEY>"
 ```
 
@@ -148,11 +155,26 @@ npm run generate:thinkai -- \
 
 ## 安装到 Codex
 
-安装完成后，通常需要重启 Codex，让新的 skill 列表重新加载。两个版本默认安装位置是：
+安装完成后，通常需要重启 Codex，让新的 skill 列表重新加载。安装/更新脚本会自动识别 macOS、Linux、Windows 的 Codex home；如果设置了 `CODEX_HOME`，会优先使用该目录。可在仓库根目录运行：
+
+```bash
+npm run paths:codex
+```
+
+它会输出当前系统、`codex_home`、`skills_dir`、两个 skill 的安装路径、ThinkAI 本地配置路径，以及适合当前系统的 shell 命令示例。
+
+两个版本默认安装位置是：
 
 ```text
 ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial
 ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial-thinkai
+```
+
+Windows 默认安装位置是：
+
+```text
+%USERPROFILE%\.codex\skills\sellerpilot-product-image-industrial
+%USERPROFILE%\.codex\skills\sellerpilot-product-image-industrial-thinkai
 ```
 
 ### 方式 1：在 Codex / ChatGPT 的 Codex agent 对话里安装原版
@@ -180,16 +202,16 @@ ThinkAI 版是从同一仓库构建出来的完整 skill 包，避免在 GitHub 
 2. 进入仓库后运行 npm install。
 3. 运行 npm run verify。
 4. 运行 npm run build:variant:thinkai。
-5. 运行 npm run sync:thinkai，把生成的 dist/sellerpilot-product-image-industrial-thinkai 安装到 ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial-thinkai。
-6. 安装后请验证 SKILL.md 的 name 是 sellerpilot-product-image-industrial-thinkai。
-7. 检查是否已有 THINKAI_API_KEY 环境变量；如果没有，请向我索取 ThinkAI API key。
-8. 拿到 key 后运行：
-   cd ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial-thinkai
+5. 运行 npm run paths:codex，确认当前系统下的 Codex skills 目录。
+6. 运行 npm run sync:thinkai，把生成的 dist/sellerpilot-product-image-industrial-thinkai 安装到自动识别出的 Codex skills 目录；Windows 默认是 %USERPROFILE%\.codex\skills\sellerpilot-product-image-industrial-thinkai，macOS/Linux 默认是 ~/.codex/skills/sellerpilot-product-image-industrial-thinkai。
+7. 安装后请验证 SKILL.md 的 name 是 sellerpilot-product-image-industrial-thinkai。
+8. 检查是否已有 THINKAI_API_KEY 环境变量；如果没有，请向我索取 ThinkAI API key。
+9. 拿到 key 后进入 npm run paths:codex 输出的 ThinkAI skill 安装目录并运行：
    npm run configure:thinkai -- --api-key '<我提供的KEY>'
-9. 验证 ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial-thinkai/.thinkai-image-runtime.json 存在、权限尽量为 600、model 是 gpt-image-2。不要在回复里打印 key。
-10. 运行一次不联网不扣费的 dry-run：
+10. 验证 .thinkai-image-runtime.json 存在、权限尽量为 600、model 是 gpt-image-2。不要在回复里打印 key。
+11. 运行一次不联网不扣费的 dry-run：
    npm run generate:thinkai -- --prompt 'verify dry run' --output-dir /tmp/sellerpilot-thinkai-dry-run --dry-run
-11. 完成后提醒我重启 Codex。
+12. 完成后提醒我重启 Codex。
 
 不要覆盖 sellerpilot-product-image-industrial 原版。
 ```
@@ -199,7 +221,7 @@ ThinkAI 版是从同一仓库构建出来的完整 skill 包，避免在 GitHub 
 ```text
 请帮我配置 ThinkAI 版 SellerPilot 商品图 skill 的 API key：
 
-1. 检查 ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial-thinkai 是否存在。
+1. 运行 npm run paths:codex，检查输出里的 sellerpilot-product-image-industrial-thinkai 安装路径是否存在。
 2. 如果当前环境没有 THINKAI_API_KEY，请向我索取 ThinkAI API key。
 3. 拿到 key 后进入安装目录并运行：
    npm run configure:thinkai -- --api-key '<我提供的KEY>'
@@ -257,7 +279,7 @@ npm run build:variant:thinkai
 npm run sync:thinkai
 ```
 
-同步脚本会先备份旧版本，再把对应 skill 包同步到 Codex skills 目录，并验证两边文件一致。`sync:codex` 和 `sync:thinkai` 使用不同安装名，因此可以并存。同步时会把当前 GitHub 分支写入 `.sellerpilot-skill-release.json`，后续 update check 会自动对比同一个分支，而不是固定检查 `main`。
+同步脚本会先备份旧版本，再把对应 skill 包同步到 Codex skills 目录，并验证两边文件一致。`sync:codex` 和 `sync:thinkai` 使用不同安装名，因此可以并存。同步脚本是 Node 原生实现，不依赖 Unix `rsync`、`diff` 或 Bash `$(...)`，所以 macOS、Linux、Windows 都能使用。同步时会把当前 GitHub 分支写入 `.sellerpilot-skill-release.json`，后续 update check 会自动对比同一个分支，而不是固定检查 `main`。同步会保留本机私密配置，例如 ThinkAI 版的 `.thinkai-image-runtime.json`。
 
 ### 方式 5：更新已经安装过的 skill
 
@@ -282,7 +304,7 @@ npm run sync:thinkai
 
 如果你之前只用 GitHub installer 安装，没有保留本地 clone，可以重新 clone 到任意目录，再执行方式 4 的验证和同步。
 
-不要直接手动覆盖 `${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial`，除非你已经备份旧目录。
+不要直接手动覆盖 Codex skills 目录里的 `sellerpilot-product-image-industrial`，除非你已经备份旧目录；路径以 `npm run paths:codex` 输出为准。
 
 ### 方式 6：在 Codex 对话中要求更新并复核
 

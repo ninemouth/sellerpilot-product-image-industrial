@@ -24,8 +24,8 @@ function usage() {
   console.error(`Usage:
 node scripts/sync-to-codex-skill.mjs [--source /abs/skill] [--dest /abs/codex/skill] [--remote-branch branch] [--skip-verify] [--no-backup]
 
-Runs verification by default, backs up the installed skill, rsyncs this project
-to the Codex skill directory, and verifies the source/destination diff is clean.`);
+Runs verification by default, backs up the installed skill, copies this project
+to the Codex skill directory, and verifies source/destination content matches.`);
   process.exit(2);
 }
 
@@ -58,6 +58,17 @@ const codexHome = process.env.CODEX_HOME || path.join(os.homedir(), ".codex");
 const skillName = String(args["skill-name"] || "sellerpilot-product-image-industrial");
 const dest = path.resolve(args.dest || path.join(codexHome, "skills", skillName));
 const backupRoot = path.resolve(args["backup-root"] || path.join(codexHome, "skill-backups"));
+const syncExcludes = new Set([
+  ".git",
+  "node_modules",
+  "runs",
+  "outputs",
+  "dist",
+  ".cache",
+  ".DS_Store",
+  ".sellerpilot-skill-release.json",
+  ".thinkai-image-runtime.json",
+]);
 
 if (!fs.existsSync(path.join(source, "SKILL.md"))) {
   throw new Error(`Source does not look like a skill folder: ${source}`);
@@ -73,40 +84,18 @@ if (fs.existsSync(dest) && !args["no-backup"]) {
   fs.mkdirSync(backupRoot, { recursive: true });
   backupDir = path.join(backupRoot, `${skillName}-${timestamp()}`);
   console.log(`Backing up installed skill to ${backupDir}`);
-  run("rsync", ["-a", `${dest}/`, `${backupDir}/`], { cwd: source, stdio: "inherit" });
+  copyTree(dest, backupDir, { deleteExtra: false, excludes: new Set() });
 }
 
 fs.mkdirSync(dest, { recursive: true });
 console.log(`Syncing ${source} -> ${dest}`);
-run("rsync", [
-  "-a",
-  "--delete",
-  "--exclude", ".git/",
-  "--exclude", "node_modules/",
-  "--exclude", "runs/",
-  "--exclude", "outputs/",
-  "--exclude", "dist/",
-  "--exclude", ".DS_Store",
-  "--exclude", ".thinkai-image-runtime.json",
-  `${source}/`,
-  `${dest}/`,
-], { cwd: source, stdio: "inherit" });
+copyTree(source, dest, { deleteExtra: true, excludes: syncExcludes });
 
 console.log("Verifying source and installed skill are identical...");
-run("diff", [
-  "-qr",
-  "--exclude", ".git",
-  "--exclude", "node_modules",
-  "--exclude", "runs",
-  "--exclude", "outputs",
-  "--exclude", "dist",
-  "--exclude", ".cache",
-  "--exclude", ".sellerpilot-skill-release.json",
-  "--exclude", ".thinkai-image-runtime.json",
-  "--exclude", ".DS_Store",
-  source,
-  dest,
-], { cwd: source, stdio: "inherit" });
+const differences = compareTrees(source, dest, syncExcludes);
+if (differences.length) {
+  throw new Error(`Installed skill differs from source:\n${differences.slice(0, 40).join("\n")}`);
+}
 
 const releaseMetadata = buildReleaseMetadata({ source, dest });
 fs.writeFileSync(path.join(dest, ".sellerpilot-skill-release.json"), JSON.stringify(releaseMetadata, null, 2));
@@ -117,7 +106,90 @@ console.log(JSON.stringify({
   dest,
   backup: backupDir,
   release: releaseMetadata,
+  paths: {
+    os: process.platform,
+    codex_home: codexHome,
+    skills_dir: path.join(codexHome, "skills"),
+    installed_skill: dest,
+  },
 }, null, 2));
+
+function copyTree(src, target, { deleteExtra, excludes }) {
+  fs.mkdirSync(target, { recursive: true });
+  const sourceNames = new Set(fs.readdirSync(src));
+  for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+    if (excludes.has(entry.name)) continue;
+    const sourcePath = path.join(src, entry.name);
+    const targetPath = path.join(target, entry.name);
+    if (entry.isDirectory()) {
+      copyTree(sourcePath, targetPath, { deleteExtra, excludes });
+    } else if (entry.isSymbolicLink()) {
+      const linkTarget = fs.readlinkSync(sourcePath);
+      fs.rmSync(targetPath, { recursive: true, force: true });
+      fs.symlinkSync(linkTarget, targetPath);
+    } else {
+      fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+      fs.copyFileSync(sourcePath, targetPath);
+      try {
+        fs.chmodSync(targetPath, fs.statSync(sourcePath).mode);
+      } catch {}
+    }
+  }
+  if (!deleteExtra) return;
+  for (const entry of fs.readdirSync(target, { withFileTypes: true })) {
+    if (excludes.has(entry.name)) continue;
+    if (!sourceNames.has(entry.name)) {
+      fs.rmSync(path.join(target, entry.name), { recursive: true, force: true });
+    }
+  }
+}
+
+function compareTrees(left, right, excludes, relative = "") {
+  const differences = [];
+  const leftEntries = readDirMap(left, excludes);
+  const rightEntries = readDirMap(right, excludes);
+  const names = new Set([...leftEntries.keys(), ...rightEntries.keys()]);
+  for (const name of [...names].sort()) {
+    const rel = path.join(relative, name);
+    const leftEntry = leftEntries.get(name);
+    const rightEntry = rightEntries.get(name);
+    if (!leftEntry) {
+      differences.push(`Only in installed: ${rel}`);
+      continue;
+    }
+    if (!rightEntry) {
+      differences.push(`Only in source: ${rel}`);
+      continue;
+    }
+    const leftPath = path.join(left, name);
+    const rightPath = path.join(right, name);
+    if (leftEntry.isDirectory() !== rightEntry.isDirectory()) {
+      differences.push(`Type differs: ${rel}`);
+      continue;
+    }
+    if (leftEntry.isDirectory()) {
+      differences.push(...compareTrees(leftPath, rightPath, excludes, rel));
+    } else if (!sameFile(leftPath, rightPath)) {
+      differences.push(`File differs: ${rel}`);
+    }
+  }
+  return differences;
+}
+
+function readDirMap(dir, excludes) {
+  const entries = new Map();
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (!excludes.has(entry.name)) entries.set(entry.name, entry);
+  }
+  return entries;
+}
+
+function sameFile(left, right) {
+  const leftStat = fs.statSync(left);
+  const rightStat = fs.statSync(right);
+  if (leftStat.size !== rightStat.size) return false;
+  return fs.readFileSync(left).equals(fs.readFileSync(right));
+}
 
 function buildReleaseMetadata({ source: sourceDir, dest: destDir }) {
   const packageJson = readJson(path.join(sourceDir, "package.json")) || {};
