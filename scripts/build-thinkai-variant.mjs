@@ -138,8 +138,11 @@ function applyThinkAiVariant(baseDir) {
   ]);
 
   replaceInFile(path.join(baseDir, "README.md"), [
-    [/sellerpilot-product-image-industrial/g, variantName],
-    [/Codex imagegen 原版/g, "ThinkAI gpt-image-2 版"],
+    [/^# SellerPilot Product Image Industrial$/m, "# SellerPilot Product Image Industrial ThinkAI"],
+    [
+      /面向 Codex 的工业级电商商品图套图制作 skill。/,
+      "面向 Codex 的工业级电商商品图套图制作 skill。当前构建包是 ThinkAI `gpt-image-2` 变体，生产生图默认使用本包 `scripts/thinkai-image-runtime.mjs`；README 仍保留原版与 ThinkAI 双版本安装说明，避免把 GitHub 仓库名或 skill 名错误改成重复 ThinkAI 后缀。",
+    ],
   ]);
 
   replaceInFile(path.join(baseDir, "agents", "openai.yaml"), [

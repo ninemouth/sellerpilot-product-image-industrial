@@ -11,6 +11,13 @@
 
 ## 最新更新
 
+2026-07-12 版本把双版本安装说明、ThinkAI 配置和 Windows 路径修复合并进 `main`，用户打开 GitHub 首页 README 即可看到完整安装方式：
+
+- **main 首页就是用户入口**：`main` 的 README 明确说明原版 `sellerpilot-product-image-industrial` 与 ThinkAI 版 `sellerpilot-product-image-industrial-thinkai` 可以并存，不需要用户去找功能分支。
+- **跨平台路径识别**：新增 `npm run paths:codex`，自动输出 macOS/Linux/Windows 的 Codex skills 目录、两个 skill 安装路径和 ThinkAI 本地配置路径；Windows 默认路径使用 `%USERPROFILE%\.codex\skills\...`。
+- **ThinkAI 配置闭环**：ThinkAI 版安装说明包含 `THINKAI_API_KEY` 配置、`.thinkai-image-runtime.json` 本地私密配置验证，以及 dry-run 检查；同步脚本保留私密配置，不会在更新时删除。
+- **变体 README 防错**：ThinkAI 构建包保留正确的主仓库地址和两个 skill 名称，避免生成重复 ThinkAI 后缀这类错误安装名。
+
 2026-07-10 版本重点增强了店铺统一风格记忆、ThinkAI 版继承和商业研究闭环：
 
 - **店铺统一风格记忆**：用户可以在对话里说“创建店铺 xxx 的统一风格”并粘贴店铺地址；skill 会先分析店铺页面、给出 2-3 个统一风格方向，经过用户确认后才把店铺风格保存成 Markdown 记忆。后续生图只要提到该店铺或同一 URL，就会自动把这份 MD 作为店铺/品牌风格层加载。

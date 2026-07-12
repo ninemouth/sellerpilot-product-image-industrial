@@ -145,6 +145,26 @@ record("openai agent display metadata", () => {
   }
 });
 
+record("README variant naming contract", () => {
+  const readme = fs.readFileSync(path.join(skillRoot, "README.md"), "utf8");
+  if (readme.includes("sellerpilot-product-image-industrial-thinkai-thinkai")) {
+    throw new Error("README.md must not contain a double ThinkAI skill suffix.");
+  }
+  if (readme.includes("github.com/ninemouth/sellerpilot-product-image-industrial-thinkai")) {
+    throw new Error("README.md must keep the canonical GitHub repo URL, not a non-existent ThinkAI repo URL.");
+  }
+  for (const required of [
+    "sellerpilot-product-image-industrial",
+    "sellerpilot-product-image-industrial-thinkai",
+    "npm run paths:codex",
+    "%USERPROFILE%\\.codex\\skills\\sellerpilot-product-image-industrial-thinkai",
+  ]) {
+    if (!readme.includes(required)) {
+      throw new Error(`README.md missing required install guidance: ${required}`);
+    }
+  }
+});
+
 record("node syntax", () => {
   for (const file of listFiles(path.join(skillRoot, "scripts"), (item) => item.endsWith(".mjs"))) {
     run(process.execPath, ["--check", file]);
