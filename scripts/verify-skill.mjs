@@ -533,6 +533,24 @@ record("skill sync release metadata branch smoke", () => {
   if (!release.local_commit || !release.remote_url) {
     throw new Error("sync release metadata should include local commit and remote url.");
   }
+  const installedCopy = path.join(dir, "installed-copy");
+  fs.mkdirSync(installedCopy, { recursive: true });
+  fs.copyFileSync(path.join(dest, "SKILL.md"), path.join(installedCopy, "SKILL.md"));
+  fs.copyFileSync(path.join(dest, "package.json"), path.join(installedCopy, "package.json"));
+  fs.copyFileSync(path.join(dest, ".sellerpilot-skill-release.json"), path.join(installedCopy, ".sellerpilot-skill-release.json"));
+  const installedDest = path.join(dir, "installed-copy-sync");
+  run(process.execPath, [
+    "scripts/sync-to-codex-skill.mjs",
+    "--source", installedCopy,
+    "--dest", installedDest,
+    "--skill-name", "sellerpilot-product-image-industrial",
+    "--skip-verify",
+    "--no-backup",
+  ]);
+  const resyncedRelease = readJson(path.join(installedDest, ".sellerpilot-skill-release.json"));
+  if (!resyncedRelease.local_commit || !resyncedRelease.remote_url) {
+    throw new Error("syncing an installed no-git copy must preserve existing release metadata.");
+  }
   const pkg = readJson(path.join(skillRoot, "package.json"));
   const syncThinkAi = pkg.scripts?.["sync:thinkai"] || "";
   if (syncThinkAi.includes("$(")) {

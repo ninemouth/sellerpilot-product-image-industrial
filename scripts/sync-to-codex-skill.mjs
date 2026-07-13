@@ -193,6 +193,7 @@ function sameFile(left, right) {
 
 function buildReleaseMetadata({ source: sourceDir, dest: destDir }) {
   const packageJson = readJson(path.join(sourceDir, "package.json")) || {};
+  const existingRelease = readJson(path.join(sourceDir, ".sellerpilot-skill-release.json")) || {};
   const fallbackGitRoot = process.cwd();
   return {
     schema_version: "sellerpilot.skill_release.v1",
@@ -200,10 +201,10 @@ function buildReleaseMetadata({ source: sourceDir, dest: destDir }) {
     package_version: packageJson.version || "",
     source_path: sourceDir,
     dest_path: destDir,
-    local_commit: gitValue(sourceDir, ["rev-parse", "HEAD"]) || gitValue(fallbackGitRoot, ["rev-parse", "HEAD"]),
-    local_branch: gitValue(sourceDir, ["rev-parse", "--abbrev-ref", "HEAD"]) || gitValue(fallbackGitRoot, ["rev-parse", "--abbrev-ref", "HEAD"]),
-    remote_url: gitValue(sourceDir, ["config", "--get", "remote.origin.url"]) || gitValue(fallbackGitRoot, ["config", "--get", "remote.origin.url"]) || normalizeGitUrl(packageJson.repository?.url) || "",
-    remote_branch: args["remote-branch"] || detectRemoteBranch(sourceDir) || detectRemoteBranch(fallbackGitRoot) || "main",
+    local_commit: gitValue(sourceDir, ["rev-parse", "HEAD"]) || existingRelease.local_commit || gitValue(fallbackGitRoot, ["rev-parse", "HEAD"]),
+    local_branch: gitValue(sourceDir, ["rev-parse", "--abbrev-ref", "HEAD"]) || existingRelease.local_branch || gitValue(fallbackGitRoot, ["rev-parse", "--abbrev-ref", "HEAD"]),
+    remote_url: gitValue(sourceDir, ["config", "--get", "remote.origin.url"]) || existingRelease.remote_url || gitValue(fallbackGitRoot, ["config", "--get", "remote.origin.url"]) || normalizeGitUrl(packageJson.repository?.url) || "",
+    remote_branch: args["remote-branch"] || existingRelease.remote_branch || detectRemoteBranch(sourceDir) || detectRemoteBranch(fallbackGitRoot) || "main",
     synced_at: new Date().toISOString(),
   };
 }
