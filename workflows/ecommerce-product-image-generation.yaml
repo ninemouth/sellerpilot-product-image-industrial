@@ -26,7 +26,7 @@ execution_modes:
       - compact_identity_notes
       - compact_visual_strategy
       - focused_qa_summary
-      - optional_review_workspace_if_requested_or_failed
+      - post_generation_tldraw_ready_url_or_blocked_reason_for_final_delivery
   quality_production:
     default_for:
       - standard_multi_image_sets
@@ -173,7 +173,7 @@ default_outputs:
     - compact_product_identity_lock
     - compact_visual_direction_summary
     - focused_qa_summary
-    - review_canvas_if_requested_or_needed
+    - post_generation_tldraw_ready_url_or_blocked_reason_for_final_delivery
   quality_production:
     - production_efficiency_plan
     - final_images

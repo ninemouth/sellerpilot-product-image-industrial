@@ -149,7 +149,7 @@ function buildPlan(ctx) {
       market_research: ctx.signals.platform_research_needed ? "compact_pattern_scan_only_if_conversion_critical" : "skip",
       physical_truth_gate: ctx.signals.physical_function_risk ? "required" : "triggered_only_if_image_roles_show_function_or_scale",
       scene_asset_generation: ctx.signals.scene_requested ? "required_for_scene_roles" : "skip",
-      tldraw_start: ctx.signals.multi_image_set ? "single_post_export_shared_service_launch" : "only_if_requested_gate_failed_or_revision_handoff",
+      tldraw_start: "single_post_export_shared_service_launch_for_every_final_delivery",
     },
     skip_by_default: auditMode ? [] : [
       "full industrial report pack",
@@ -242,7 +242,7 @@ function runShape(mode, signals) {
       "single final image generation",
       "focused final gates",
       "export manifest",
-      "tldraw only if review/gate handoff needs markup",
+      "post-generation tldraw auto-start for final single-image delivery",
     ];
   shape.push("final delivery gate");
   return shape;

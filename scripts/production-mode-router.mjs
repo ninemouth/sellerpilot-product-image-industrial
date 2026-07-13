@@ -97,7 +97,7 @@ function modePolicy(mode, flags) {
   const common = {
     update_check: "cache-first non-blocking",
     efficiency_plan: "write production-efficiency-plan before heavy planning or generation",
-    tldraw: "for generated multi-image final sets, auto-start after export and overview; for single-image finals, auto-start when review is requested or a gate/revision handoff needs visual markup",
+    tldraw: "for every generated final delivery, auto-start after export; multi-image sets start after overview and single-image finals do not require an overview",
     generation_pacing: "use anchor batch before full multi-image generation; single-image requests may generate one final image directly after identity/prompt checks",
     rerun_policy: "rerun only missing or failed assets",
   };
@@ -123,7 +123,7 @@ function modePolicy(mode, flags) {
       "single-image-generation",
       "identity-marketing-export-final-gates",
       "final-image-manifest",
-      "tldraw-only-if-review-or-gate-handoff",
+      "post-generation-tldraw-auto-start",
     ];
     return {
       ...common,

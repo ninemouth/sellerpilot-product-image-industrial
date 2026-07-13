@@ -705,6 +705,9 @@ record("production mode router smoke", () => {
   if (!singleQuality.execution_policy.required_quality_path.includes("single-image-generation")) {
     throw new Error("single quality production should use the single-image path.");
   }
+  if (!singleQuality.execution_policy.required_quality_path.includes("post-generation-tldraw-auto-start")) {
+    throw new Error("single-image final delivery must auto-start tldraw before handoff.");
+  }
   if (singleQuality.execution_policy.required_quality_path.includes("anchor-batch-imagegen") || singleQuality.execution_policy.required_quality_path.includes("overview-contact-sheet")) {
     throw new Error("single quality production should not require anchor batch or delivery overview.");
   }

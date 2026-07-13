@@ -40,7 +40,7 @@ Intent -> Normalize -> Mode Router -> Efficiency Plan -> Brief Intake Gate -> So
 22. 物理商品必须锁定真实功能、使用/安装动作、禁用生造机制和尺度参考；不得生造按压锁定、磁吸、胶粘、防水、承重、额外活动部件、兼容性或不一致尺寸比例。
 23. 原图中的文字、标签、包装、尺寸、警示、型号、规格、安装步骤等都是商品事实线索；必须先做 Source Product Understanding。文字读取优先由 AI 视觉识别完成，只有 AI 不确定、文字太小/模糊、疑似包含尺寸/规格/风险声明，或用户明确要求时才触发本地 OCR；确认事实必须传递到 identity/physical truth/geometry/prompt/copy，不能只增强图片或在后续生图中改变其含义。
 24. 多图套图交付必须包含独立成品图和一张交付总览图 `overview/SET-OVERVIEW-contact-sheet.png`；总览图用于核对/对话交付，不得替代 `final-images` 内的独立平台图片。
-24a. 单张商品图是允许的正式交付类型，不得因为只有 1 张图而强制升级成套图。单图交付仍必须有独立最终图片、当前 run 的 `export/final-images-manifest.json`、必要 QA 和 final delivery gate；但不要求交付总览图、anchor batch 或多图套图蓝图。单图需要视觉批注、gate handoff 或修订时，可以启动 tldraw 工作台。
+24a. 单张商品图是允许的正式交付类型，不得因为只有 1 张图而强制升级成套图。单图交付仍必须有独立最终图片、当前 run 的 `export/final-images-manifest.json`、必要 QA 和 final delivery gate；但不要求交付总览图、anchor batch 或多图套图蓝图。所有正式单图交付都必须启动 tldraw 工作台并在交付前给出 ready URL 或 blocked reason；只有用户明确要求草稿、文件归档或不需要审核时才可以跳过。
 25. 每个任务必须有独立 `run_id` 和 run 目录。总览图、tldraw 工作台、导出 gate、A-H review 等只允许读取当前任务的 `export/final-images-manifest.json` 或当前 `run-dir/final-images`；不得扫描日期级目录、共享 `outputs/`、父目录或其他任务目录。
 26. 高质量多图成品必须强制保留交付总览图 `overview/SET-OVERVIEW-contact-sheet.png`。日常 Codex quality production 中的套图规划应保持紧凑，不得默认生成完整工业审计包里的多份长报告。
 27. 任务开始后必须写 `planning/production-efficiency-plan.json`，明确触发/跳过的工作、预算、进度文件和长耗时汇报规则。无触发信号时不得默认跑完整 web 调研、市场研究、URL 读取或预生成画布。
@@ -159,7 +159,7 @@ Fast generation mode 完成必须包含：
 - 紧凑套图规划，保留每张图的角色、买家问题、镜头、文案意图、prompt layer 和 QA 标准
 - 简短镜头矩阵/场景策略说明
 - 简短 QA 结论
-- 多图成品生图完成后的共享 tldraw review session URL，或自动启动失败的 blocked reason；单图草稿仅在请求审核或 gate 失败时需要
+- 所有正式成品生图完成后的共享 tldraw review session URL，或自动启动失败的 blocked reason；只有明确草稿才可跳过
 
 Industrial audit mode 完成必须包含：
 
