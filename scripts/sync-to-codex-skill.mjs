@@ -100,12 +100,25 @@ if (differences.length) {
 const releaseMetadata = buildReleaseMetadata({ source, dest });
 fs.writeFileSync(path.join(dest, ".sellerpilot-skill-release.json"), JSON.stringify(releaseMetadata, null, 2));
 
+const canvasRoot = path.join(codexHome, "sellerpilot-product-image-industrial", "canvas-service");
+const canvasScript = path.join(dest, "scripts", "start-tldraw-shared-service.mjs");
+let canvasPreparationReport = { status: "not_applicable" };
+if (fs.existsSync(canvasScript)) {
+  console.log("Preparing shared tldraw canvas dependencies...");
+  const canvasPreparation = run(process.execPath, [canvasScript, "--shared-root", canvasRoot, "--prepare-only"], { cwd: dest });
+  canvasPreparationReport = parseLastJson(canvasPreparation);
+  if (!canvasPreparationReport || !["prepared", "already_prepared"].includes(canvasPreparationReport.status)) {
+    throw new Error("Shared tldraw canvas dependency preparation did not complete.");
+  }
+}
+
 console.log(JSON.stringify({
   status: "synced",
   source,
   dest,
   backup: backupDir,
   release: releaseMetadata,
+  canvas_preparation: canvasPreparationReport,
   paths: {
     os: process.platform,
     codex_home: codexHome,
@@ -229,6 +242,16 @@ function normalizeGitUrl(value) {
 function readJson(filePath) {
   try {
     return JSON.parse(fs.readFileSync(filePath, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function parseLastJson(output) {
+  const text = String(output || "").trim();
+  const start = text.lastIndexOf("\n{");
+  try {
+    return JSON.parse(start >= 0 ? text.slice(start + 1) : text);
   } catch {
     return null;
   }

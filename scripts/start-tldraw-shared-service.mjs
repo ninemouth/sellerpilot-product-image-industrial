@@ -25,9 +25,11 @@ function parseArgs(argv) {
 
 function usage() {
   console.error(`Usage:
-node scripts/start-tldraw-shared-service.mjs [--shared-root ~/.codex/sellerpilot-canvas-service] [--port 5190] [--session-id ...] [--no-install] [--dry-run]
+node scripts/start-tldraw-shared-service.mjs [--shared-root ~/.codex/sellerpilot-canvas-service] [--port 5190] [--session-id ...] [--prepare-only] [--dry-run]
 
-Starts or reuses one shared tldraw canvas service. Individual chats/runs are
+Prepares or starts one shared tldraw canvas service. Preparation syncs the
+template and installs dependencies once during skill install/update; normal
+task startup only reuses prepared dependencies. Individual chats/runs are
 opened as sessions with /?session=<session-id>.`);
   process.exit(2);
 }
@@ -40,12 +42,33 @@ const statePath = path.join(sharedRoot, "data", "shared-server-state.json");
 const logDir = path.join(sharedRoot, "logs");
 const host = "127.0.0.1";
 const waitMs = args["wait-ms"] ? Number(args["wait-ms"]) : 20000;
+const preparing = Boolean(args["prepare-only"]);
 
 const templateSync = syncSharedTemplate({
   templateDir,
   sharedRoot,
-  dryRun: Boolean(args["dry-run"]),
+  dryRun: Boolean(args["dry-run"]) || !preparing,
 });
+const dependency = prepareDependencies({ sharedRoot, dryRun: Boolean(args["dry-run"]), templateSync, allowInstall: preparing });
+
+if (args["prepare-only"]) {
+  console.log(JSON.stringify({
+    status: dependency.status,
+    sharedRoot,
+    dependency,
+    templateSync,
+  }, null, 2));
+  process.exit(dependency.status === "prepared" || dependency.status === "already_prepared" || args["dry-run"] ? 0 : 1);
+}
+
+if (!dependenciesReady(sharedRoot)) {
+  console.log(JSON.stringify({
+    status: "blocked_canvas_dependencies_not_prepared",
+    sharedRoot,
+    message: "Canvas dependencies were not prepared during skill installation or update. Run the shared service prepare command before production.",
+  }, null, 2));
+  process.exit(1);
+}
 
 const existing = readJson(statePath);
 if (existing?.pid && processAlive(existing.pid)) {
@@ -86,16 +109,11 @@ if (args["dry-run"]) {
   process.exit(0);
 }
 
-if (!args["no-install"] && !fs.existsSync(path.join(sharedRoot, "node_modules"))) {
-  const install = spawnSync("npm", ["install"], { cwd: sharedRoot, stdio: "inherit" });
-  if (install.status !== 0) process.exit(install.status || 1);
-}
-
 fs.mkdirSync(path.dirname(statePath), { recursive: true });
 fs.mkdirSync(logDir, { recursive: true });
 const stdout = fs.openSync(path.join(logDir, "vite.stdout.log"), "a");
 const stderr = fs.openSync(path.join(logDir, "vite.stderr.log"), "a");
-const child = spawn("npm", ["run", "dev", "--", "--port", String(port)], {
+const child = spawn("npm", ["run", "dev", "--", "--port", String(port), "--strictPort"], {
   cwd: sharedRoot,
   detached: true,
   stdio: ["ignore", stdout, stderr],
@@ -186,6 +204,31 @@ function syncSharedTemplate({ templateDir: sourceDir, sharedRoot: destDir, dryRu
   }, null, 2));
   result.synced = true;
   return result;
+}
+
+function prepareDependencies({ sharedRoot: root, dryRun, templateSync, allowInstall }) {
+  const markerPath = path.join(root, "data", "dependency-preparation.json");
+  const lockPath = path.join(root, "package-lock.json");
+  const lockHash = fs.existsSync(lockPath) ? crypto.createHash("sha256").update(fs.readFileSync(lockPath)).digest("hex") : "";
+  const existing = readJson(markerPath);
+  const needsInstall = !dependenciesReady(root) || existing?.lock_hash !== lockHash || templateSync.changed;
+  if (!needsInstall) return { status: "already_prepared", lock_hash: lockHash, marker_path: markerPath };
+  if (!allowInstall) return { status: "not_prepared", lock_hash: lockHash, marker_path: markerPath };
+  if (dryRun) return { status: "dry_run", lock_hash: lockHash, marker_path: markerPath, would_install: true };
+  const install = spawnSync("npm", ["ci", "--no-audit", "--no-fund"], { cwd: root, stdio: "inherit" });
+  if (install.status !== 0) return { status: "failed", lock_hash: lockHash, marker_path: markerPath };
+  fs.mkdirSync(path.dirname(markerPath), { recursive: true });
+  fs.writeFileSync(markerPath, JSON.stringify({
+    schema_version: "sellerpilot.tldraw_dependency_preparation.v1",
+    status: "prepared",
+    prepared_at: new Date().toISOString(),
+    lock_hash: lockHash,
+  }, null, 2));
+  return { status: "prepared", lock_hash: lockHash, marker_path: markerPath };
+}
+
+function dependenciesReady(root) {
+  return fs.existsSync(path.join(root, "node_modules", "vite")) && fs.existsSync(path.join(root, "node_modules", "tldraw"));
 }
 
 function hashTemplate(dir) {

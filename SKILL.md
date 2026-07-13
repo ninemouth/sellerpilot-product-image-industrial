@@ -31,6 +31,8 @@ When giving install/update instructions, do not assume a Unix path. Prefer `node
 
 When developing this skill outside the installed capability root, verify the development copy first, then sync it into the installed root with the bundled release script. Do not hand-copy partial files.
 
+The shared tldraw canvas is prepared during skill installation and update at `${CODEX_HOME:-$HOME/.codex}/sellerpilot-product-image-industrial/canvas-service`. Do not run dependency installation during a product-image task. When the canvas is missing or its lockfile changes, complete preparation first; normal post-generation startup may only reuse prepared dependencies and verify the local service.
+
 Do not copy competitor visuals, invent product facts, auto-publish assets, or promise CTR, CVR, ROAS, ACOS, ranking, or sales lift.
 
 ## Production Update Gate

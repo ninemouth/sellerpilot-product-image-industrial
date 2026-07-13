@@ -466,12 +466,20 @@ record("tldraw shared service template sync dry run", () => {
     "scripts/start-tldraw-shared-service.mjs",
     "--shared-root", path.join(dir, "canvas-service"),
     "--session-id", "verify-template-sync",
+    "--prepare-only",
     "--dry-run",
   ]);
   const parsed = JSON.parse(out);
   if (parsed.status !== "dry_run") throw new Error("shared service dry-run should not start server.");
   if (!parsed.templateSync?.source_hash) throw new Error("shared service should report template source hash.");
   if (!parsed.templateSync?.changed) throw new Error("new shared root should report template sync changed=true.");
+  const service = fs.readFileSync(path.join(skillRoot, "scripts", "start-tldraw-shared-service.mjs"), "utf8");
+  if (service.includes('spawnSync("npm", ["install"')) {
+    throw new Error("runtime canvas startup must not run npm install; installation belongs to prepare-only sync.");
+  }
+  for (const token of ["--prepare-only", 'spawnSync("npm", ["ci", "--no-audit", "--no-fund"]', "blocked_canvas_dependencies_not_prepared", '"--strictPort"']) {
+    if (!service.includes(token)) throw new Error(`shared canvas service missing preparation contract: ${token}`);
+  }
 });
 
 record("skill update checker smoke", () => {
@@ -2627,6 +2635,11 @@ record("post-generation tldraw launcher smoke", () => {
     "--expected-count", "1",
     "--require-square",
   ]);
+  run(process.execPath, [
+    "scripts/start-tldraw-shared-service.mjs",
+    "--shared-root", sharedRoot,
+    "--prepare-only",
+  ], { maxBuffer: 50 * 1024 * 1024 });
   run(process.execPath, [
     "scripts/post-generation-tldraw-launcher.mjs",
     "--run-dir", singleRunDir,
