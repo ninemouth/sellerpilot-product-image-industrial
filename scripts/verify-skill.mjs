@@ -568,6 +568,9 @@ record("skill sync release metadata branch smoke", () => {
   if (pkg.scripts?.["paths:codex"] !== "node scripts/codex-path-info.mjs") {
     throw new Error("package.json should expose paths:codex for OS-aware Codex install paths.");
   }
+  // An installed Codex skill intentionally has no .git directory. The dist-like
+  // source test below validates development-clone fallback metadata only.
+  if (!fs.existsSync(path.join(skillRoot, ".git"))) return;
   const distLikeSource = path.join(dir, "dist-like-source");
   const distLikeDest = path.join(dir, "dist-like-installed");
   fs.mkdirSync(distLikeSource, { recursive: true });
