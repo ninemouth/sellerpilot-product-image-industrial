@@ -60,6 +60,8 @@ Intent -> Normalize -> Mode Router -> Efficiency Plan -> Brief Intake Gate -> So
 41. 用户确认店铺统一风格后，才允许把店铺风格写入 `${SELLERPILOT_IMAGE_SKILL_MEMORY:-$HOME/.codex/sellerpilot-product-image-industrial}/store-style-memory/*.md`。店铺风格记忆只能保存定位、受众、视觉特质、配色、字体、摄影/场景、版式、文案语气、禁用项、prompt 指令和证据摘要；不得保存商品身份、私密业务数据、客户/供应商信息、凭证、无证据高风险声明或一次性失败反馈。
 42. 后续生图请求中只要命中已保存店铺名或店铺 URL，必须在平台上下文、视觉总监、prompt layer 和 QA 前加载当前 run 的 `memory/store-style-memory.md` 与 `memory/store-style-overlay.json`。该记忆是店铺/品牌风格层，不得覆盖当前用户指令、源商品身份、物理事实、平台规则、合规边界或实时调研。
 43. 安装、更新、同步、配置 ThinkAI key 的说明必须自动识别或明确区分 macOS/Linux/Windows 路径。优先使用 `npm run paths:codex` / `scripts/codex-path-info.mjs` 输出当前系统路径；不得只给 `${CODEX_HOME:-$HOME/.codex}` 这类 Unix-only 路径作为唯一答案。
+44. 内部沙箱、域名解析、网络权限、命令执行、curl 原始报错、API key 或本机路径绝不得作为用户可见的生成结果或行动要求。运行时失败必须写入 run 级诊断，并只向用户给出安全的状态、已保留资产和下一步；不得声称会自行申请权限、绕过沙箱或修改用户 API 配置。
+45. ThinkAI 或任何 provider 生图前必须先写 provider-compatible 的平台比例 generation spec；不得以横向默认尺寸生成后才由 export gate 发现比例不符。多图任务必须先完成 anchor batch QA，之后才可对独立剩余角色使用最多 2 路受控并发；不得在 anchor QA 前并发整套生图。
 
 ## Default Workflow
 

@@ -229,6 +229,8 @@ record("workflow loop guard ordering", () => {
       "localized-copy-qa-gate-if-locale-needs-review",
       "text-layout-proof-gate-before-final-raster-if-visible-copy",
       "compact-image-set-blueprint",
+      "resolve-platform-ratio-and-provider-generation-spec-before-execution",
+      "generation-execution-controller-anchor-first-bounded-concurrency-after-qa",
       "image-set-export-gate",
       "anchor-batch-qa-decision-record",
       "localized-final-visible-text-qa-if-locale-needs-review",
@@ -258,6 +260,9 @@ record("workflow loop guard ordering", () => {
     assertStepBefore(file, steps, "store-style-memory-apply-if-store-mentioned", "compact-image-set-blueprint");
     assertStepBefore(file, steps, "commerce-design-research-planner-if-conversion-critical", "audience-persona");
     assertStepBefore(file, steps, "compact-image-set-blueprint", "prompt-layer-stack");
+    assertStepBefore(file, steps, "prompt-layer-stack", "resolve-platform-ratio-and-provider-generation-spec-before-execution");
+    assertStepBefore(file, steps, "resolve-platform-ratio-and-provider-generation-spec-before-execution", "generation-runtime-execution-boundary");
+    assertStepBefore(file, steps, "generation-execution-controller-anchor-first-bounded-concurrency-after-qa", "anchor-batch-generation-loop-if-runtime-available");
     assertStepBefore(file, steps, "product-physical-truth-lock-if-function-use-or-scale-sensitive", "product-physics-fact-gate-if-function-use-or-scale-sensitive");
     assertStepBefore(file, steps, "copy-strategy-gate", "marketing-quality-gate");
     assertStepBefore(file, steps, "localized-copy-qa-gate-if-locale-needs-review", "marketing-quality-gate");
@@ -307,7 +312,10 @@ record("thinkai runtime contract", () => {
     'DEFAULT_BASE_URL = "https://www.thinkai.tv/v1"',
     'DEFAULT_MODEL = "gpt-image-2"',
     "THINKAI_API_KEY",
-    "spawnSync(\"curl\"",
+    "spawn(\"curl\"",
+    "progress-file",
+    "withHeartbeat",
+    "publicFailure",
     "/images/generations",
     "/images/edits",
     "response_format",
@@ -334,6 +342,18 @@ record("thinkai runtime contract", () => {
   if (config.api_key !== "verify-key") {
     throw new Error("ThinkAI config script did not write the supplied API key.");
   }
+  const progressDir = tmpDir("sp-verify-thinkai-progress-");
+  run(process.execPath, [
+    "scripts/thinkai-image-runtime.mjs",
+    "--prompt", "verify progress dry run",
+    "--output-dir", progressDir,
+    "--progress-file", path.join(progressDir, "progress.json"),
+    "--dry-run",
+  ]);
+  const progress = readJson(path.join(progressDir, "progress.json"));
+  if (progress.status !== "dry_run" || progress.runtime?.heartbeat_seconds !== 30) {
+    throw new Error("ThinkAI runtime dry run must write a run-scoped safe progress status.");
+  }
   const docs = [
     "README.md",
     "SKILL.md",
@@ -343,6 +363,28 @@ record("thinkai runtime contract", () => {
     if (!text.includes("gpt-image-2")) throw new Error(`${file} must name gpt-image-2.`);
     if (!text.includes("thinkai-image-runtime.mjs")) throw new Error(`${file} must name the ThinkAI runtime script.`);
   }
+});
+
+record("generation spec and anchor controller smoke", () => {
+  const runDir = path.join(tmpDir("sp-verify-generation-control-"), "run");
+  const specDir = path.join(runDir, "generation-spec");
+  run(process.execPath, ["scripts/resolve-generation-spec.mjs", "--out-dir", specDir, "--platform", "Ozon", "--category", "apparel"]);
+  const spec = readJson(path.join(specDir, "generation-spec.json"));
+  if (spec.required_ratio !== "3:4" || spec.requested_size !== "1920x2560") {
+    throw new Error("Ozon generation spec must resolve the required 3:4 portrait request before generation.");
+  }
+  fs.mkdirSync(path.join(runDir, "generated-assets"), { recursive: true });
+  fs.writeFileSync(path.join(runDir, "generated-assets", "generation-progress.json"), "{}\n");
+  fs.writeFileSync(path.join(runDir, "generated-assets", "anchor-batch-qa-decision.json"), JSON.stringify({ qa_decision: "pending" }));
+  const jobsPath = path.join(runDir, "jobs.json");
+  fs.writeFileSync(jobsPath, JSON.stringify({ jobs: [{ id: "IMG-01", anchor: true }, { id: "IMG-04", anchor: false }] }));
+  run(process.execPath, ["scripts/generation-execution-controller.mjs", "--run-dir", runDir, "--jobs", jobsPath]);
+  const blocked = spawnSync(process.execPath, ["scripts/generation-execution-controller.mjs", "--run-dir", runDir, "--jobs", jobsPath, "--continue-after-anchor-pass"], { cwd: skillRoot });
+  if (blocked.status === 0) throw new Error("Controller must block remaining jobs before anchor approval.");
+  fs.writeFileSync(path.join(runDir, "generated-assets", "anchor-batch-qa-decision.json"), JSON.stringify({ qa_decision: "continue" }));
+  run(process.execPath, ["scripts/generation-execution-controller.mjs", "--run-dir", runDir, "--jobs", jobsPath, "--continue-after-anchor-pass"]);
+  const state = readJson(path.join(runDir, "generated-assets", "execution-controller-state.json"));
+  if (state.status !== "remaining_ready" || state.concurrency !== 2) throw new Error("Controller must permit only bounded remaining generation after anchor QA.");
 });
 
 record("tldraw lockfile", () => {
@@ -692,7 +734,7 @@ record("production efficiency plan smoke", () => {
     throw new Error("quality efficiency plan should skip verbose industrial artifacts by default.");
   }
   const progress = readJson(path.join(runDir, "generated-assets", "generation-progress.json"));
-  if (progress.next_action !== "build compact image-set planning before anchor batch") {
+  if (progress.next_action !== "resolve provider-compatible platform ratio, build compact image-set planning, then run anchor batch") {
     throw new Error("efficiency plan should initialize generation progress.");
   }
 

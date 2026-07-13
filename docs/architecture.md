@@ -34,6 +34,13 @@ L2 Commerce Visual Skills:
 - revision
 - export-packaging
 
+L2.5 Generation Control:
+- provider-compatible platform ratio resolution before each request
+- run-scoped execution state and heartbeat progress
+- anchor-first quality checkpoint
+- bounded concurrency only for independent remaining roles after anchor approval
+- provider diagnostic isolation from user-facing messages
+
 ## Loop
 
-User Request -> Normalize -> Parse -> Identity Lock -> Profile -> Strategy -> Visual Direction -> Codex-Native Generation -> QA -> Optional Canvas -> Revise -> Export
+User Request -> Normalize -> Parse -> Identity Lock -> Profile -> Strategy -> Visual Direction -> Generation Spec -> Anchor Generation -> Anchor QA -> Bounded Remaining Generation -> QA -> Optional Canvas -> Revise -> Export

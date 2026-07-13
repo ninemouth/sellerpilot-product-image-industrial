@@ -28,6 +28,8 @@
     "qa:text-layout": "node scripts/text-layout-proof-gate.mjs",
     "qa:product-background": "node scripts/product-background-card-consistency-gate.mjs",
     "generate:thinkai": "node scripts/thinkai-image-runtime.mjs",
+    "resolve:generation-spec": "node scripts/resolve-generation-spec.mjs",
+    "control:generation": "node scripts/generation-execution-controller.mjs",
     "watchdog:runtime": "node scripts/runtime-watchdog.mjs",
     "progress:reconcile": "node scripts/reconcile-generation-progress.mjs",
     "launch:canvas": "node scripts/post-generation-tldraw-launcher.mjs",

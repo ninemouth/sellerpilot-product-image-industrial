@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 
 const DEFAULT_BASE_URL = "https://www.thinkai.tv/v1";
 const DEFAULT_MODEL = "gpt-image-2";
@@ -11,6 +11,13 @@ const SIZE_ALIASES = new Map([
   ["2k", "2560x1440"],
   ["4k", "3840x2160"],
 ]);
+const DEFAULT_REQUEST_TIMEOUT_SECONDS = 1800;
+const DEFAULT_DOWNLOAD_TIMEOUT_SECONDS = 900;
+const DEFAULT_HEARTBEAT_SECONDS = 30;
+
+class RuntimeError extends Error {
+  constructor(code, message) { super(message); this.code = code; }
+}
 
 function parseArgs(argv) {
   const args = { image: [] };
@@ -46,6 +53,10 @@ Options:
   --config /abs/config.json     Optional local config. Default: .thinkai-image-runtime.json.
   --base-url URL                Override ThinkAI-compatible base URL.
   --model MODEL                 Override model. Default: gpt-image-2.
+  --progress-file /abs/progress.json  Write run-scoped execution status and heartbeats.
+  --request-timeout-seconds N   Request deadline. Default: 1800; does not lower image quality.
+  --download-timeout-seconds N  Per-image download deadline. Default: 900.
+  --heartbeat-seconds N         Progress heartbeat interval. Default: 30.
   --dry-run                     Write request snapshot without calling the network.
 
 API key resolution order: THINKAI_API_KEY, config.api_key.`);
@@ -62,6 +73,10 @@ const isEdit = imagePaths.length > 0;
 const size = resolveSize(args.size || (isEdit ? "auto" : "2k"));
 const quality = args.quality || "hd";
 const count = Number.parseInt(args.n || "1", 10);
+const progressFile = args["progress-file"] ? path.resolve(args["progress-file"]) : "";
+const requestTimeoutSeconds = positiveNumber(args["request-timeout-seconds"], DEFAULT_REQUEST_TIMEOUT_SECONDS);
+const downloadTimeoutSeconds = positiveNumber(args["download-timeout-seconds"], DEFAULT_DOWNLOAD_TIMEOUT_SECONDS);
+const heartbeatSeconds = positiveNumber(args["heartbeat-seconds"], DEFAULT_HEARTBEAT_SECONDS);
 
 if (!Number.isInteger(count) || count < 1) {
   throwCli("n must be a positive integer.");
@@ -81,6 +96,7 @@ try {
     : buildGenerationRequest({ model, prompt: args.prompt, size, quality, count });
 
   writeJson(path.join(outputDir, "request.json"), redactRequest(request.snapshot));
+  writeProgress("request_prepared", { output_dir: outputDir, requested_size: size, quality, n: count });
 
   if (args["dry-run"]) {
     const summary = {
@@ -96,22 +112,24 @@ try {
       request_path: path.join(outputDir, "request.json"),
     };
     writeJson(path.join(outputDir, "summary.json"), summary);
+    writeProgress("dry_run", { summary_path: path.join(outputDir, "summary.json") });
     console.log(JSON.stringify(summary, null, 2));
     process.exit(0);
   }
 
   if (!apiKey) {
-    throwCli(
-      "Missing ThinkAI API key. Set THINKAI_API_KEY or create .thinkai-image-runtime.json with api_key.",
-    );
+    throw new RuntimeError("configuration_required", "ThinkAI key is not configured.");
   }
 
-  const response = isEdit
-    ? await executeEdit({ baseUrl, apiKey, request })
-    : await executeGeneration({ baseUrl, apiKey, request });
+  writeProgress("generating", { endpoint: request.endpoint });
+  const generation = isEdit
+    ? executeEdit({ baseUrl, apiKey, request, requestTimeoutSeconds })
+    : executeGeneration({ baseUrl, apiKey, request, requestTimeoutSeconds });
+  const response = await withHeartbeat("generating", () => generation);
   writeJson(path.join(outputDir, "response.json"), response);
 
-  const assets = await writeImagesFromResponse(response, outputDir);
+  writeProgress("downloading", { response_items: Array.isArray(response.data) ? response.data.length : 0 });
+  const assets = await withHeartbeat("downloading", () => writeImagesFromResponse(response, outputDir, downloadTimeoutSeconds));
   const summary = {
     status: "generated",
     provider: "thinkai-openai-compatible-image-runtime",
@@ -127,9 +145,11 @@ try {
     response_path: path.join(outputDir, "response.json"),
   };
   writeJson(path.join(outputDir, "summary.json"), summary);
+  writeProgress("completed", { completed_images: assets, summary_path: path.join(outputDir, "summary.json") });
   console.log(JSON.stringify(summary, null, 2));
 } catch (error) {
-  throwCli(error.message);
+  writeProgress("failed", { failure: publicFailure(error) });
+  throwCli(JSON.stringify(publicFailure(error)));
 }
 
 function loadRuntimeConfig(configArg) {
@@ -193,16 +213,17 @@ function buildEditRequest({ model, prompt, imagePaths, maskPath, size, quality, 
   };
 }
 
-async function executeGeneration({ baseUrl, apiKey, request }) {
+async function executeGeneration({ baseUrl, apiKey, request, requestTimeoutSeconds: timeoutSeconds }) {
   return requestJsonWithCurl({
     url: `${baseUrl}${request.endpoint}`,
     apiKey,
     body: request.body,
     label: "Image generation request failed",
+    timeoutSeconds,
   });
 }
 
-async function executeEdit({ baseUrl, apiKey, request }) {
+async function executeEdit({ baseUrl, apiKey, request, requestTimeoutSeconds: timeoutSeconds }) {
   const curlArgs = [
     "--silent",
     "--show-error",
@@ -210,7 +231,7 @@ async function executeEdit({ baseUrl, apiKey, request }) {
     "--connect-timeout",
     "30",
     "--max-time",
-    "1800",
+    String(timeoutSeconds),
     "-X",
     "POST",
     `${baseUrl}${request.endpoint}`,
@@ -230,19 +251,19 @@ async function executeEdit({ baseUrl, apiKey, request }) {
   if (request.maskPath) {
     curlArgs.push("-F", `mask=@${request.maskPath};type=image/png`);
   }
-  const text = runCurl(curlArgs, "Image edit request failed");
+  const text = await runCurl(curlArgs, "Image edit request failed");
   return parseJsonPayload(text, "Image edit request failed");
 }
 
-function requestJsonWithCurl({ url, apiKey, body, label }) {
-  const text = runCurl([
+async function requestJsonWithCurl({ url, apiKey, body, label, timeoutSeconds }) {
+  const text = await runCurl([
     "--silent",
     "--show-error",
     "--fail",
     "--connect-timeout",
     "30",
     "--max-time",
-    "1800",
+    String(timeoutSeconds),
     "-X",
     "POST",
     url,
@@ -261,15 +282,22 @@ function requestJsonWithCurl({ url, apiKey, body, label }) {
 }
 
 function runCurl(curlArgs, label) {
-  const result = spawnSync("curl", curlArgs, {
-    encoding: "buffer",
-    maxBuffer: 100 * 1024 * 1024,
+  return new Promise((resolve, reject) => {
+    const child = spawn("curl", curlArgs, { stdio: ["ignore", "pipe", "pipe"] });
+    const stdout = [];
+    const stderr = [];
+    child.stdout.on("data", (chunk) => stdout.push(chunk));
+    child.stderr.on("data", (chunk) => stderr.push(chunk));
+    child.on("error", (error) => reject(new RuntimeError("transport_unavailable", `${label}: ${error.message}`)));
+    child.on("close", (code, signal) => {
+      if (code === 0) return resolve(Buffer.concat(stdout));
+      const detail = Buffer.concat(stderr).toString("utf8").trim() || Buffer.concat(stdout).toString("utf8").trim();
+      reject(new RuntimeError(signal ? "cancelled" : "provider_request_failed", `${label}: ${detail || `curl exited with ${code}`}`));
+    });
+    const onSignal = () => child.kill("SIGTERM");
+    process.once("SIGINT", onSignal);
+    child.once("close", () => process.removeListener("SIGINT", onSignal));
   });
-  if (result.status === 0) return result.stdout.toString("utf8");
-  const stderr = result.stderr.toString("utf8").trim();
-  const stdout = result.stdout.toString("utf8").trim();
-  const detail = stderr || stdout || `curl exited with ${result.status}`;
-  throw new Error(`${label}: ${detail}`);
 }
 
 function parseJsonPayload(text, label) {
@@ -288,31 +316,31 @@ function contentType(filePath) {
   return "application/octet-stream";
 }
 
-async function writeImagesFromResponse(response, dir) {
+async function writeImagesFromResponse(response, dir, timeoutSeconds) {
   if (!Array.isArray(response.data) || response.data.length === 0) {
     throw new Error(`Unexpected image response payload: ${JSON.stringify(response).slice(0, 1000)}`);
   }
-  const assets = [];
-  for (const [index, item] of response.data.entries()) {
-    const imageBytes = item.b64_json
-      ? Buffer.from(item.b64_json, "base64")
-      : await downloadImageBytes(item.url);
+  const assets = await mapWithConcurrency(response.data, 2, async (item, index) => {
+    const imageBytes = item.b64_json ? Buffer.from(item.b64_json, "base64") : await downloadImageBytes(item.url, timeoutSeconds);
     if (!imageBytes?.length) throw new Error(`Image response item ${index} did not include url or b64_json.`);
+    const dimensions = detectImageSize(imageBytes);
+    if (!dimensions) throw new RuntimeError("invalid_image_payload", `Image response item ${index} was not a decodable PNG, JPEG, or WebP image.`);
     const filename = response.data.length === 1 ? "image.png" : `image-${String(index + 1).padStart(2, "0")}.png`;
     const imagePath = path.join(dir, filename);
     fs.writeFileSync(imagePath, imageBytes);
-    assets.push({
+    writeProgress("downloading", { completed_downloads: index + 1, total_downloads: response.data.length });
+    return {
       image_path: imagePath,
       image_url: item.url || null,
-      actual_size: detectPngSize(imageBytes),
-    });
-  }
+      actual_size: dimensions,
+    };
+  });
   return assets;
 }
 
-async function downloadImageBytes(url) {
+async function downloadImageBytes(url, timeoutSeconds) {
   if (!url) throw new Error("Image response item is missing url.");
-  const result = spawnSync("curl", [
+  return runCurl([
     "-L",
     "--silent",
     "--show-error",
@@ -320,27 +348,70 @@ async function downloadImageBytes(url) {
     "--connect-timeout",
     "30",
     "--max-time",
-    "900",
+    String(timeoutSeconds),
     "-H",
     "Accept: */*",
     "-H",
     `User-Agent: ${DEFAULT_USER_AGENT}`,
     url,
-  ], {
-    encoding: "buffer",
-    maxBuffer: 200 * 1024 * 1024,
-  });
-  if (result.status === 0 && result.stdout?.length) return result.stdout;
-  const stderr = result.stderr.toString("utf8").trim();
-  const stdout = result.stdout.toString("utf8").trim();
-  throw new Error(`Image download failed: ${stderr || stdout || `curl exited with ${result.status}`}`);
+  ], "Image download failed");
 }
 
-function detectPngSize(bytes) {
+function detectImageSize(bytes) {
   if (bytes.slice(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) {
     return `${bytes.readUInt32BE(16)}x${bytes.readUInt32BE(20)}`;
   }
-  return "unknown";
+  if (bytes.slice(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff]))) return "jpeg";
+  if (bytes.slice(0, 4).toString("ascii") === "RIFF" && bytes.slice(8, 12).toString("ascii") === "WEBP") return "webp";
+  return "";
+}
+
+function mapWithConcurrency(items, limit, worker) {
+  const results = new Array(items.length);
+  let cursor = 0;
+  return Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      results[index] = await worker(items[index], index);
+    }
+  })).then(() => results);
+}
+
+function writeProgress(status, details = {}) {
+  if (!progressFile) return;
+  const existing = readJsonSafe(progressFile);
+  const now = new Date().toISOString();
+  fs.mkdirSync(path.dirname(progressFile), { recursive: true });
+  writeJson(progressFile, { ...existing, status, updated_at: now, runtime: { provider: "thinkai", model, heartbeat_seconds: heartbeatSeconds, ...details } });
+}
+
+async function withHeartbeat(status, task) {
+  const timer = setInterval(() => writeProgress(status, { waiting: true }), heartbeatSeconds * 1000);
+  try {
+    return await task();
+  } finally {
+    clearInterval(timer);
+  }
+}
+
+function readJsonSafe(file) {
+  try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return {}; }
+}
+
+function positiveNumber(raw, fallback) {
+  const value = Number(raw || fallback);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function publicFailure(error) {
+  const code = error?.code || "generation_failed";
+  const message = code === "configuration_required"
+    ? "ThinkAI requires a configured API key before generation can start."
+    : code === "cancelled"
+      ? "Generation was cancelled; completed assets remain available for recovery."
+      : "Image generation could not complete. The run state was preserved so only affected assets need retrying.";
+  return { code, message };
 }
 
 function writeJson(file, value) {

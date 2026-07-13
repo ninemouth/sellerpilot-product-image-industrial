@@ -177,7 +177,7 @@ function buildPlan(ctx) {
       long_running_threshold_seconds: 900,
       if_generation_exceeds_threshold: "report completed/pending assets and continue only missing assets",
       next_action: ctx.signals.multi_image_set
-        ? "build compact image-set planning before anchor batch"
+        ? "resolve provider-compatible platform ratio, build compact image-set planning, then run anchor batch"
         : "build single-image visual plan before final generation",
     },
   };

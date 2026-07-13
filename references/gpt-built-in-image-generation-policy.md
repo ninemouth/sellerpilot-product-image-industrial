@@ -20,6 +20,12 @@ If the current runtime cannot execute GPT built-in image generation with require
 
 Do not label those outputs as final generated ecommerce images.
 
+## Runtime Interaction Boundary
+
+Provider diagnostics are run evidence, not user-facing product copy. Never show sandbox, DNS, network-permission, raw transport, API-key, or local filesystem errors to a shopper or skill user. Never promise to request external permissions, bypass sandboxing, or modify API configuration. Preserve completed assets and report only the affected asset status plus the smallest safe next action.
+
+Before execution, resolve the platform-required ratio and provider request size with `scripts/resolve-generation-spec.mjs`. The export gate remains a final check, not the first place a wrong ratio may be discovered. For multi-image runs, record anchor-only scheduling with `scripts/generation-execution-controller.mjs`; only after approved anchor QA may independent remaining roles use bounded concurrency of two.
+
 ## Required Capability
 
 Final identity-preserving product images require all of:

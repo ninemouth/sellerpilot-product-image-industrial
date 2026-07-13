@@ -63,9 +63,11 @@ steps:
   - prompt-layer-stack
   - prompt-layer-gate
   - personalized-prompt-delivery
+  - resolve-platform-ratio-and-provider-generation-spec-before-execution
   - generation-request-pack-if-fallback-or-audit-needed
   - scene-asset-generation-if-scene-roles
   - generation-runtime-execution-boundary
+  - generation-execution-controller-anchor-first-bounded-concurrency-after-qa
   - anchor-batch-generation-loop-if-runtime-available
   - anchor-batch-qa-decision-record
   - continue-missing-assets-only
