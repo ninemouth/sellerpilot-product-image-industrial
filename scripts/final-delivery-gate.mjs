@@ -133,6 +133,17 @@ if (fs.existsSync(physicalTruthPath) && requiresPhysicalTruthGate(physicalTruthP
   }
 }
 
+const surfaceMaterialLockPath = path.join(runDir, "surface-material", "canonical-material-lock.json");
+if (fs.existsSync(surfaceMaterialLockPath) && !reports.some((item) => item.name === "surface-material-transfer-gate-report.json")) {
+  findings.push({
+    severity: "fail",
+    type: "missing-required-gate-report",
+    gate_id: "final-delivery-gate",
+    source_report: "surface-material-transfer-gate-report.json",
+    message: "surface-material-transfer-gate-report.json is required when a canonical surface material lock exists.",
+  });
+}
+
 if (fs.existsSync(sourceUnderstandingPath) && requiresSourceUnderstandingGate(sourceUnderstandingPath)) {
   if (!reports.some((item) => item.name === "source-product-understanding-gate-report.json")) {
     findings.push({

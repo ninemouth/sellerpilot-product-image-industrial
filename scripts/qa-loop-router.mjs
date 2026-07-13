@@ -471,6 +471,7 @@ function imageIndexFromFile(file) {
 }
 
 function failureCategory(type) {
+  if (/surface-material|material-(palette|lightness|color-temperature|shape)|gradient-direction/.test(type)) return "surface_material";
   if (/source-cutout-used-as-scene/.test(type)) return "identity";
   if (/product-background-card|product-asset-no-alpha|source-background-normalization|background-card/.test(type)) return "source_asset_normalization";
   if (/geometry|hem-position|garment-length|sleeve-length|neckline|silhouette|crop-top|apparel-length/.test(type)) return "identity_geometry";
@@ -513,6 +514,18 @@ function returnNode(type) {
     "product-scale-drift": "visual-director",
     "missing-identity-lock": "product-identity-lock",
     "identity-drift": "personalized-prompt-delivery",
+    "material-source-contamination": "surface-material-extraction",
+    "missing-canonical-material-lock": "surface-material-extraction",
+    "incomplete-canonical-material-lock": "surface-material-extraction",
+    "material-shape-drift": "surface-material-transfer",
+    "material-palette-drift": "surface-material-transfer",
+    "material-lightness-drift": "surface-material-transfer",
+    "material-color-temperature-drift": "surface-material-transfer",
+    "gradient-direction-drift": "surface-material-transfer",
+    "surface-material-transfer-drift": "surface-material-transfer",
+    "missing-material-transfer-proof": "surface-material-transfer",
+    "missing-surface-material-visual-review": "surface-material-transfer",
+    "incomplete-surface-material-visual-review": "surface-material-transfer",
     "geometry-ratio-drift": "identity-geometry-lock",
     "geometry-class-drift": "identity-geometry-lock",
     "apparel-length-shortened": "identity-geometry-lock",
@@ -587,6 +600,7 @@ function fallbackReturnNode(type) {
     product_truth: "product-fact-sheet",
     physical_truth: "product-physical-truth-lock",
     identity: "product-identity-lock",
+    surface_material: "surface-material-transfer",
     identity_geometry: "identity-geometry-lock",
     prompt_readiness: "prompt-readiness-gate",
     prompt_layer: "prompt-layer-stack",
@@ -614,7 +628,7 @@ function blockedStatus(primary, findings) {
 
 function statusForNode(node, type) {
   if (/layout|copy|export/.test(node)) return /export/.test(node) ? "return_to_node" : "rerender_layout_only";
-  if (/generation-request|scene-asset|identity-geometry/.test(node) || /identity-drift|geometry/.test(type)) return "regenerate_failed_assets_only";
+  if (/generation-request|scene-asset|identity-geometry|surface-material-transfer/.test(node) || /identity-drift|geometry|surface-material|gradient-direction/.test(type)) return "regenerate_failed_assets_only";
   return "return_to_node";
 }
 
@@ -625,6 +639,13 @@ function nextAction(type, node) {
     "missing-mandatory-layer": "Complete mandatory prompt layer stack before final request delivery.",
     "missing-conditional-layer": "Add the required conditional prompt layer selected by the Prompt Layer Architect Brain.",
     "thin-conditional-layer": "Fill the required conditional prompt layer with source-backed details before final prompt delivery.",
+    "material-source-contamination": "Remove source background, captions, UI and watermarks from the canonical material, then record the extraction evidence.",
+    "gradient-direction-drift": "Reproject the canonical material with the recorded source-to-target orientation mapping; do not redraw or reverse the gradient.",
+    "material-palette-drift": "Restore the canonical source palette without color-temperature or brightness-hierarchy rewrite, then recompose only affected nail regions.",
+    "material-lightness-drift": "Restore the source brightness hierarchy and keep environment light as a bounded overlay only.",
+    "material-color-temperature-drift": "Restore the authoritative source color temperature and recompose only affected nail regions.",
+    "material-shape-drift": "Use the recorded source silhouette and target nail mask; do not redesign the nail shape.",
+    "surface-material-transfer-drift": "Complete target mask, orientation map and projection proof, then recompose only affected target nail regions.",
     "source-cutout-used-as-scene": "Create or execute a true scene asset request; do not use source cutout as final scene.",
     "product-background-card-mismatch": "Create or use a transparent/card-safe product asset, then rerender only the affected card/infographic image.",
     "missing-product-asset-background-evidence": "Record the transparent/card-safe product asset or normalization report before card/infographic layout.",
@@ -678,6 +699,8 @@ function rerunFrom(node) {
     "product-fact-sheet": ["product-fact-sheet", "commerce-strategy-brief", "prompt-layer-gate"],
     "product-physical-truth-lock": ["product-physical-truth-lock", "product-feature-analysis", "prompt-layer-gate", "product-physics-fact-gate"],
     "product-identity-lock": ["product-identity-lock", "prompt-layer-gate", "identity-consistency-gate"],
+    "surface-material-extraction": ["surface-material-classification-and-canonical-extraction-if-triggered", "surface-material-transfer-proof-before-final-generation-if-triggered", "surface-material-transfer-gate-if-triggered"],
+    "surface-material-transfer": ["surface-material-transfer-proof-before-final-generation-if-triggered", "surface-material-transfer-gate-if-triggered", "marketing-quality-gate"],
     "identity-geometry-lock": ["identity-geometry-lock", "prompt-layer-gate", "personalized-prompt-delivery", "identity-geometry-gate"],
     "platform-category-web-research": ["platform-category-web-research", "platform-category-profile-overlay", "commerce-strategy-brief"],
     "commerce-strategy-brief": ["commerce-strategy-brief", "image-set-architecture", "prompt-layer-gate"],
@@ -707,6 +730,9 @@ function doNotRerun(node, type) {
   if (/scene-asset|generation-request|personalized-prompt-delivery/.test(node)) {
     return ["product-fact-sheet", "platform-category-web-research", "approved-assets", "full-image-set-generation"];
   }
+  if (/surface-material/.test(node) || /surface-material|gradient-direction/.test(type)) {
+    return ["product-fact-sheet", "platform-category-web-research", "full-image-set-generation", "unaffected-images"];
+  }
   return ["approved-assets", "unaffected-images"];
 }
 
@@ -717,6 +743,8 @@ function retryBudget(node) {
     "product-physical-truth-lock": 2,
     "product-identity-lock": 2,
     "identity-geometry-lock": 2,
+    "surface-material-extraction": 1,
+    "surface-material-transfer": 2,
     "platform-category-web-research": 1,
     "platform-category-profile-overlay": 1,
     "commerce-strategy-brief": 2,

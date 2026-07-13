@@ -102,6 +102,20 @@ prompt_layer_stack:
         max_generation_attempts:
         revise_only_failed_layer: true
   conditional_layer_payloads:
+    surface_material_transfer_layer:
+      transfer_mode: canonical_material_projection
+      canonical_material_lock_ref:
+      canonical_source_material_refs: []
+      per_material_orientation_map: []
+      target_surface_mask_plan: []
+      allowed_lighting_adjustment: bounded_environment_light_overlay_only
+      forbidden_material_changes:
+        - palette_rewrite
+        - color_temperature_rewrite
+        - brightness_hierarchy_rewrite
+        - gradient_reversal_or_mirroring
+        - shape_redesign
+      final_material_qa_criteria: []
     physical_function_layer:
       product_physical_truth_ref:
       confirmed_functions: []

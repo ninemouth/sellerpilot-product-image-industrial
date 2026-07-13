@@ -23,6 +23,7 @@ steps:
   - source-product-understanding-gate-if-source-facts-or-visible-text
   - product-image-parser
   - product-identity-lock
+  - surface-material-classification-and-canonical-extraction-if-triggered
   - product-physical-truth-lock-if-function-use-or-scale-sensitive
   - product-url-reader-if-url-provided
   - compact-product-fact-sheet-or-facts-section
@@ -72,6 +73,8 @@ steps:
   - anchor-batch-qa-decision-record
   - continue-missing-assets-only
   - identity-consistency-gate
+  - surface-material-transfer-proof-before-final-generation-if-triggered
+  - surface-material-transfer-gate-if-triggered
   - identity-geometry-gate-if-proportion-sensitive
   - product-physics-fact-gate-if-function-use-or-scale-sensitive
   - marketing-diversity-gate

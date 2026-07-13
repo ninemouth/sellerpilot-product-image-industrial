@@ -99,6 +99,7 @@ function normalizeIssue(value) {
   if (/regen|重出|重生|scene-asset/.test(text)) return "regenerate";
   if (/layout|排版|rerender/.test(text)) return "rerender-layout";
   if (/copy|文案|text/.test(text)) return "copy-adjust";
+  if (/材质|甲片|渐变|色温|亮度|颜色|nail|material|gradient|palette|temperature/.test(text)) return "surface-material-transfer-drift";
   if (/identity|不像|漂移/.test(text)) return "identity-drift";
   return text || "modify";
 }
@@ -107,6 +108,7 @@ function returnNode(issue, region) {
   if (issue === "keep") return "approved-assets";
   if (issue === "copy-adjust" || /C-main-title|D-subtitle|E-selling-point/.test(region)) return "localized-copy-pack";
   if (issue === "rerender-layout" || /layout|title|subtitle|label/.test(region)) return "layout-wireframes";
+  if (issue === "surface-material-transfer-drift") return "surface-material-transfer";
   if (issue === "identity-drift" || /A-product-subject/.test(region)) return "product-identity-lock";
   if (issue === "regenerate" || /G-people-scene/.test(region)) return "scene-asset-production";
   return "failed-output-regeneration";
@@ -116,6 +118,7 @@ function actionForIssue(issue, region) {
   if (issue === "keep") return "Lock this asset; do not rerun unless a dependent global change requires it.";
   if (issue === "copy-adjust") return "Rewrite buyer-facing copy and rerender layout only.";
   if (issue === "rerender-layout") return "Adjust composition, spacing, hierarchy, and readable regions; do not regenerate product asset.";
+  if (issue === "surface-material-transfer-drift") return "Reproject the canonical source material onto the affected target surface; preserve palette, lightness, color temperature, direction and shape.";
   if (issue === "identity-drift") return "Tighten identity lock and regenerate only affected image with source reference.";
   if (issue === "regenerate" && /G-people-scene/.test(region)) return "Generate true scene asset first, then rerender final layout.";
   if (issue === "regenerate") return "Regenerate only the affected asset with revised prompt layer.";
@@ -126,7 +129,7 @@ function rerunScope(issue) {
   if (issue === "keep") return "keep_only";
   if (issue === "copy-adjust") return "copy_rewrite";
   if (issue === "rerender-layout") return "rerender_layout";
-  if (issue === "identity-drift" || issue === "regenerate") return "regenerate_asset";
+  if (issue === "identity-drift" || issue === "regenerate" || issue === "surface-material-transfer-drift") return "regenerate_asset";
   return "rerender_layout";
 }
 

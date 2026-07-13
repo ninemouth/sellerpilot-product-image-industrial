@@ -13,6 +13,15 @@ Actual production image generation defaults to Codex-native GPT built-in image g
 
 This skill owns the SellerPilot industrial workflow: product truth, identity locks, source-photo enhancement, platform/category research, visual strategy, photography direction, prompt layering, QA routing, review surfaces, and export rules. It may call the system `imagegen` skill / built-in `image_gen` as the default production execution layer, or the repo-local ThinkAI runtime when explicitly selected; it must not create one-off image-generation wrappers, silently switch to API/CLI fallback, or claim deterministic layout drafts as final generated product images.
 
+### Surface Material Transfer
+
+For press-on nails, nail wraps, decals, tattoos, printed fabric, and other products where the supplied artwork must remain exact, use `surface_material_transfer` rather than normal reference recreation. The source artwork is canonical material: remove any source background, captions, UI, and watermarks first; lock its palette, color temperature, brightness hierarchy, gradient direction, texture, and silhouette; then project it to the named target surface/mask. The hand, skin, perspective, occlusion, and bounded environment light may be generated or integrated, but the material may not be freely redrawn. Final delivery requires a material transfer proof and per-region visual review through `surface-material-transfer-gate`; a failure revises only the affected material/region.
+
+```bash
+node scripts/create-surface-material-lock.mjs --run-dir /abs/run --category "press-on nails" --source-images /abs/nail-a.png,/abs/nail-b.png
+node scripts/surface-material-transfer-gate.mjs --lock /abs/run/surface-material/canonical-material-lock.json --transfer-proof /abs/run/surface-material/material-transfer-proof.json --visual-review /abs/run/qa/surface-material-visual-review.json --out-dir /abs/run/qa
+```
+
 The final generation prompt is a personalized production brief, not a generic fixed prompt. Build it only after product truth, market/platform context, audience, commerce strategy, creative direction, photography treatment, layout intent, and self-review have shaped the image goal. Request packs are fallback or audit artifacts, not the default user-facing deliverable.
 
 Installed capability root:

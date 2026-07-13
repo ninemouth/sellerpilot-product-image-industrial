@@ -36,6 +36,8 @@ failure_taxonomy:
     examples: [missing-product-truth, unsupported-claim, capacity-unsupported, invented-feature]
   identity:
     examples: [identity-drift, source-cutout-used-as-scene, missing-identity-lock]
+  surface_material:
+    examples: [material-source-contamination, material-palette-drift, material-lightness-drift, material-color-temperature-drift, gradient-direction-drift, material-shape-drift, surface-material-transfer-drift]
   prompt_readiness:
     examples: [prompt-readiness-marker-missing, final-prompt-not-written, generic-prompt-risk]
   prompt_layer:
@@ -75,6 +77,13 @@ return_node_matrix:
   capacity-unsupported: product-fact-sheet
   missing-identity-lock: product-identity-lock
   identity-drift: personalized-prompt-delivery
+  material-source-contamination: surface-material-extraction
+  material-palette-drift: surface-material-transfer
+  material-lightness-drift: surface-material-transfer
+  material-color-temperature-drift: surface-material-transfer
+  gradient-direction-drift: surface-material-transfer
+  material-shape-drift: surface-material-transfer
+  surface-material-transfer-drift: surface-material-transfer
   prompt-readiness-marker-missing: prompt-readiness-gate
   final-prompt-not-written: personalized-prompt-delivery
   generic-prompt-risk: prompt-layer-stack
@@ -124,6 +133,8 @@ retry_budget_defaults:
   source-image-enhancement: 1
   product-fact-sheet: 2
   product-identity-lock: 2
+  surface-material-extraction: 1
+  surface-material-transfer: 2
   platform-category-web-research: 1
   commerce-strategy-brief: 2
   creative-direction-brief: 2

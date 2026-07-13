@@ -98,6 +98,9 @@ if (/season|holiday|gift|christmas|valentine|spring|summer|winter|autumn|节日|
 if (/medical|safety|certification|waterproof|fireproof|children|pet|认证|安全|防水|防火|儿童|宠物|医疗/.test(basisText)) {
   conditionalRequired.push("compliance_layer");
 }
+if (/press-on nail|nail art|nail wrap|manicure|tattoo sticker|decal|printed fabric|transfer material|穿戴甲|美甲贴|甲贴|贴材质|渐变甲|甲片/.test(basisText)) {
+  conditionalRequired.push("surface_material_transfer_layer");
+}
 
 const conditionalPayloads = root.conditional_layer_payloads || {};
 for (const layerName of [...new Set(conditionalRequired)]) {
@@ -112,7 +115,7 @@ for (const layerName of [...new Set(conditionalRequired)]) {
     });
   } else if (isThin(payload)) {
     findings.push({
-      severity: layerName === "physical_function_layer" ? "fail" : "warn",
+      severity: ["physical_function_layer", "surface_material_transfer_layer"].includes(layerName) ? "fail" : "warn",
       type: "thin-conditional-layer",
       layer: layerName,
       return_node: returnNodeForLayer(layerName),
@@ -242,6 +245,7 @@ function returnNodeForLayer(layerName) {
     compliance_layer: "risk-boundaries",
     localization_layer: "localized-copy-pack",
     brand_vi_layer: "creative-direction-brief",
+    surface_material_transfer_layer: "surface-material-transfer",
   };
   return map[layerName] || "prompt-layer-stack";
 }

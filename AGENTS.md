@@ -63,6 +63,7 @@ Intent -> Normalize -> Mode Router -> Efficiency Plan -> Brief Intake Gate -> So
 44. 内部沙箱、域名解析、网络权限、命令执行、curl 原始报错、API key 或本机路径绝不得作为用户可见的生成结果或行动要求。运行时失败必须写入 run 级诊断，并只向用户给出安全的状态、已保留资产和下一步；不得声称会自行申请权限、绕过沙箱或修改用户 API 配置。
 45. ThinkAI 或任何 provider 生图前必须先写 provider-compatible 的平台比例 generation spec；不得以横向默认尺寸生成后才由 export gate 发现比例不符。多图任务必须先完成 anchor batch QA，之后才可对独立剩余角色使用最多 2 路受控并发；不得在 anchor QA 前并发整套生图。
 46. 共享 tldraw 服务的模板和依赖必须在 skill 安装或更新时预热到 `${CODEX_HOME:-$HOME/.codex}/sellerpilot-product-image-industrial/canvas-service`。若更新发现依赖缺失或 lockfile 已变化，必须先完成 `npm ci` 再结束更新；生图结束后的画布启动不得执行依赖安装，只能复用已准备依赖并做就绪检查。
+47. 对穿戴甲、美甲贴、纹身贴、贴纸、印花织物等 `surface_material_transfer` 商品，源商品图的可见图案必须作为 canonical material，不是可由模型自由重绘的身份参考。必须先剔除背景、网页 UI、文案和水印，再记录每种材质的色彩、色温、亮度层级、渐变方向、纹理和形状；只允许为目标表面进行透视、曲率、遮挡、尺寸和有限环境光适配。最终交付前必须通过 `surface-material-transfer-gate`，失败只重做受影响材质/区域，不得泛化整套重生图。
 
 ## Default Workflow
 
@@ -78,6 +79,7 @@ Fast generation mode uses this compact workflow unless the user requests a full 
 - source-asset-normalization/transparent-or-card-safe-product-master
 - source-product-understanding/ai-text-first-ocr-if-needed
 - product-identity-lock
+- surface-material-classification-and-canonical-extraction-if-triggered
 - product-physical-truth-lock-if-function/use/scale-sensitive
 - platform-preference-memory-apply-if-platform-category-match
 - platform-preference-memory-remember-if-user-confirms-platform-traits
@@ -133,6 +135,8 @@ Industrial audit mode uses the full workflow:
 - gpt-built-in-image-generation-request-pack
 - generation-runtime-execution-boundary
 - identity-consistency-gate
+- surface-material-transfer-proof-before-final-generation-if-triggered
+- surface-material-transfer-gate-if-triggered
 - identity-geometry-gate
 - product-physics-fact-gate
 - marketing-quality-gate

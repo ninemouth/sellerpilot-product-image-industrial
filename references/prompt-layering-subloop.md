@@ -116,6 +116,9 @@ Add these only when needed:
 
 ```yaml
 failure_to_prompt_layer:
+  surface_material_transfer_drift:
+    revise_layer: surface_material_transfer_layer
+    return_node: surface-material-transfer
   identity_drift:
     revise_layer: product_identity_layer
     return_node: product-identity-lock

@@ -219,6 +219,7 @@ record("workflow loop guard ordering", () => {
       "source-product-understanding-ai-text-first-ocr-if-needed",
       "source-product-understanding-gate-if-source-facts-or-visible-text",
       "product-identity-lock",
+      "surface-material-classification-and-canonical-extraction-if-triggered",
       "product-physical-truth-lock-if-function-use-or-scale-sensitive",
       "platform-preference-memory-apply-if-platform-category-match",
       "platform-preference-memory-remember-if-user-confirms-platform-traits",
@@ -233,6 +234,8 @@ record("workflow loop guard ordering", () => {
       "generation-execution-controller-anchor-first-bounded-concurrency-after-qa",
       "image-set-export-gate",
       "anchor-batch-qa-decision-record",
+      "surface-material-transfer-proof-before-final-generation-if-triggered",
+      "surface-material-transfer-gate-if-triggered",
       "localized-final-visible-text-qa-if-locale-needs-review",
       "text-layout-proof-gate-before-final-export-if-visible-copy",
       "product-background-card-consistency-gate",
@@ -255,6 +258,8 @@ record("workflow loop guard ordering", () => {
     assertStepBefore(file, steps, "source-product-understanding-ai-text-first-ocr-if-needed", "product-identity-lock");
     assertStepBefore(file, steps, "source-product-understanding-gate-if-source-facts-or-visible-text", "product-identity-lock");
     assertStepBefore(file, steps, "product-identity-lock", "compact-image-set-blueprint");
+    assertStepBefore(file, steps, "product-identity-lock", "surface-material-classification-and-canonical-extraction-if-triggered");
+    assertStepBefore(file, steps, "surface-material-classification-and-canonical-extraction-if-triggered", "prompt-layer-stack");
     assertStepBefore(file, steps, "platform-preference-memory-apply-if-platform-category-match", "platform-context-planner");
     assertStepBefore(file, steps, "store-style-memory-apply-if-store-mentioned", "platform-context-planner");
     assertStepBefore(file, steps, "store-style-memory-apply-if-store-mentioned", "compact-image-set-blueprint");
@@ -270,6 +275,9 @@ record("workflow loop guard ordering", () => {
     assertStepBefore(file, steps, "text-layout-proof-gate-before-final-raster-if-visible-copy", "compact-image-set-blueprint");
     assertStepBefore(file, steps, "anchor-batch-generation-loop-if-runtime-available", "anchor-batch-qa-decision-record");
     assertStepBefore(file, steps, "anchor-batch-qa-decision-record", "continue-missing-assets-only");
+    assertStepBefore(file, steps, "identity-consistency-gate", "surface-material-transfer-proof-before-final-generation-if-triggered");
+    assertStepBefore(file, steps, "surface-material-transfer-proof-before-final-generation-if-triggered", "surface-material-transfer-gate-if-triggered");
+    assertStepBefore(file, steps, "surface-material-transfer-gate-if-triggered", "marketing-quality-gate");
     assertStepBefore(file, steps, "text-layout-proof-gate-before-final-export-if-visible-copy", "localized-final-visible-text-qa-if-locale-needs-review");
     assertStepBefore(file, steps, "localized-final-visible-text-qa-if-locale-needs-review", "marketing-quality-gate");
     assertStepBefore(file, steps, "product-background-card-consistency-gate", "marketing-quality-gate");
@@ -2483,6 +2491,45 @@ record("prompt layer physical function smoke", () => {
   if (!report.findings.some((item) => item.type === "thin-conditional-layer" && item.layer === "physical_function_layer")) {
     throw new Error("prompt layer gate should flag thin physical function layer.");
   }
+});
+
+record("surface material transfer lock, gate, prompt layer, and routing smoke", () => {
+  const dir = tmpDir("sp-verify-surface-material-");
+  const source = path.join(dir, "nail-source.png");
+  fs.writeFileSync(source, "fixture");
+  run(process.execPath, [
+    "scripts/create-surface-material-lock.mjs", "--run-dir", dir,
+    "--category", "press-on nails", "--source-images", source,
+  ]);
+  const lockPath = path.join(dir, "surface-material", "canonical-material-lock.json");
+  const qaDir = path.join(dir, "qa");
+  fs.mkdirSync(qaDir, { recursive: true });
+  const missing = spawnSync(process.execPath, ["scripts/surface-material-transfer-gate.mjs", "--lock", lockPath, "--out-dir", qaDir], { cwd: skillRoot });
+  if (missing.status === 0) throw new Error("surface material gate should block without transfer proof and visual review.");
+  const lock = readJson(lockPath);
+  const material = lock.per_material[0];
+  material.source_gradient_direction = "left_deep_blue_to_right_silver";
+  material.shape_class = "short_rounded_nail";
+  material.source_contamination_removal = { status: "pass", evidence_ref: "surface-material/mask-material-01.png" };
+  fs.writeFileSync(lockPath, JSON.stringify(lock, null, 2));
+  const proofPath = path.join(dir, "surface-material", "material-transfer-proof.json");
+  fs.writeFileSync(proofPath, JSON.stringify({ transfers: [{ source_material_id: material.id, target_nail_region: "right-index", target_mask_ref: "masks/right-index.png", orientation_mapping: "source left-to-right maps cuticle-to-tip", projection_evidence_ref: "proof/right-index-projection.png" }] }, null, 2));
+  const reviewPath = path.join(qaDir, "surface-material-visual-review.json");
+  fs.writeFileSync(reviewPath, JSON.stringify({ reviews: [{ source_material_id: material.id, target_image: "final-images/IMG-01-main.png", target_nail_region: "right-index", palette_status: "pass", lightness_status: "pass", color_temperature_status: "pass", gradient_direction_status: "pass", shape_status: "pass", source_contamination_status: "pass", reviewed_by: "codex_visual" }] }, null, 2));
+  run(process.execPath, ["scripts/surface-material-transfer-gate.mjs", "--lock", lockPath, "--transfer-proof", proofPath, "--visual-review", reviewPath, "--out-dir", qaDir]);
+  if (readJson(path.join(qaDir, "surface-material-transfer-gate-report.json")).status !== "pass") throw new Error("complete surface material evidence should pass.");
+  const stackPath = path.join(dir, "nail-stack.json");
+  const baseLayers = { execution_contract_layer: { provider: "gpt-image-2", output_filename: "IMG-01.png" }, product_identity_layer: { identity_lock_ref: "identity", must_preserve: ["nail art"] }, fact_boundary_layer: { supported_claims: ["press-on nail"] }, commerce_goal_layer: { buyer_question: "How does it look worn?", image_job: "hand scene" }, context_layer: { platform: "Amazon", category: "press-on nails" }, creative_concept_layer: { visual_concept: "accurate material" }, photography_treatment_layer: { camera_angle: "macro", lighting_direction: "soft" }, layout_copy_layer: { layout_intent: "clean" }, negative_qa_layer: { negative_prompt: ["no gradient reversal"], qa_expectations: { material: "strict" } } };
+  fs.writeFileSync(stackPath, JSON.stringify({ prompt_layer_stack: { prompt_layer_architect: { decision_basis: { product_category: "press-on nails" } }, layers: baseLayers, layer_review: { generic_prompt_risk: "low" } } }, null, 2));
+  const thinLayer = spawnSync(process.execPath, ["scripts/prompt-layer-gate.mjs", "--stack", stackPath, "--out-dir", qaDir], { cwd: skillRoot });
+  if (thinLayer.status === 0) throw new Error("nail prompt should require a surface material transfer layer.");
+  for (const name of fs.readdirSync(qaDir)) {
+    if (/-report\.json$/.test(name)) fs.unlinkSync(path.join(qaDir, name));
+  }
+  fs.writeFileSync(path.join(qaDir, "surface-material-transfer-gate-report.json"), JSON.stringify({ status: "fail", findings: [{ severity: "fail", type: "gradient-direction-drift", message: "fixture" }] }, null, 2));
+  spawnSync(process.execPath, ["scripts/qa-loop-router.mjs", "--run-dir", dir], { cwd: skillRoot });
+  const routed = readJson(path.join(qaDir, "qa-loop-routing-decision.json"));
+  if (routed.loop_decision.return_node !== "surface-material-transfer") throw new Error("gradient direction drift should route to surface-material-transfer.");
 });
 
 record("scene renderer boundary", () => {
