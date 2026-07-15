@@ -22,7 +22,9 @@ const args = parseArgs(process.argv);
 const codexHome = path.resolve(args["codex-home"] || process.env.CODEX_HOME || path.join(os.homedir(), ".codex"));
 const skillsDir = path.join(codexHome, "skills");
 const baseSkill = path.join(skillsDir, "sellerpilot-product-image-industrial");
-const thinkAiSkill = path.join(skillsDir, "sellerpilot-product-image-industrial-thinkai");
+const thinkAiAlias = path.join(skillsDir, "sellerpilot-product-image-industrial-thinkai");
+const proxyAlias = path.join(skillsDir, "sellerpilot-product-image-industrial-proxy");
+const providerConfig = path.join(codexHome, "sellerpilot-product-image-industrial", "image-provider.json");
 const report = {
   schema_version: "sellerpilot.codex_path_info.v1",
   platform: process.platform,
@@ -32,10 +34,11 @@ const report = {
   skills_dir: skillsDir,
   installed_skills: {
     sellerpilot_product_image_industrial: baseSkill,
-    sellerpilot_product_image_industrial_thinkai: thinkAiSkill,
+    sellerpilot_product_image_industrial_thinkai_alias: thinkAiAlias,
+    sellerpilot_product_image_industrial_proxy_alias: proxyAlias,
   },
-  thinkai_config: path.join(thinkAiSkill, ".thinkai-image-runtime.json"),
-  shell_examples: shellExamples({ codexHome, skillsDir, thinkAiSkill }),
+  image_provider_config: providerConfig,
+  shell_examples: shellExamples({ codexHome, skillsDir, baseSkill }),
 };
 
 console.log(JSON.stringify(report, null, 2));
@@ -45,12 +48,12 @@ function shellExamples(paths) {
     return {
       powershell_codex_home: `$env:CODEX_HOME="${paths.codexHome}"`,
       powershell_open_skills_dir: `explorer "${paths.skillsDir}"`,
-      powershell_configure_thinkai: `cd "${paths.thinkAiSkill}"; npm run configure:thinkai -- --api-key "<YOUR_THINKAI_API_KEY>"`,
+      powershell_configure_image_provider: `cd "${paths.baseSkill}"; npm run configure:image-provider -- --api-key "<YOUR_THINKAI_API_KEY>"`,
     };
   }
   return {
     sh_codex_home: `export CODEX_HOME="${paths.codexHome}"`,
     sh_open_skills_dir: `open "${paths.skillsDir}" || xdg-open "${paths.skillsDir}"`,
-    sh_configure_thinkai: `cd "${paths.thinkAiSkill}" && npm run configure:thinkai -- --api-key "<YOUR_THINKAI_API_KEY>"`,
+    sh_configure_image_provider: `cd "${paths.baseSkill}" && npm run configure:image-provider -- --api-key "<YOUR_THINKAI_API_KEY>"`,
   };
 }

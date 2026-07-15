@@ -24,8 +24,8 @@ Intent -> Normalize -> Mode Router -> Efficiency Plan -> Brief Intake Gate -> So
 7. 不承诺 CTR、CVR、ROAS、ACOS 或销量提升。
 8. 最终导出前必须运行 QA。
 9. 用户在无限画布的标注是结构化修订输入。
-10. 生产级生图目标提供方默认是 Codex/GPT 内置生图能力。Codex chat/project 中默认通过系统 `imagegen` skill / 内置 `image_gen` 工具执行真实栅格生图。用户明确选择 ThinkAI 版或 `gpt-image-2` provider 时，才使用本仓库 `scripts/thinkai-image-runtime.mjs`。
-11. 不得自造一次性生图 wrapper、静默切换 API/CLI fallback，或把确定性 layout draft 冒充最终生成图。允许把系统 `imagegen` / `image_gen` 作为 Codex 原生执行层；用户显式选择 ThinkAI provider 时，允许使用本仓库 `scripts/thinkai-image-runtime.mjs`。
+10. 生产级生图必须先通过 `scripts/resolve-image-provider.mjs` 解析唯一主 skill 的 provider mode。`auto` 模式以当前 Codex 配置事实为准：未选第三方 provider 时使用 Codex/GPT 内置 `imagegen` / `image_gen`；检测到第三方 OpenAI-compatible `model_provider` 或已保存第三方配置时使用该 endpoint，默认 profile 是 ThinkAI `https://www.thinkai.tv/v1` + `gpt-image-2`。不得以猜测用户会员身份作为路由依据。
+11. 不得自造一次性生图 wrapper、静默切换 API/CLI fallback，或把确定性 layout draft 冒充最终生成图。仅允许系统 `imagegen` / `image_gen` 作为原生执行层，或允许 `scripts/thinkai-image-runtime.mjs` 执行已解析的 OpenAI-compatible 第三方 provider；两者都不可用时必须 blocked。
 12. 最终 generation prompt 不是起点，必须由前置商品事实、平台/品类调研、人群定位、商业策略、摄影处理、草图/线框和自审结果共同生成。
 13. Prompt Layer Architect Brain 必须决定每张图的必备层与条件层；缺少强制层或触发条件层时，不得进入最终生图。
 14. 任一 gate 失败后必须运行统一 QA Loop Router，返回最早责任节点，只重跑受影响资产或布局，不得默认整套重做。
@@ -64,6 +64,7 @@ Intent -> Normalize -> Mode Router -> Efficiency Plan -> Brief Intake Gate -> So
 45. ThinkAI 或任何 provider 生图前必须先写 provider-compatible 的平台比例 generation spec；不得以横向默认尺寸生成后才由 export gate 发现比例不符。多图任务必须先完成 anchor batch QA，之后才可对独立剩余角色使用最多 2 路受控并发；不得在 anchor QA 前并发整套生图。
 46. 共享 tldraw 服务的模板和依赖必须在 skill 安装或更新时预热到 `${CODEX_HOME:-$HOME/.codex}/sellerpilot-product-image-industrial/canvas-service`。若更新发现依赖缺失或 lockfile 已变化，必须先完成 `npm ci` 再结束更新；生图结束后的画布启动不得执行依赖安装，只能复用已准备依赖并做就绪检查。
 47. 对穿戴甲、美甲贴、纹身贴、贴纸、印花织物等 `surface_material_transfer` 商品，源商品图的可见图案必须作为 canonical material，不是可由模型自由重绘的身份参考。必须先剔除背景、网页 UI、文案和水印，再记录每种材质的色彩、色温、亮度层级、渐变方向、纹理和形状；只允许为目标表面进行透视、曲率、遮挡、尺寸和有限环境光适配。最终交付前必须通过 `surface-material-transfer-gate`，失败只重做受影响材质/区域，不得泛化整套重生图。
+48. 对用户只展示并维护 `$sellerpilot-product-image-industrial`。`sellerpilot-product-image-industrial-thinkai` 和 `sellerpilot-product-image-industrial-proxy` 仅是兼容别名，必须加载主 skill 的同一套 workflow/QA/画布逻辑；不得再作为独立版本或独立发布产物维护。旧 ThinkAI 别名只保留第三方 provider preference，以保护历史调用语义。
 
 ## Default Workflow
 
@@ -92,6 +93,7 @@ Fast generation mode uses this compact workflow unless the user requests a full 
 - visual-director shot matrix
 - compact image-set planning
 - prompt-layer mini plan
+- resolve-image-provider-before-generation
 - Codex-native imagegen/image_gen anchor batch execution
 - anchor-batch-qa-decision and generation-progress updates
 - focused identity/physical-function/marketing/export QA

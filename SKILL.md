@@ -9,9 +9,9 @@ description: Use when Codex needs to create, plan, review, or revise industrial 
 
 Use this skill as the Codex chat/project entrypoint for SellerPilot-style ecommerce product image production. It turns product URLs, source product images, competitor references, platform targets, audience context, and style requirements into generated product images plus only the planning, QA, and review artifacts needed for the selected mode.
 
-Actual production image generation defaults to Codex-native GPT built-in image generation. In Codex chat/project contexts, the normal execution layer is the system `imagegen` skill using the built-in `image_gen` tool. Use that native path for real raster outputs unless the user explicitly selects the ThinkAI `gpt-image-2` provider.
+This is the single SellerPilot Product Image skill. Before every production execution, resolve `provider_mode` with `scripts/resolve-image-provider.mjs`: `auto` uses Codex-native `imagegen` / `image_gen` when current Codex configuration is native, and uses the configured OpenAI-compatible third-party image endpoint when current Codex configuration selects a third-party `model_provider`. ThinkAI is the default third-party profile (`https://www.thinkai.tv/v1`, `gpt-image-2`), not a separate product version. Do not infer a user's subscription status; route only from available execution capability and explicit/local provider configuration.
 
-This skill owns the SellerPilot industrial workflow: product truth, identity locks, source-photo enhancement, platform/category research, visual strategy, photography direction, prompt layering, QA routing, review surfaces, and export rules. It may call the system `imagegen` skill / built-in `image_gen` as the default production execution layer, or the repo-local ThinkAI runtime when explicitly selected; it must not create one-off image-generation wrappers, silently switch to API/CLI fallback, or claim deterministic layout drafts as final generated product images.
+This skill owns the SellerPilot industrial workflow: product truth, identity locks, source-photo enhancement, platform/category research, visual strategy, photography direction, prompt layering, QA routing, review surfaces, and export rules. It uses only the execution layer selected by the provider resolver: system `imagegen` / built-in `image_gen` for native Codex, or the repo-local OpenAI-compatible runtime for the resolved third-party provider. It must not create one-off image-generation wrappers, silently switch to API/CLI fallback, or claim deterministic layout drafts as final generated product images.
 
 ### Surface Material Transfer
 
@@ -193,7 +193,32 @@ The planner is a budgeted research contract, not a competitor-copy license. Extr
 
 Use bundled scripts for deterministic support work. They do not replace Codex-native image generation.
 
-For explicit ThinkAI provider runs or for the ThinkAI variant:
+## Automatic Provider Routing
+
+Run this before provider execution and save the result in the current run:
+
+```bash
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/resolve-image-provider.mjs \
+  --run-dir /abs/current-run
+```
+
+The resolver checks the shared SellerPilot provider configuration and the local Codex `config.toml`. It returns one of:
+
+- `native_codex`: use the system `imagegen` / `image_gen` capability. Do not silently substitute a proxy if that capability is unavailable.
+- `third_party_proxy`: use the resolved OpenAI-compatible `base_url`, model, and key environment variable through the runtime below.
+- `configuration_required`: ask only for the missing API key. The default ThinkAI endpoint and `gpt-image-2` model are already known unless the user explicitly requests a different endpoint/model.
+
+Configure the third-party profile once, without exposing the key:
+
+```bash
+npm run configure:image-provider -- --api-key "<API_KEY>"
+```
+
+Use `--base-url`, `--model`, `--name`, or `--api-key-env` only when the current third-party proxy differs from ThinkAI.
+
+`$sellerpilot-product-image-industrial-thinkai` and `$sellerpilot-product-image-industrial-proxy` remain compatibility aliases only. They load this main skill and prefer `third_party_proxy`; new users should only invoke `$sellerpilot-product-image-industrial`.
+
+For resolved third-party provider runs:
 
 ```bash
 THINKAI_API_KEY="<key>" \
@@ -205,7 +230,9 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
   --output-dir /abs/run/generated-assets/anchor-01
 ```
 
-The runtime also reads `${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/.thinkai-image-runtime.json` when an environment key is not set. Keep that local config uncommitted.
+When the resolver returns a non-default endpoint, model, or key environment variable, pass its exact `provider.base_url`, `provider.model`, and `provider.api_key_env` as `--base-url`, `--model`, and `--api-key-env`. Never replace those values with an inferred provider.
+
+The runtime reads the resolver output or the shared `${CODEX_HOME:-$HOME/.codex}/sellerpilot-product-image-industrial/image-provider.json`. It still recognizes old `.thinkai-image-runtime.json` files for migration, but new configuration must use the shared provider file. Keep all local provider configuration uncommitted.
 
 For skill development and release hygiene:
 

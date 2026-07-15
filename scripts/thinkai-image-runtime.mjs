@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 
@@ -50,16 +51,17 @@ Options:
   --size 1k|2k|4k|WIDTHxHEIGHT  Default: 2k for generation, auto for edits.
   --quality standard|hd         Default: hd.
   --n 1                         Default: 1.
-  --config /abs/config.json     Optional local config. Default: .thinkai-image-runtime.json.
-  --base-url URL                Override ThinkAI-compatible base URL.
+  --config /abs/config.json     Optional provider config. Default: legacy ThinkAI config.
+  --base-url URL                Override OpenAI-compatible base URL.
   --model MODEL                 Override model. Default: gpt-image-2.
+  --api-key-env NAME            Key environment variable. Default: THINKAI_API_KEY.
   --progress-file /abs/progress.json  Write run-scoped execution status and heartbeats.
   --request-timeout-seconds N   Request deadline. Default: 1800; does not lower image quality.
   --download-timeout-seconds N  Per-image download deadline. Default: 900.
   --heartbeat-seconds N         Progress heartbeat interval. Default: 30.
   --dry-run                     Write request snapshot without calling the network.
 
-API key resolution order: THINKAI_API_KEY, config.api_key.`);
+API key resolution order: --api-key-env, config.api_key_env, THINKAI_API_KEY, config.api_key.`);
   process.exit(2);
 }
 
@@ -87,7 +89,9 @@ fs.mkdirSync(outputDir, { recursive: true });
 const config = loadRuntimeConfig(args.config);
 const baseUrl = String(args["base-url"] || config.base_url || DEFAULT_BASE_URL).replace(/\/+$/, "");
 const model = String(args.model || config.model || DEFAULT_MODEL);
-const apiKey = String(process.env.THINKAI_API_KEY || config.api_key || "").trim();
+const providerName = String(config.provider_name || config.name || "ThinkAI");
+const apiKeyEnv = String(args["api-key-env"] || config.api_key_env || "THINKAI_API_KEY");
+const apiKey = String(process.env[apiKeyEnv] || process.env.THINKAI_API_KEY || config.api_key || "").trim();
 
 try {
   validateInputs(imagePaths, args.mask);
@@ -101,7 +105,8 @@ try {
   if (args["dry-run"]) {
     const summary = {
       status: "dry_run",
-      provider: "thinkai-openai-compatible-image-runtime",
+      provider: providerName === "ThinkAI" ? "thinkai-openai-compatible-image-runtime" : "third-party-openai-compatible-image-runtime",
+      provider_name: providerName,
       base_url: baseUrl,
       model,
       endpoint: request.endpoint,
@@ -118,7 +123,7 @@ try {
   }
 
   if (!apiKey) {
-    throw new RuntimeError("configuration_required", "ThinkAI key is not configured.");
+    throw new RuntimeError("configuration_required", `${providerName} image API key is not configured in ${apiKeyEnv}.`);
   }
 
   writeProgress("generating", { endpoint: request.endpoint });
@@ -132,7 +137,8 @@ try {
   const assets = await withHeartbeat("downloading", () => writeImagesFromResponse(response, outputDir, downloadTimeoutSeconds));
   const summary = {
     status: "generated",
-    provider: "thinkai-openai-compatible-image-runtime",
+    provider: providerName === "ThinkAI" ? "thinkai-openai-compatible-image-runtime" : "third-party-openai-compatible-image-runtime",
+    provider_name: providerName,
     base_url: baseUrl,
     model,
     endpoint: request.endpoint,
@@ -153,11 +159,21 @@ try {
 }
 
 function loadRuntimeConfig(configArg) {
-  const configPath = configArg
-    ? path.resolve(configArg)
-    : path.join(skillRoot, ".thinkai-image-runtime.json");
-  if (!fs.existsSync(configPath)) return {};
-  return JSON.parse(fs.readFileSync(configPath, "utf8"));
+  const candidates = configArg
+    ? [path.resolve(configArg)]
+    : [
+        path.join(process.env.CODEX_HOME || path.join(os.homedir(), ".codex"), "sellerpilot-product-image-industrial", "image-provider.json"),
+        path.join(skillRoot, ".thinkai-image-runtime.json"),
+      ];
+  for (const configPath of candidates) {
+    if (!fs.existsSync(configPath)) continue;
+    const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    if (config.third_party && typeof config.third_party === "object") {
+      return { ...config.third_party, provider_name: config.third_party.name || "ThinkAI" };
+    }
+    return config;
+  }
+  return {};
 }
 
 function resolveSize(rawSize) {
@@ -383,7 +399,7 @@ function writeProgress(status, details = {}) {
   const existing = readJsonSafe(progressFile);
   const now = new Date().toISOString();
   fs.mkdirSync(path.dirname(progressFile), { recursive: true });
-  writeJson(progressFile, { ...existing, status, updated_at: now, runtime: { provider: "thinkai", model, heartbeat_seconds: heartbeatSeconds, ...details } });
+  writeJson(progressFile, { ...existing, status, updated_at: now, runtime: { provider: providerName, model, api_key_env: apiKeyEnv, heartbeat_seconds: heartbeatSeconds, ...details } });
 }
 
 async function withHeartbeat(status, task) {

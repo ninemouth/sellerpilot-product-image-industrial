@@ -57,6 +57,7 @@ steps:
   - prompt-layer-stack
   - prompt-layer-gate
   - personalized-prompt-delivery
+  - resolve-image-provider-before-generation
   - resolve-platform-ratio-and-provider-generation-spec-before-execution
   - generation-request-pack-if-fallback-or-audit-needed
   - scene-asset-generation-if-scene-roles

@@ -116,7 +116,7 @@ record("frontmatter", () => {
   const end = skillMd.indexOf("\n---", 4);
   if (end < 0) throw new Error("SKILL.md frontmatter is not closed.");
   const frontmatter = skillMd.slice(4, end);
-  if (!/^name:\s*sellerpilot-product-image-industrial(?:-thinkai)?$/m.test(frontmatter)) {
+  if (!/^name:\s*sellerpilot-product-image-industrial$/m.test(frontmatter)) {
     throw new Error("SKILL.md frontmatter name is missing or wrong.");
   }
   if (!/^description:\s*\S/m.test(frontmatter)) {
@@ -126,22 +126,12 @@ record("frontmatter", () => {
 
 record("openai agent display metadata", () => {
   const skillMd = fs.readFileSync(path.join(skillRoot, "SKILL.md"), "utf8");
-  const isThinkAi = /^name:\s*sellerpilot-product-image-industrial-thinkai$/m.test(skillMd);
   const metadata = fs.readFileSync(path.join(skillRoot, "agents", "openai.yaml"), "utf8");
-  if (isThinkAi) {
-    if (!/display_name:\s*"SellerPilot Product Image ThinkAI"/.test(metadata)) {
-      throw new Error("ThinkAI variant must have a distinct OpenAI display_name.");
-    }
-    if (!metadata.includes("$sellerpilot-product-image-industrial-thinkai")) {
-      throw new Error("ThinkAI variant default prompt must reference the ThinkAI skill name.");
-    }
-  } else {
-    if (!/display_name:\s*"SellerPilot Product Image"/.test(metadata)) {
-      throw new Error("Base skill OpenAI display_name should remain SellerPilot Product Image.");
-    }
-    if (/display_name:\s*"SellerPilot Product Image ThinkAI"/.test(metadata)) {
-      throw new Error("Base skill display_name must not be changed to the ThinkAI variant name.");
-    }
+  if (!/display_name:\s*"SellerPilot Product Image"/.test(metadata)) {
+    throw new Error("Main skill OpenAI display_name should remain SellerPilot Product Image.");
+  }
+  if (/display_name:\s*"SellerPilot Product Image ThinkAI"/.test(metadata)) {
+    throw new Error("Main skill must not expose ThinkAI as a separate product version.");
   }
 });
 
@@ -155,9 +145,9 @@ record("README variant naming contract", () => {
   }
   for (const required of [
     "sellerpilot-product-image-industrial",
-    "sellerpilot-product-image-industrial-thinkai",
+    "sellerpilot-product-image-industrial-proxy",
     "npm run paths:codex",
-    "%USERPROFILE%\\.codex\\skills\\sellerpilot-product-image-industrial-thinkai",
+    "请检查并更新 sellerpilot-product-image-industrial",
   ]) {
     if (!readme.includes(required)) {
       throw new Error(`README.md missing required install guidance: ${required}`);
@@ -230,6 +220,7 @@ record("workflow loop guard ordering", () => {
       "localized-copy-qa-gate-if-locale-needs-review",
       "text-layout-proof-gate-before-final-raster-if-visible-copy",
       "compact-image-set-blueprint",
+      "resolve-image-provider-before-generation",
       "resolve-platform-ratio-and-provider-generation-spec-before-execution",
       "generation-execution-controller-anchor-first-bounded-concurrency-after-qa",
       "image-set-export-gate",
@@ -265,6 +256,8 @@ record("workflow loop guard ordering", () => {
     assertStepBefore(file, steps, "store-style-memory-apply-if-store-mentioned", "compact-image-set-blueprint");
     assertStepBefore(file, steps, "commerce-design-research-planner-if-conversion-critical", "audience-persona");
     assertStepBefore(file, steps, "compact-image-set-blueprint", "prompt-layer-stack");
+    assertStepBefore(file, steps, "personalized-prompt-delivery", "resolve-image-provider-before-generation");
+    assertStepBefore(file, steps, "resolve-image-provider-before-generation", "resolve-platform-ratio-and-provider-generation-spec-before-execution");
     assertStepBefore(file, steps, "prompt-layer-stack", "resolve-platform-ratio-and-provider-generation-spec-before-execution");
     assertStepBefore(file, steps, "resolve-platform-ratio-and-provider-generation-spec-before-execution", "generation-runtime-execution-boundary");
     assertStepBefore(file, steps, "generation-execution-controller-anchor-first-bounded-concurrency-after-qa", "anchor-batch-generation-loop-if-runtime-available");
@@ -310,11 +303,12 @@ record("no legacy provider naming", () => {
   if (offenders.length) throw new Error(`Legacy provider naming remains in: ${offenders.join(", ")}`);
 });
 
-record("thinkai runtime contract", () => {
+record("automatic image provider contract", () => {
   const runtimePath = path.join(skillRoot, "scripts", "thinkai-image-runtime.mjs");
-  const configurePath = path.join(skillRoot, "scripts", "configure-thinkai-runtime.mjs");
+  const resolverPath = path.join(skillRoot, "scripts", "resolve-image-provider.mjs");
+  const configurePath = path.join(skillRoot, "scripts", "configure-image-provider.mjs");
   if (!fs.existsSync(runtimePath)) throw new Error("scripts/thinkai-image-runtime.mjs is missing.");
-  if (!fs.existsSync(configurePath)) throw new Error("scripts/configure-thinkai-runtime.mjs is missing.");
+  if (!fs.existsSync(resolverPath) || !fs.existsSync(configurePath)) throw new Error("provider resolver/configurer is missing.");
   const runtime = fs.readFileSync(runtimePath, "utf8");
   for (const token of [
     'DEFAULT_BASE_URL = "https://www.thinkai.tv/v1"',
@@ -336,20 +330,43 @@ record("thinkai runtime contract", () => {
     "--output-dir", tmpDir("sp-verify-thinkai-runtime-"),
     "--dry-run",
   ]);
-  const configDir = tmpDir("sp-verify-thinkai-config-");
+  const configDir = tmpDir("sp-verify-provider-config-");
   const configOut = run(process.execPath, [
-    "scripts/configure-thinkai-runtime.mjs",
-    "--skill-dir", configDir,
+    "scripts/configure-image-provider.mjs",
+    "--config", path.join(configDir, "image-provider.json"),
     "--api-key", "verify-key",
   ]);
   const configSummary = JSON.parse(configOut);
-  const config = readJson(path.join(configDir, ".thinkai-image-runtime.json"));
-  if (configSummary.model !== "gpt-image-2" || config.model !== "gpt-image-2") {
-    throw new Error("ThinkAI config script must write model gpt-image-2.");
+  const config = readJson(path.join(configDir, "image-provider.json"));
+  if (configSummary.provider.model !== "gpt-image-2" || config.third_party.model !== "gpt-image-2") {
+    throw new Error("provider config script must write default model gpt-image-2.");
   }
-  if (config.api_key !== "verify-key") {
-    throw new Error("ThinkAI config script did not write the supplied API key.");
+  if (config.third_party.api_key !== "verify-key") {
+    throw new Error("provider config script did not write the supplied API key.");
   }
+  const codexConfig = path.join(configDir, "config.toml");
+  fs.writeFileSync(codexConfig, 'model_provider = "acme"\n[model_providers.acme]\nbase_url = "https://images.example/v1"\nenv_key = "ACME_IMAGE_KEY"\n');
+  process.env.ACME_IMAGE_KEY = "verify-provider-key";
+  const resolution = JSON.parse(run(process.execPath, ["scripts/resolve-image-provider.mjs", "--config", path.join(configDir, "missing.json"), "--codex-config", codexConfig]));
+  delete process.env.ACME_IMAGE_KEY;
+  if (resolution.selected_mode !== "third_party_proxy" || resolution.provider.base_url !== "https://images.example/v1" || resolution.provider.api_key_env !== "ACME_IMAGE_KEY") {
+    throw new Error("provider resolver should use current Codex third-party provider configuration.");
+  }
+  const nativeResolution = JSON.parse(run(process.execPath, ["scripts/resolve-image-provider.mjs", "--config", path.join(configDir, "missing.json"), "--codex-config", path.join(configDir, "no-config.toml")]));
+  if (nativeResolution.selected_mode !== "native_codex") throw new Error("provider resolver should default to native Codex without a third-party provider.");
+  const priorCodexHome = process.env.CODEX_HOME;
+  process.env.CODEX_HOME = path.join(configDir, "codex-home");
+  process.env.ACME_IMAGE_KEY = "verify-provider-key";
+  const sharedConfigPath = path.join(process.env.CODEX_HOME, "sellerpilot-product-image-industrial", "image-provider.json");
+  fs.mkdirSync(path.dirname(sharedConfigPath), { recursive: true });
+  fs.writeFileSync(sharedConfigPath, JSON.stringify({ third_party: { enabled: true, name: "Acme", base_url: "https://images.example/v1", model: "acme-image", api_key_env: "ACME_IMAGE_KEY" } }));
+  const genericRuntime = JSON.parse(run(process.execPath, ["scripts/thinkai-image-runtime.mjs", "--prompt", "verify generic provider", "--output-dir", path.join(configDir, "generic-runtime"), "--dry-run"]));
+  if (genericRuntime.provider !== "third-party-openai-compatible-image-runtime" || genericRuntime.base_url !== "https://images.example/v1" || genericRuntime.model !== "acme-image") {
+    throw new Error("runtime should load the shared resolved third-party provider config.");
+  }
+  if (priorCodexHome === undefined) delete process.env.CODEX_HOME;
+  else process.env.CODEX_HOME = priorCodexHome;
+  delete process.env.ACME_IMAGE_KEY;
   const progressDir = tmpDir("sp-verify-thinkai-progress-");
   run(process.execPath, [
     "scripts/thinkai-image-runtime.mjs",
@@ -572,11 +589,7 @@ record("skill sync release metadata branch smoke", () => {
   if (syncThinkAi.includes("$(")) {
     throw new Error("sync:thinkai must be cross-platform and avoid Bash command substitution.");
   }
-  for (const required of [
-    "scripts/sync-to-codex-skill.mjs",
-    "--source dist/sellerpilot-product-image-industrial-thinkai",
-    "--skill-name sellerpilot-product-image-industrial-thinkai",
-  ]) {
+  for (const required of ["scripts/sync-compatibility-aliases.mjs"]) {
     if (!syncThinkAi.includes(required)) {
       throw new Error(`sync:thinkai should include ${required}.`);
     }
@@ -584,8 +597,8 @@ record("skill sync release metadata branch smoke", () => {
   if (pkg.scripts?.["paths:codex"] !== "node scripts/codex-path-info.mjs") {
     throw new Error("package.json should expose paths:codex for OS-aware Codex install paths.");
   }
-  // An installed Codex skill intentionally has no .git directory. The dist-like
-  // source test below validates development-clone fallback metadata only.
+  // Alias directories intentionally have no .git directory. This validates
+  // development-clone fallback metadata for lightweight compatibility aliases.
   if (!fs.existsSync(path.join(skillRoot, ".git"))) return;
   const distLikeSource = path.join(dir, "dist-like-source");
   const distLikeDest = path.join(dir, "dist-like-installed");
@@ -639,11 +652,11 @@ record("codex path info smoke", () => {
   if (!report.platform || !report.os_type || !report.codex_home || !report.skills_dir) {
     throw new Error("codex path info should include platform, os type, codex home, and skills dir.");
   }
-  if (!report.installed_skills?.sellerpilot_product_image_industrial || !report.installed_skills?.sellerpilot_product_image_industrial_thinkai) {
-    throw new Error("codex path info should include both SellerPilot skill install paths.");
+  if (!report.installed_skills?.sellerpilot_product_image_industrial || !report.installed_skills?.sellerpilot_product_image_industrial_thinkai_alias || !report.installed_skills?.sellerpilot_product_image_industrial_proxy_alias) {
+    throw new Error("codex path info should include the main SellerPilot skill and compatibility aliases.");
   }
-  if (!report.thinkai_config?.endsWith(path.join("sellerpilot-product-image-industrial-thinkai", ".thinkai-image-runtime.json"))) {
-    throw new Error("codex path info should include the ThinkAI local config path.");
+  if (!report.image_provider_config?.endsWith(path.join("sellerpilot-product-image-industrial", "image-provider.json"))) {
+    throw new Error("codex path info should include the shared image provider config path.");
   }
   const dir = tmpDir("sp-verify-codex-paths-");
   const customOut = run(process.execPath, ["scripts/codex-path-info.mjs", "--codex-home", dir]);
@@ -651,8 +664,8 @@ record("codex path info smoke", () => {
   if (custom.codex_home !== path.resolve(dir) || !custom.skills_dir.startsWith(path.resolve(dir))) {
     throw new Error("codex path info should honor --codex-home for custom installs.");
   }
-  if (!custom.installed_skills.sellerpilot_product_image_industrial_thinkai.startsWith(custom.skills_dir)) {
-    throw new Error("custom ThinkAI skill path should be under the reported skills dir.");
+  if (!custom.installed_skills.sellerpilot_product_image_industrial_thinkai_alias.startsWith(custom.skills_dir)) {
+    throw new Error("custom compatibility alias path should be under the reported skills dir.");
   }
 });
 
