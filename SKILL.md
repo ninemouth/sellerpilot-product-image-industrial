@@ -552,11 +552,19 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
 This preserves completed provider assets, failed job ids, pending jobs, and anchor QA evidence in the main progress file without creating final delivery claims.
 
 ```bash
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/record-asset-reuse.mjs \
+  --run-dir /abs/run \
+  --write-progress
+```
+
+Use this in revision repair mode whenever the run reuses approved provider/base assets from a prior run or earlier stage. It writes `generated-assets/asset-reuse-manifest.json` plus `progress-reused-*.json` synthetic progress records in the current run. These records must identify the current copied asset, the original source path/run when known, the reuse reason, approving evidence, and linked final images. Do not leave copied `summary.json` paths from an older run as the only provenance evidence.
+
+```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/production-phase-tracer.mjs \
   --run-dir /abs/run
 ```
 
-Use this after long-running generation, after provider failures, and before performance tuning. It writes `telemetry/phase-trace.json` and `.md` with source/preflight, planning, provider, QA, export, canvas spans plus provider total, first-byte, response, and download p50/p95 metrics. Use the trace data before changing timeout, concurrency, or quality gates.
+Use this after long-running generation, after provider failures, and before performance tuning. It writes `telemetry/phase-trace.json` and `.md` with source/preflight, planning, provider, asset reuse, local compositor, QA, export, canvas spans plus provider total, first-byte, response, and download p50/p95 metrics. Use the trace data before changing timeout, concurrency, or quality gates. In revision repair, `provider_runtime_ms` must represent only current-run provider jobs; approved asset reuse belongs in `asset_reuse_ms`, and local typography/embroidery overlays belong in `local_compositor_ms`.
 
 ```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/provider-telemetry-summary.mjs \
@@ -604,10 +612,13 @@ Use this only for historical runs that already have final images and supporting 
 
 ```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/runtime-watchdog.mjs \
-  --run-dir /abs/run
+  --run-dir /abs/run \
+  --auto-close-ready
 ```
 
-Use this when a run exceeds 15 minutes and after final export before QA loop/final handoff. It reads the current run's production efficiency plan, `generated-assets/generation-progress.json`, final manifest, overview, QA loop state, and final gate reports. It writes `qa/runtime-watchdog-report.json` and classifies the run as `active_generation_wait`, `gate_churn_detected`, `ready_but_not_closed`, `local_planning_or_gate_stall`, or `blocked_stalled_no_progress`. If it says to stop automatic regeneration, do not restart the full set; report the status and run only the smallest next action.
+Use this when a run exceeds 15 minutes and after final export before QA loop/final handoff. It reads the current run's production efficiency plan, `generated-assets/generation-progress.json`, final manifest, overview, QA loop state, and final gate reports. It writes `qa/runtime-watchdog-report.json` and classifies the run as `active_generation_wait`, `gate_churn_detected`, `ready_but_not_closed`, `local_planning_or_gate_stall`, or `blocked_stalled_no_progress`. Use `--auto-close-ready` after final export: if final images already exist but closure is incomplete, it creates any missing overview, launches/reuses tldraw, runs `final-delivery-gate.mjs`, and writes `qa/ready-run-auto-close-report.json` without regenerating images. If it says to stop automatic regeneration, do not restart the full set; report the status and run only the smallest next action.
+
+After final images land, give a user-visible status update immediately: how many final images exist, whether overview/tldraw/final gate is running, and that the workflow is not regenerating already completed images.
 
 ```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/product-physics-fact-gate.mjs \

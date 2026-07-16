@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 
 function parseArgs(argv) {
   const args = {};
@@ -41,8 +42,8 @@ const progress = readJsonSafe(path.join(runDir, "generated-assets", "generation-
 const manifest = readJsonSafe(path.join(runDir, "export", "final-images-manifest.json")) || null;
 const qaLoopDecision = readJsonSafe(path.join(qaDir, "qa-loop-routing-decision.json")) || null;
 const qaLoopState = readJsonSafe(path.join(qaDir, "qa-loop-state.json")) || null;
-const finalGate = readJsonSafe(path.join(qaDir, "final-delivery-gate-report.json")) || null;
-const overviewReport = readJsonSafe(path.join(runDir, "overview", "delivery-overview-report.json")) || null;
+let finalGate = readJsonSafe(path.join(qaDir, "final-delivery-gate-report.json")) || null;
+let overviewReport = readJsonSafe(path.join(runDir, "overview", "delivery-overview-report.json")) || null;
 const anchorDecision = readJsonSafe(path.join(runDir, "generated-assets", "anchor-batch-qa-decision.json")) || null;
 const thresholds = resolveThresholds({ args, plan, progress });
 const files = collectRunFiles(runDir);
@@ -90,6 +91,7 @@ const report = {
     user_update_required: decision.user_update_required,
     smallest_next_action: decision.smallest_next_action,
     reason: decision.reason,
+    user_visible_update: decision.user_visible_update,
   },
   findings,
 };
@@ -146,7 +148,15 @@ function classify() {
     if (!overviewReport && manifestImages > 1) missing.push("delivery overview");
     if (!finalGate) missing.push("final delivery gate");
     findings.push(finding("warn", "ready-but-not-closed", `Final manifest has ${manifestImages} image(s), but handoff is not closed${missing.length ? `; missing ${missing.join(", ")}` : ""}.`));
-    return makeDecision("needs_attention", "ready_but_not_closed", true, true, "Do not regenerate. Run missing overview/tldraw/final-delivery-gate steps and hand off the current run.", "Final images already exist but delivery closure is incomplete.");
+    if (args["auto-close-ready"]) {
+      const close = autoCloseReadyRun();
+      if (close.status === "pass") {
+        findings.push(finding("info", "ready-run-auto-closed", "Final images were already exported; missing closure gates were run automatically."));
+        return makeDecision("continue", "auto_closed_ready_handoff", false, true, "Hand off the current run; final-delivery-gate passed after automatic closure.", "Final images already existed and the ready run was closed without regeneration.", "Final images are exported and QA is now closed; no image regeneration was performed.");
+      }
+      findings.push(finding("fail", "ready-run-auto-close-failed", close.message || "Automatic ready-run closure failed."));
+    }
+    return makeDecision("needs_attention", "ready_but_not_closed", true, true, "Do not regenerate. Run missing overview/tldraw/final-delivery-gate steps and hand off the current run.", "Final images already exist but delivery closure is incomplete.", "Final images are already exported; closing overview, review workspace, and final gate without regenerating.");
   }
 
   if (oldEnoughToBlock && noRecentActivity && !completedEnough) {
@@ -157,10 +167,10 @@ function classify() {
   if (oldEnoughToWarn && noRecentProgress && pending.length) {
     if (noMeaningfulProgress) {
       findings.push(finding("fail", "provider-meaningful-progress-stale", `No provider meaningful progress event for ${meaningfulProgressAgeSeconds}s while ${pending.length} pending asset(s) remain.`));
-      return makeDecision("needs_attention", "provider_wait_stale", true, true, "Stop waiting on the current provider job. Preserve completed assets, mark only the stale job retryable, and continue from the failed/missing asset list.", "Heartbeat alone is not meaningful provider progress.");
+    return makeDecision("needs_attention", "provider_wait_stale", true, true, "Stop waiting on the current provider job. Preserve completed assets, mark only the stale job retryable, and continue from the failed/missing asset list.", "Heartbeat alone is not meaningful provider progress.", "Provider progress is stale; completed assets are preserved and only stale or missing assets should be retried.");
     }
     findings.push(finding("warn", "active-generation-or-network-wait", `No generation-progress update for ${progressSeconds}s while ${pending.length} pending asset(s) remain.`));
-    return makeDecision("continue", "active_generation_wait", false, true, "Give the user a progress update, then continue only pending assets if the image generation call is still active.", "The run is long, but pending assets suggest generation/network wait rather than a QA loop.");
+    return makeDecision("continue", "active_generation_wait", false, true, "Give the user a progress update, then continue only pending assets if the image generation call is still active.", "The run is long, but pending assets suggest generation/network wait rather than a QA loop.", `Generation is still active with ${pending.length} pending asset(s); continuing without restarting completed work.`);
   }
 
   if (oldEnoughToWarn && noRecentActivity && !pending.length && !completedEnough) {
@@ -199,7 +209,7 @@ function collectChildProgress(dir) {
     const status = normalize(item.status);
     const normalized = { id, file, ...item };
     result.items.push(normalized);
-    if (status === "completed") result.completed.push(...normalizeProgressImages(item.runtime?.completed_images || item.completed_images || [id]));
+  if (status === "completed" || status === "reused_approved_asset") result.completed.push(...normalizeProgressImages(item.runtime?.completed_images || item.completed_images || [id]));
     else if (status === "failed") result.failed.push(id);
     else if (/generating|downloading|pending|running|prepared/.test(status)) result.pending.push(id);
   }
@@ -317,7 +327,7 @@ function finding(severity, type, message) {
   return { severity, type, message };
 }
 
-function makeDecision(status, classification, stop, userUpdate, nextAction, reason) {
+function makeDecision(status, classification, stop, userUpdate, nextAction, reason, userVisibleUpdate = "") {
   return {
     status,
     classification,
@@ -325,7 +335,52 @@ function makeDecision(status, classification, stop, userUpdate, nextAction, reas
     user_update_required: userUpdate,
     smallest_next_action: nextAction,
     reason,
+    user_visible_update: userVisibleUpdate || defaultUserVisibleUpdate(classification),
   };
+}
+
+function defaultUserVisibleUpdate(classification) {
+  if (classification === "normal_on_track") return "Run is on track; proceed to the next workflow node.";
+  if (classification === "blocked_stalled_no_progress") return "No meaningful progress is visible; automatic regeneration is stopped pending a minimal repair decision.";
+  return "Run status has been classified; follow the smallest next action without restarting the whole set.";
+}
+
+function autoCloseReadyRun() {
+  const steps = [];
+  const manifestPath = path.join(runDir, "export", "final-images-manifest.json");
+  const reportPath = path.join(qaDir, "ready-run-auto-close-report.json");
+  const runStep = (name, script, extraArgs = []) => {
+    const result = spawnSync(process.execPath, [path.join(path.resolve(new URL("..", import.meta.url).pathname), "scripts", script), ...extraArgs], {
+      cwd: path.resolve(new URL("..", import.meta.url).pathname),
+      encoding: "utf8",
+      maxBuffer: 20 * 1024 * 1024,
+    });
+    steps.push({ name, status: result.status === 0 ? "pass" : "fail", exit_code: result.status, stdout: result.stdout?.trim() || "", stderr: result.stderr?.trim() || "" });
+    return result.status === 0;
+  };
+  if (manifestImages > 1 && !overviewReport) {
+    runStep("delivery_overview", "create-delivery-overview.mjs", ["--run-dir", runDir, "--manifest", manifestPath, "--out-dir", path.join(runDir, "overview")]);
+    overviewReport = readJsonSafe(path.join(runDir, "overview", "delivery-overview-report.json")) || overviewReport;
+  }
+  const postReport = readJsonSafe(path.join(qaDir, "post-generation-tldraw-launch-report.json"));
+  if (!args["skip-tldraw"] && normalize(postReport?.status) !== "ready") {
+    runStep("post_generation_tldraw", "post-generation-tldraw-launcher.mjs", ["--run-dir", runDir, "--manifest", manifestPath]);
+  }
+  runStep("final_delivery_gate", "final-delivery-gate.mjs", ["--run-dir", runDir]);
+  finalGate = readJsonSafe(path.join(qaDir, "final-delivery-gate-report.json")) || finalGate;
+  const status = ["pass", "passed", "ready"].includes(normalize(finalGate?.status)) ? "pass" : "fail";
+  const report = {
+    schema_version: "sellerpilot.ready_run_auto_close.v1",
+    status,
+    checked_at: now.toISOString(),
+    run_dir: runDir,
+    manifest: manifestPath,
+    steps,
+    final_gate_status: finalGate?.status || null,
+    message: status === "pass" ? "Ready run auto-closed without regeneration." : "Ready run auto-close could not pass final delivery gate.",
+  };
+  fs.writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
+  return report;
 }
 
 function toMarkdown(report) {

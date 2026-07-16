@@ -356,6 +356,16 @@ npm run plan:efficiency -- \
 
 高质量多图任务还会写入 `generated-assets/generation-progress.json`。每生成一张图都应更新 completed / pending / failed；导出 manifest 后如果发现进度文件落后，可以用 `npm run progress:reconcile` 从当前 run 的 manifest 回填进度，避免已经完成的图片因为机械进度文件过期而反复重跑。若 final manifest 还没有生成，但 `generated-assets/progress-*.json` 已经记录了 provider 子任务事实，可以用 `npm run progress:reconcile -- --run-dir <run-dir> --from-child-progress` 先恢复主进度。长任务超过 15 分钟，或最终导出后进入 QA/交付收口前，应运行 runtime watchdog，判断当前是在正常等待生图/网络、QA gate 空转、成品已有但未收口，还是已经无进展卡住。
 
+Revision repair 复用上一 run 或已批准图片时，先写当前 run 的复用证据，避免旧 run 的 provider summary 路径被误判成当前 run 的 provider 耗时：
+
+```bash
+npm run reuse:assets -- \
+  --run-dir runs/demo-etsy-revision \
+  --write-progress
+```
+
+它会写 `generated-assets/asset-reuse-manifest.json` 和 `progress-reused-*.json`。后续 `npm run trace:phases` 会把真实 provider job、approved asset reuse、本地 embroidery/typography compositor 分开统计。
+
 如果 `production-efficiency-plan.json` 已经列出可并行工作，不应只停留在文字计划。把独立任务写入 run-local DAG 后执行：
 
 ```bash
@@ -373,7 +383,7 @@ npm run orchestrate:production -- \
 npm run trace:phases -- --run-dir runs/demo-amazon-bag
 ```
 
-它会写入 `telemetry/phase-trace.json` 和 `.md`，包含 source/preflight、planning、provider、QA、export、canvas 阶段 span，以及 provider total、first byte、response、download 的 p50/p95。后续调整并发、timeout 或缓存策略应以这个事实文件为准，不以预算数字当 SLA。
+它会写入 `telemetry/phase-trace.json` 和 `.md`，包含 source/preflight、planning、provider、asset reuse、本地 compositor、QA、export、canvas 阶段 span，以及 provider total、first byte、response、download 的 p50/p95。后续调整并发、timeout 或缓存策略应以这个事实文件为准，不以预算数字当 SLA；revision repair 的复用资产不得被算作当前 run 的 provider runtime。
 
 如果要把一次长耗时复盘上升为全局 provider timeout、并发或 retry 默认值调整，必须先聚合多个 run 的 phase trace：
 
@@ -557,6 +567,15 @@ npm run watchdog:runtime -- \
 - `gate_churn_detected`：QA 重试预算耗尽，停止自动重生图，修最早失败 gate。
 - `ready_but_not_closed`：final manifest 已有图，但 overview/tldraw/final handoff 没收口，不要重生图。
 - `blocked_stalled_no_progress`：超过阈值且无文件进展，停止自动流程并汇报最小下一步。
+
+final images 已经落盘后，使用自动收口模式：
+
+```bash
+npm run watchdog:close-ready -- \
+  --run-dir runs/demo-amazon-bag
+```
+
+如果 watchdog 看到 `ready_but_not_closed`，它会在不重生图的前提下补齐 overview、tldraw 启动和 `final-delivery-gate`，并写 `qa/ready-run-auto-close-report.json`。同时要给用户可见状态：已生成几张 final images、正在收口哪些 gate、不会重跑已完成图片。
 
 生图完成后启动/复用 tldraw 画布：
 

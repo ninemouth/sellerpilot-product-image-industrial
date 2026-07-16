@@ -76,7 +76,7 @@ if (!fs.existsSync(manifest)) {
   const parsed = parseLastJson(result.stdout);
   const autoStart = !args["no-auto-start"];
   const ready = autoStart
-    ? parsed?.status === "created_and_started" && parsed?.autoStartResult?.status === "ready" && parsed?.url
+    ? ["created_and_started", "reused_and_started"].includes(parsed?.status) && parsed?.autoStartResult?.status === "ready" && parsed?.url
     : parsed?.status === "created";
   const status = ready
     ? autoStart ? "ready" : "created_no_auto_start"

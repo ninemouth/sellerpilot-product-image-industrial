@@ -117,17 +117,17 @@ function reconcileFromChildProgress() {
   for (const item of child) {
     const status = normalize(item.status);
     const id = item.id;
-    if (status === "completed") {
+    if (status === "completed" || status === "reused_approved_asset") {
       const images = normalizeCompletedImages(item);
       if (images.length) {
         for (const image of images) {
           const key = image.path || image.file || id;
           if (seenCompletedPaths.has(key)) continue;
           seenCompletedPaths.add(key);
-          completed.push({ id, ...image, reconciled_from_child_progress: true });
+          completed.push({ id, ...image, reconciled_from_child_progress: true, source_type: item.source_type || null });
         }
       } else {
-        completed.push({ id, reconciled_from_child_progress: true });
+        completed.push({ id, reconciled_from_child_progress: true, source_type: item.source_type || null });
       }
     } else if (/generating|downloading|pending|running|prepared/.test(status)) {
       pending.push(id);
@@ -163,6 +163,9 @@ function reconcileFromChildProgress() {
       : "run export gate, overview, tldraw, and final-delivery-gate",
     reconciled_from_child_progress: true,
     child_progress_files: child.map((item) => item.file),
+    asset_reuse_manifest: fs.existsSync(path.join(runDir, "generated-assets", "asset-reuse-manifest.json"))
+      ? path.join(runDir, "generated-assets", "asset-reuse-manifest.json")
+      : existing.asset_reuse_manifest || null,
     anchor_batch: anchorDecision?.qa_decision || anchorDecision?.status ? {
       qa_decision: anchorDecision.qa_decision || anchorDecision.status,
       source: path.join(runDir, "generated-assets", "anchor-batch-qa-decision.json"),

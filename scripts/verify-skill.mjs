@@ -482,6 +482,128 @@ record("phase tracer and child progress reconcile smoke", () => {
   }
 });
 
+record("asset reuse telemetry and ready auto-close smoke", () => {
+  const root = tmpDir("sp-verify-asset-reuse-");
+  const sourceRun = path.join(root, "source-run");
+  const runDir = path.join(root, "revision-run");
+  const assetsDir = path.join(runDir, "generated-assets");
+  const finalDir = path.join(runDir, "final-images");
+  const qaDir = path.join(runDir, "qa");
+  fs.mkdirSync(path.join(sourceRun, "generated-assets", "remaining-1"), { recursive: true });
+  fs.mkdirSync(path.join(sourceRun, "generated-assets", "remaining-2"), { recursive: true });
+  fs.mkdirSync(path.join(assetsDir, "remaining-1"), { recursive: true });
+  fs.mkdirSync(path.join(assetsDir, "remaining-2"), { recursive: true });
+  fs.mkdirSync(finalDir, { recursive: true });
+  fs.mkdirSync(path.join(runDir, "export"), { recursive: true });
+  fs.mkdirSync(path.join(runDir, "copy"), { recursive: true });
+  fs.mkdirSync(qaDir, { recursive: true });
+  fs.writeFileSync(path.join(runDir, "00-task-context.yaml"), [
+    "run_id: verify-asset-reuse",
+    "platform: Etsy",
+    "category: personalized cosmetic bag",
+    "",
+  ].join("\n"));
+  execFileSync(process.execPath, ["-e", `
+    const sharp = require(${JSON.stringify(path.join(os.homedir(), ".cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/sharp"))});
+    const [sourceRun, runDir] = process.argv.slice(1);
+    (async () => {
+      for (const id of ['remaining-1', 'remaining-2']) {
+        await sharp({create:{width:1200,height:1200,channels:4,background:id === 'remaining-1' ? '#f5ebe3' : '#eee4db'}}).png().toFile(sourceRun + '/generated-assets/' + id + '/image.png');
+        await sharp({create:{width:1200,height:1200,channels:4,background:id === 'remaining-1' ? '#f5ebe3' : '#eee4db'}}).png().toFile(runDir + '/generated-assets/' + id + '/image.png');
+      }
+      await sharp({create:{width:1200,height:1200,channels:4,background:'#fff7f0'}}).png().toFile(runDir + '/final-images/IMG-01-personalized-hero.png');
+      await sharp({create:{width:1200,height:1200,channels:4,background:'#eee4db'}}).png().toFile(runDir + '/final-images/IMG-02-detail-view.png');
+    })().catch((e)=>{ console.error(e); process.exit(1); });
+  `, sourceRun, runDir], { cwd: skillRoot, stdio: "inherit" });
+  for (const id of ["remaining-1", "remaining-2"]) {
+    fs.writeFileSync(path.join(assetsDir, id, "summary.json"), JSON.stringify({
+      status: "generated",
+      provider: "thinkai-openai-compatible-image-runtime",
+      output_dir: path.join(sourceRun, "generated-assets", id),
+      images: [{ image_path: path.join(sourceRun, "generated-assets", id, "image.png") }],
+    }, null, 2));
+  }
+  fs.writeFileSync(path.join(qaDir, "failed-asset-repair-map.json"), JSON.stringify({
+    status: "repair_completed",
+    failure_review: { repair_strategy: "reuse approved base assets and rerender local embroidery text only" },
+    keep_assets: [
+      "generated-assets/remaining-1/image.png",
+      "generated-assets/remaining-2/image.png",
+    ],
+    rerender_only: ["IMG-01-personalized-hero.png"],
+    regenerate_provider_assets: [],
+  }, null, 2));
+  fs.writeFileSync(path.join(runDir, "export", "final-image-lineage.json"), JSON.stringify({
+    images: [
+      {
+        file: "IMG-01-personalized-hero.png",
+        source_type: "local_text_overlay",
+        derived_from: "generated-assets/remaining-1/image.png",
+        transformation_type: "local_embroidery_text_overlay",
+        render_method: "local_overlay",
+        text_overlay_proof: "qa/personalized-text-compositor-contract-report.json",
+        personalized_text_items: [{ role: "name", exact_text: "Olivia" }],
+      },
+      {
+        file: "IMG-02-detail-view.png",
+        source_type: "derived_from_approved_generated_asset",
+        derived_from: "generated-assets/remaining-2/image.png",
+        transformation_type: "approved_asset_reuse_crop",
+      },
+    ],
+  }, null, 2));
+  fs.writeFileSync(path.join(qaDir, "final-visible-text-review.json"), JSON.stringify({ status: "pass", allowlist: ["Olivia"] }));
+  fs.writeFileSync(path.join(runDir, "copy", "personalized-text-compositor-contract.json"), JSON.stringify({
+    render_method: "local_overlay",
+    font_family: "verify embroidery font",
+    personalized_text_items: [{ role: "name", exact_text: "Olivia" }],
+    final_visible_text_review: { status: "pass" },
+  }, null, 2));
+  for (const [file, body] of Object.entries({
+    "marketing-quality-gate-report.json": { status: "pass", findings: [] },
+    "copy-strategy-gate-report.json": { status: "pass", findings: [] },
+    "product-background-card-consistency-gate-report.json": { status: "pass", findings: [] },
+    "text-layout-proof-gate-report.json": { status: "pass", findings: [] },
+  })) {
+    fs.writeFileSync(path.join(qaDir, file), JSON.stringify(body, null, 2));
+  }
+  run(process.execPath, ["scripts/image-set-export-gate.mjs", "--run-dir", runDir, "--image-dir", finalDir, "--out-dir", qaDir, "--expected-count", "2", "--require-square"]);
+  run(process.execPath, ["scripts/personalized-text-compositor-contract.mjs", "--run-dir", runDir]);
+  run(process.execPath, ["scripts/final-image-lineage-gate.mjs", "--run-dir", runDir]);
+  fs.writeFileSync(path.join(assetsDir, "generation-progress.json"), JSON.stringify({
+    schema_version: "sellerpilot.generation_progress.v1",
+    status: "not_started",
+    image_count: 2,
+  }, null, 2));
+  run(process.execPath, ["scripts/record-asset-reuse.mjs", "--run-dir", runDir, "--write-progress"]);
+  const reuse = readJson(path.join(assetsDir, "asset-reuse-manifest.json"));
+  if (reuse.reuse_count !== 2 || !reuse.records.every((item) => item.original_source_path?.includes("source-run"))) {
+    throw new Error("asset reuse manifest should record current assets and original source run paths.");
+  }
+  run(process.execPath, ["scripts/reconcile-generation-progress.mjs", "--run-dir", runDir, "--from-child-progress"]);
+  const progress = readJson(path.join(assetsDir, "generation-progress.json"));
+  if (progress.status !== "runtime_completed" || progress.completed_images.length !== 2 || !progress.completed_images.every((item) => item.source_type === "asset_reuse")) {
+    throw new Error("reconcile should treat reused approved assets as completed synthetic progress.");
+  }
+  run(process.execPath, ["scripts/production-phase-tracer.mjs", "--run-dir", runDir, "--now", "2026-07-09T10:00:00.000Z"]);
+  const trace = readJson(path.join(runDir, "telemetry", "phase-trace.json"));
+  if (trace.snapshot.reused_jobs !== 2 || trace.metrics.provider_total_ms.count !== 0) {
+    throw new Error("phase tracer should separate reused assets from current-run provider metrics.");
+  }
+  if (!("asset_reuse_ms" in trace.metrics.phase_duration_ms) || !("local_compositor_ms" in trace.metrics.phase_duration_ms)) {
+    throw new Error("phase tracer should report asset_reuse_ms and local_compositor_ms phases.");
+  }
+  const close = run(process.execPath, ["scripts/runtime-watchdog.mjs", "--run-dir", runDir, "--auto-close-ready", "--skip-tldraw", "--now", "2026-07-09T10:00:00.000Z"]);
+  const closeOut = JSON.parse(close);
+  if (closeOut.classification !== "auto_closed_ready_handoff") {
+    throw new Error(`watchdog should auto-close ready runs, got ${closeOut.classification}`);
+  }
+  const finalGate = readJson(path.join(qaDir, "final-delivery-gate-report.json"));
+  if (finalGate.status !== "pass" || !fs.existsSync(path.join(runDir, "overview", "SET-OVERVIEW-contact-sheet.png"))) {
+    throw new Error("watchdog auto-close should create overview and pass final delivery gate.");
+  }
+});
+
 record("production orchestrator dag cache smoke", () => {
   const runDir = path.join(tmpDir("sp-verify-orchestrator-"), "run");
   fs.mkdirSync(path.join(runDir, "orchestration"), { recursive: true });

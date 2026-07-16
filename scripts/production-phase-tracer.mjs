@@ -12,12 +12,14 @@ if (Number.isNaN(now.getTime())) throw new Error(`Invalid --now value: ${args.no
 
 const progress = readJsonSafe(path.join(runDir, "generated-assets", "generation-progress.json")) || {};
 const childJobs = collectChildProgress(path.join(runDir, "generated-assets"));
+const assetReuse = readJsonSafe(path.join(runDir, "generated-assets", "asset-reuse-manifest.json")) || null;
 const manifest = readJsonSafe(path.join(runDir, "export", "final-images-manifest.json")) || null;
 const finalGate = readJsonSafe(path.join(runDir, "qa", "final-delivery-gate-report.json")) || null;
 const overview = readJsonSafe(path.join(runDir, "overview", "delivery-overview-report.json")) || null;
 const phaseSpans = collectPhaseSpans(runDir);
 const jobMetrics = childJobs.map(jobMetricsFromProgress);
 const completedJobs = jobMetrics.filter((job) => job.status === "completed");
+const reusedJobs = jobMetrics.filter((job) => job.status === "reused_approved_asset" || job.source_type === "asset_reuse");
 const failedJobs = jobMetrics.filter((job) => job.status === "failed");
 const pendingJobs = jobMetrics.filter((job) => /generating|downloading|pending|running|prepared/.test(job.status));
 const findings = [];
@@ -44,19 +46,21 @@ const report = {
     expected_image_count: Number(progress.image_count || 0) || null,
     child_progress_files: childJobs.length,
     completed_jobs: completedJobs.length,
+    reused_jobs: reusedJobs.length,
     failed_jobs: failedJobs.length,
     pending_jobs: pendingJobs.length,
     manifest_images: manifestImageCount(manifest),
     overview_exists: Boolean(overview),
     final_gate_status: finalGate?.status || null,
+    asset_reuse_records: Array.isArray(assetReuse?.records) ? assetReuse.records.length : 0,
   },
   phase_spans: phaseSpans,
   generation_jobs: jobMetrics,
   metrics: {
-    provider_total_ms: stats(jobMetrics.map((job) => job.total_ms).filter(isNumber)),
-    provider_first_byte_ms: stats(jobMetrics.map((job) => job.provider_first_byte_ms).filter(isNumber)),
-    provider_response_ms: stats(jobMetrics.map((job) => job.provider_response_ms).filter(isNumber)),
-    download_ms: stats(jobMetrics.map((job) => job.download_ms).filter(isNumber)),
+    provider_total_ms: stats(providerJobs(jobMetrics).map((job) => job.total_ms).filter(isNumber)),
+    provider_first_byte_ms: stats(providerJobs(jobMetrics).map((job) => job.provider_first_byte_ms).filter(isNumber)),
+    provider_response_ms: stats(providerJobs(jobMetrics).map((job) => job.provider_response_ms).filter(isNumber)),
+    download_ms: stats(providerJobs(jobMetrics).map((job) => job.download_ms).filter(isNumber)),
     phase_duration_ms: Object.fromEntries(phaseSpans.map((phase) => [phase.phase, phase.duration_ms])),
   },
   findings,
@@ -75,15 +79,17 @@ console.log(JSON.stringify({
 
 function collectPhaseSpans(root) {
   const definitions = [
-    ["source_preflight_ms", ["source-original", "source-enhanced", "source-normalized", "source-understanding", "source-image-set-manifest.json"]],
-    ["planning_ms", ["mode", "planning", "brief-intake", "strategy", "research", "blueprint", "layout-drafts", "prompt-pack", "generation-spec"]],
-    ["provider_runtime_ms", ["generated-assets"]],
-    ["qa_ms", ["qa"]],
-    ["export_ms", ["final-images", "export", "overview"]],
-    ["canvas_ready_ms", ["review-workspace"]],
+    ["source_preflight_ms", () => ["source-original", "source-enhanced", "source-normalized", "source-understanding", "source-image-set-manifest.json"].flatMap((entry) => collectFiles(path.join(root, entry)))],
+    ["planning_ms", () => ["mode", "planning", "brief-intake", "strategy", "research", "blueprint", "layout-drafts", "prompt-pack", "generation-spec"].flatMap((entry) => collectFiles(path.join(root, entry)))],
+    ["provider_runtime_ms", () => collectProviderRuntimeFiles(root)],
+    ["asset_reuse_ms", () => collectAssetReuseFiles(root)],
+    ["local_compositor_ms", () => collectLocalCompositorFiles(root)],
+    ["qa_ms", () => collectFiles(path.join(root, "qa"))],
+    ["export_ms", () => ["final-images", "export", "overview"].flatMap((entry) => collectFiles(path.join(root, entry)))],
+    ["canvas_ready_ms", () => collectFiles(path.join(root, "review-workspace"))],
   ];
-  return definitions.map(([phase, entries]) => {
-    const files = entries.flatMap((entry) => collectFiles(path.join(root, entry)));
+  return definitions.map(([phase, getFiles]) => {
+    const files = getFiles();
     const span = spanForFiles(files);
     return {
       phase,
@@ -93,6 +99,51 @@ function collectPhaseSpans(root) {
       duration_ms: span.duration_ms,
     };
   });
+}
+
+function collectProviderRuntimeFiles(root) {
+  const reuseDirs = new Set((assetReuse?.records || []).map((item) => path.dirname(path.join(root, item.current_asset_path || ""))));
+  return collectFiles(path.join(root, "generated-assets")).filter((file) => {
+    if (path.basename(file) === "asset-reuse-manifest.json") return false;
+    if (/progress-reused-/i.test(path.basename(file))) return false;
+    for (const dir of reuseDirs) {
+      if (file === dir || file.startsWith(`${dir}${path.sep}`)) return false;
+    }
+    return /(?:request|response|summary|progress-.+)\.json$/i.test(path.basename(file));
+  });
+}
+
+function collectAssetReuseFiles(root) {
+  const files = [];
+  const reusePath = path.join(root, "generated-assets", "asset-reuse-manifest.json");
+  if (fs.existsSync(reusePath)) files.push(reusePath);
+  for (const item of assetReuse?.records || []) {
+    const current = path.join(root, item.current_asset_path || "");
+    files.push(...collectFiles(path.dirname(current)));
+  }
+  files.push(...collectFiles(path.join(root, "generated-assets")).filter((file) => /progress-reused-/i.test(path.basename(file))));
+  return [...new Set(files.filter((file) => fs.existsSync(file)))];
+}
+
+function collectLocalCompositorFiles(root) {
+  const files = [];
+  const copyContract = path.join(root, "copy", "personalized-text-compositor-contract.json");
+  if (fs.existsSync(copyContract)) files.push(copyContract);
+  const visibleText = path.join(root, "qa", "final-visible-text-review.json");
+  if (fs.existsSync(visibleText)) files.push(visibleText);
+  const scriptsDir = path.join(root, "scripts");
+  if (fs.existsSync(scriptsDir)) {
+    files.push(...collectFiles(scriptsDir).filter((file) => /export.*(?:final|embroidery)|compositor/i.test(path.basename(file))));
+  }
+  const lineageRecords = Array.isArray(manifest?.images) ? manifest.images : [];
+  for (const item of lineageRecords) {
+    const sourceType = normalize(item.lineage?.source_type);
+    if (/text_overlay|personalized/.test(sourceType) || item.lineage?.render_method === "local_overlay") {
+      const image = path.resolve(item.path || path.join(root, "final-images", item.file || ""));
+      if (fs.existsSync(image)) files.push(image);
+    }
+  }
+  return [...new Set(files)];
 }
 
 function collectFiles(target) {
@@ -156,6 +207,8 @@ function jobMetricsFromProgress(job) {
     id: job.id,
     file: job.file,
     status: normalize(job.status || "unknown"),
+    source_type: job.source_type || null,
+    provider_timing_applicable: job.provider_timing_applicable !== false && job.source_type !== "asset_reuse" && normalize(job.status) !== "reused_approved_asset",
     started_at: started ? started.toISOString() : null,
     ended_at: ended ? ended.toISOString() : null,
     total_ms: diffMs(started, ended),
@@ -166,6 +219,10 @@ function jobMetricsFromProgress(job) {
     completed_images: normalizeImages(job.runtime?.completed_images || job.completed_images),
     failure_code: job.runtime?.failure?.code || null,
   };
+}
+
+function providerJobs(jobs) {
+  return jobs.filter((job) => job.provider_timing_applicable !== false);
 }
 
 function normalizeImages(value) {
@@ -237,6 +294,7 @@ function toMarkdown(report) {
     `- Status: ${report.status}`,
     `- Child progress files: ${report.snapshot.child_progress_files}`,
     `- Completed jobs: ${report.snapshot.completed_jobs}`,
+    `- Reused approved assets: ${report.snapshot.reused_jobs}`,
     `- Failed jobs: ${report.snapshot.failed_jobs}`,
     `- Pending jobs: ${report.snapshot.pending_jobs}`,
     `- Manifest images: ${report.snapshot.manifest_images}`,
