@@ -45,6 +45,8 @@ const allowMissingGates = Boolean(args["allow-missing-gates"]);
 const runContext = inferRunContext(runDir);
 const runLocale = runContext.locale;
 
+validateCriticalJsonArtifacts({ runDir, qaDir, findings });
+
 if (!allowMissingGates) {
   if (!reports.length) {
     findings.push({
@@ -152,6 +154,18 @@ if (fs.existsSync(sourceUnderstandingPath) && requiresSourceUnderstandingGate(so
       gate_id: "final-delivery-gate",
       source_report: "source-product-understanding-gate-report.json",
       message: "source-product-understanding-gate-report.json is required when source image recognition, OCR text, dimensions, labels, or product facts are present.",
+    });
+  }
+}
+
+if (requiresIdentityConsistencyGate(runDir)) {
+  if (!reports.some((item) => item.name === "identity-consistency-gate-report.json")) {
+    findings.push({
+      severity: "fail",
+      type: "missing-required-gate-report",
+      gate_id: "final-delivery-gate",
+      source_report: "identity-consistency-gate-report.json",
+      message: "identity-consistency-gate-report.json is required when source product identity evidence exists or final images include legacy/fallback/derived/repaired lineage.",
     });
   }
 }
@@ -485,6 +499,106 @@ function validateFinalImageLineageReports({ manifest, runDir, findings }) {
       message: "Final manifest contains local/personalized text overlay lineage; run personalized-text-compositor-contract before final delivery.",
     });
   }
+}
+
+function validateCriticalJsonArtifacts({ runDir: currentRunDir, qaDir: currentQaDir, findings: output }) {
+  const critical = [
+    "generated-assets/generation-progress.json",
+    "generated-assets/anchor-batch-qa-decision.json",
+    "qa/anchor-batch-qa-decision.json",
+    "export/final-images-manifest.json",
+    "overview/delivery-overview-report.json",
+    "qa/qa-loop-routing-decision.json",
+    "qa/qa-loop-state.json",
+  ];
+  for (const rel of critical) {
+    const file = path.join(currentRunDir, rel);
+    if (!fs.existsSync(file)) continue;
+    const raw = readTextSafe(file);
+    if (/<<<<<<<|>>>>>>>|\*\*\* Begin Patch|\*\*\* End Patch|^@@\s/m.test(raw)) {
+      output.push({
+        severity: "fail",
+        type: artifactFailureType(rel),
+        gate_id: "production-artifact-integrity-gate",
+        source_report: rel,
+        message: `${rel} contains patch/conflict/markdown marker text. Regenerate this machine artifact from its owning script before final delivery.`,
+      });
+      continue;
+    }
+    try {
+      JSON.parse(raw);
+    } catch (error) {
+      output.push({
+        severity: "fail",
+        type: artifactFailureType(rel),
+        gate_id: "production-artifact-integrity-gate",
+        source_report: rel,
+        message: `${rel} is not valid JSON: ${error.message}`,
+      });
+    }
+  }
+  if (fs.existsSync(currentQaDir)) {
+    for (const entry of fs.readdirSync(currentQaDir, { withFileTypes: true })) {
+      if (!entry.isFile() || !/-report\.json$/.test(entry.name) || entry.name === "final-delivery-gate-report.json") continue;
+      const file = path.join(currentQaDir, entry.name);
+      const raw = readTextSafe(file);
+      try {
+        JSON.parse(raw);
+      } catch (error) {
+        output.push({
+          severity: "fail",
+          type: "corrupt-qa-report-json",
+          gate_id: "production-artifact-integrity-gate",
+          source_report: path.relative(currentRunDir, file),
+          message: `${entry.name} is not valid JSON: ${error.message}`,
+        });
+      }
+    }
+  }
+}
+
+function artifactFailureType(rel) {
+  if (/anchor-batch-qa-decision\.json$/.test(rel)) return "corrupt-anchor-batch-decision-json";
+  if (/generation-progress\.json$/.test(rel)) return "corrupt-generation-progress-json";
+  if (/final-images-manifest\.json$/.test(rel)) return "corrupt-final-images-manifest-json";
+  return "local-artifact-corruption";
+}
+
+function readTextSafe(file) {
+  try {
+    return fs.readFileSync(file, "utf8");
+  } catch {
+    return "";
+  }
+}
+
+function requiresIdentityConsistencyGate(currentRunDir) {
+  const finalDir = path.join(currentRunDir, "final-images");
+  const hasFinals = fs.existsSync(finalDir) && fs.readdirSync(finalDir).some((name) => /\.(png|jpe?g|webp)$/i.test(name));
+  if (!hasFinals) return false;
+  const identityLockExists = [
+    "blueprint/02-identity-lock.yaml",
+    "blueprint/02-identity-lock.json",
+    "blueprint/product-identity-lock.json",
+  ].some((rel) => fs.existsSync(path.join(currentRunDir, rel)));
+  const sourceEvidenceExists = [
+    "source-understanding/source-product-understanding.json",
+    "source-original/source.png",
+    "source-original/source-original.png",
+    "source-enhanced/source-enhanced.png",
+  ].some((rel) => fs.existsSync(path.join(currentRunDir, rel)));
+  const manifest = readJsonSafe(path.join(currentRunDir, "export", "final-images-manifest.json"));
+  const lineageRequiresReview = Array.isArray(manifest?.images) && manifest.images.some((item) => {
+    const text = normalizeText(textifyForGate([
+      item.lineage?.source_type,
+      item.lineage?.status,
+      item.lineage?.delivery_status,
+      item.lineage?.requires_identity_review,
+      item.file,
+    ]));
+    return /(legacy|fallback|derived|repair|repaired|local_overlay|text_overlay|needs_identity_review)/.test(text);
+  });
+  return identityLockExists || sourceEvidenceExists || lineageRequiresReview;
 }
 
 function validateTaskContext({ taskContextPath: contextPath, runContext: context, findings }) {

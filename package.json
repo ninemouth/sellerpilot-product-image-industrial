@@ -29,6 +29,8 @@
     "qa:localized-copy": "node scripts/localized-copy-qa-gate.mjs",
     "qa:text-layout": "node scripts/text-layout-proof-gate.mjs",
     "qa:product-background": "node scripts/product-background-card-consistency-gate.mjs",
+    "qa:identity-consistency": "node scripts/identity-consistency-gate.mjs",
+    "qa:artifact-integrity": "node scripts/production-artifact-integrity-gate.mjs",
     "qa:provider-instability": "node scripts/provider-instability-circuit-breaker.mjs",
     "qa:lineage": "node scripts/final-image-lineage-gate.mjs",
     "qa:personalized-text": "node scripts/personalized-text-compositor-contract.mjs",

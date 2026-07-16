@@ -90,6 +90,33 @@ function readJson(file) {
   return JSON.parse(fs.readFileSync(file, "utf8"));
 }
 
+function writeIdentityConsistencyPass(runDir, files, options = {}) {
+  const qaDir = path.join(runDir, "qa");
+  const blueprintDir = path.join(runDir, "blueprint");
+  fs.mkdirSync(qaDir, { recursive: true });
+  fs.mkdirSync(blueprintDir, { recursive: true });
+  const lockPath = options.identityLock || path.join(blueprintDir, "02-identity-lock.yaml");
+  if (!fs.existsSync(lockPath)) {
+    fs.writeFileSync(lockPath, [
+      "identity_lock:",
+      "  must_preserve:",
+      "    silhouette: verify source product silhouette",
+      "    primary_color: verify source product color family",
+      "    material_appearance: verify source material appearance",
+      "",
+    ].join("\n"));
+  }
+  fs.writeFileSync(path.join(qaDir, "identity-consistency-visual-review.json"), JSON.stringify({
+    status: "pass",
+    images: files.map((file) => ({
+      file: path.basename(file),
+      status: "pass",
+      notes: "Fixture review confirms source-vs-generated identity consistency for this final image.",
+    })),
+  }, null, 2));
+  run(process.execPath, ["scripts/identity-consistency-gate.mjs", "--run-dir", runDir]);
+}
+
 function workflowSteps(file) {
   const text = fs.readFileSync(path.join(skillRoot, file), "utf8");
   const stepsMatch = text.match(/^steps:\n([\s\S]*?)(?:\n[a-zA-Z0-9_]+:|\n$)/m);
@@ -568,6 +595,7 @@ record("asset reuse telemetry and ready auto-close smoke", () => {
     fs.writeFileSync(path.join(qaDir, file), JSON.stringify(body, null, 2));
   }
   run(process.execPath, ["scripts/image-set-export-gate.mjs", "--run-dir", runDir, "--image-dir", finalDir, "--out-dir", qaDir, "--expected-count", "2", "--require-square"]);
+  writeIdentityConsistencyPass(runDir, ["IMG-01-personalized-hero.png", "IMG-02-detail-view.png"]);
   run(process.execPath, ["scripts/personalized-text-compositor-contract.mjs", "--run-dir", runDir]);
   run(process.execPath, ["scripts/final-image-lineage-gate.mjs", "--run-dir", runDir]);
   fs.writeFileSync(path.join(assetsDir, "generation-progress.json"), JSON.stringify({
@@ -730,6 +758,12 @@ record("provider instability, lineage, and personalized text smoke", () => {
     "--out-dir", qaDir,
     "--expected-count", "4",
     "--require-square",
+  ]);
+  writeIdentityConsistencyPass(runDir, [
+    "IMG-01-provider-generated.png",
+    "IMG-02-derived-gift-scene.png",
+    "IMG-03-local-text-overlay.png",
+    "IMG-04-provider-detail.png",
   ]);
   const manifest = readJson(path.join(exportDir, "final-images-manifest.json"));
   const derived = manifest.images.find((item) => item.file === "IMG-02-derived-gift-scene.png");
@@ -2050,6 +2084,7 @@ record("delivery overview and final gate smoke", () => {
     "--expected-count", "2",
     "--require-square",
   ]);
+  writeIdentityConsistencyPass(runDir, ["IMG-01-main-product.png", "IMG-02-detail-structure.png"]);
   run(process.execPath, [
     "scripts/reconcile-generation-progress.mjs",
     "--run-dir", runDir,
@@ -2097,6 +2132,7 @@ record("delivery overview and final gate smoke", () => {
     "--expected-count", "1",
     "--require-square",
   ]);
+  writeIdentityConsistencyPass(singleRunDir, ["IMG-01-main-product.png"]);
   run(process.execPath, ["scripts/final-delivery-gate.mjs", "--run-dir", singleRunDir]);
   const singleFinalGate = readJson(path.join(singleQaDir, "final-delivery-gate-report.json"));
   if (singleFinalGate.status !== "pass") {
@@ -2104,6 +2140,148 @@ record("delivery overview and final gate smoke", () => {
   }
   if (singleFinalGate.findings.some((item) => item.type === "missing-delivery-overview")) {
     throw new Error("final gate should not require delivery overview for intentional single-image delivery.");
+  }
+});
+
+record("artifact integrity gate blocks corrupted machine json", () => {
+  const runDir = path.join(tmpDir("sp-verify-artifact-integrity-"), "run");
+  const imageDir = path.join(runDir, "final-images");
+  const qaDir = path.join(runDir, "qa");
+  run(process.execPath, [
+    "scripts/create-run-skeleton.mjs",
+    "--out-dir", runDir,
+    "--platform", "Etsy",
+    "--category", "bridal bag",
+    "--run-id", "verify-artifact-integrity",
+  ]);
+  execFileSync(process.execPath, ["-e", `
+    const sharp = require(${JSON.stringify(path.join(os.homedir(), ".cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/sharp"))});
+    const dir = process.argv[1];
+    (async () => { await Promise.all([
+      sharp({create:{width:1200,height:1200,channels:4,background:'#fff'}}).png().toFile(dir + '/IMG-01-main-product.png'),
+      sharp({create:{width:1200,height:1200,channels:4,background:'#eee'}}).png().toFile(dir + '/IMG-02-detail-product.png')
+    ]); })().catch((e)=>{ console.error(e); process.exit(1); });
+  `, imageDir], { cwd: skillRoot, stdio: "inherit" });
+  fs.mkdirSync(path.join(runDir, "generated-assets"), { recursive: true });
+  fs.writeFileSync(path.join(runDir, "generated-assets", "generation-progress.json"), JSON.stringify({
+    status: "planned",
+    completed_images: [],
+  }, null, 2));
+  fs.writeFileSync(path.join(runDir, "generated-assets", "anchor-batch-qa-decision.json"), [
+    "{",
+    "  \"status\": \"pass\"",
+    "}",
+    "*** Begin Patch",
+    "anchor-batch-qa-decision.json planned",
+    "*** End Patch",
+  ].join("\n"));
+  spawnSync(process.execPath, ["scripts/production-artifact-integrity-gate.mjs", "--run-dir", runDir], { cwd: skillRoot });
+  const report = readJson(path.join(qaDir, "production-artifact-integrity-gate-report.json"));
+  if (report.status !== "fail" || !report.findings.some((item) => item.type === "corrupt-anchor-batch-decision-json")) {
+    throw new Error("artifact integrity gate should catch corrupted anchor-batch decision JSON.");
+  }
+  if (!report.findings.some((item) => item.type === "stale-generation-progress-artifact")) {
+    throw new Error("artifact integrity gate should catch final images with stale planned progress.");
+  }
+  run(process.execPath, ["scripts/qa-loop-router.mjs", "--run-dir", runDir]);
+  const decision = readJson(path.join(qaDir, "qa-loop-routing-decision.json"));
+  if (decision.loop_decision.return_node !== "artifact-integrity-repair") {
+    throw new Error(`artifact corruption should route to artifact-integrity-repair, got ${decision.loop_decision.return_node}`);
+  }
+  if (!decision.loop_decision.do_not_rerun.includes("provider-retry")) {
+    throw new Error("artifact corruption route should forbid provider retry.");
+  }
+});
+
+record("identity consistency gate blocks legacy fallback until per-image review passes", () => {
+  const runDir = path.join(tmpDir("sp-verify-identity-consistency-"), "run");
+  const imageDir = path.join(runDir, "final-images");
+  const qaDir = path.join(runDir, "qa");
+  const sourceDir = path.join(runDir, "source-original");
+  const blueprintDir = path.join(runDir, "blueprint");
+  fs.mkdirSync(sourceDir, { recursive: true });
+  fs.mkdirSync(blueprintDir, { recursive: true });
+  run(process.execPath, [
+    "scripts/create-run-skeleton.mjs",
+    "--out-dir", runDir,
+    "--platform", "Etsy",
+    "--category", "mother of pearl bamboo handle bridal bag",
+    "--run-id", "verify-identity-consistency",
+  ]);
+  execFileSync(process.execPath, ["-e", `
+    const sharp = require(${JSON.stringify(path.join(os.homedir(), ".cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/sharp"))});
+    const [sourceDir, imageDir] = process.argv.slice(1);
+    (async () => { await Promise.all([
+      sharp({create:{width:1200,height:1200,channels:4,background:'#f7eee4'}}).png().toFile(sourceDir + '/source.png'),
+      sharp({create:{width:1200,height:1200,channels:4,background:'#fff7ef'}}).png().toFile(imageDir + '/IMG-01-bridal-main-cover.png'),
+      sharp({create:{width:1200,height:1200,channels:4,background:'#eee5da'}}).png().toFile(imageDir + '/IMG-02-garden-wedding-guest.png')
+    ]); })().catch((e)=>{ console.error(e); process.exit(1); });
+  `, sourceDir, imageDir], { cwd: skillRoot, stdio: "inherit" });
+  fs.writeFileSync(path.join(blueprintDir, "02-identity-lock.yaml"), [
+    "identity_lock:",
+    "  must_preserve:",
+    "    silhouette: half-moon mother-of-pearl bag body",
+    "    material_appearance: dense pearlescent shell discs",
+    "    strap_or_handle: bamboo segmented top handle",
+    "    hardware: small gold-tone end caps",
+    "",
+  ].join("\n"));
+  fs.mkdirSync(path.join(runDir, "export"), { recursive: true });
+  fs.writeFileSync(path.join(runDir, "export", "final-image-lineage.json"), JSON.stringify({
+    images: [
+      { file: "IMG-01-bridal-main-cover.png", source_type: "provider_generated", generated_asset_path: "generated-assets/anchor-01/image.png" },
+      { file: "IMG-02-garden-wedding-guest.png", source_type: "legacy_fallback_needs_identity_review", approved_source_path: "generated-assets/legacy-02/image.png", requires_identity_review: true },
+    ],
+  }, null, 2));
+  for (const [file, body] of Object.entries({
+    "marketing-quality-gate-report.json": { status: "pass", findings: [] },
+    "copy-strategy-gate-report.json": { status: "pass", findings: [] },
+    "product-background-card-consistency-gate-report.json": { status: "pass", findings: [] },
+  })) {
+    fs.writeFileSync(path.join(qaDir, file), JSON.stringify(body, null, 2));
+  }
+  run(process.execPath, [
+    "scripts/image-set-export-gate.mjs",
+    "--run-dir", runDir,
+    "--image-dir", imageDir,
+    "--out-dir", qaDir,
+    "--expected-count", "2",
+    "--require-square",
+  ]);
+  run(process.execPath, [
+    "scripts/reconcile-generation-progress.mjs",
+    "--run-dir", runDir,
+    "--manifest", path.join(runDir, "export", "final-images-manifest.json"),
+  ]);
+  run(process.execPath, [
+    "scripts/create-delivery-overview.mjs",
+    "--run-dir", runDir,
+    "--manifest", path.join(runDir, "export", "final-images-manifest.json"),
+    "--out-dir", path.join(runDir, "overview"),
+    "--title", "Verify Identity Overview",
+  ]);
+  spawnSync(process.execPath, ["scripts/final-delivery-gate.mjs", "--run-dir", runDir], { cwd: skillRoot });
+  const missingGate = readJson(path.join(qaDir, "final-delivery-gate-report.json"));
+  if (!missingGate.findings.some((item) => item.source_report === "identity-consistency-gate-report.json")) {
+    throw new Error("final gate should require identity-consistency-gate when identity lock/fallback lineage exists.");
+  }
+  spawnSync(process.execPath, ["scripts/identity-consistency-gate.mjs", "--run-dir", runDir, "--source", path.join(sourceDir, "source.png")], { cwd: skillRoot });
+  const missingReview = readJson(path.join(qaDir, "identity-consistency-gate-report.json"));
+  if (missingReview.status !== "fail" || !missingReview.findings.some((item) => item.type === "legacy-fallback-needs-identity-review")) {
+    throw new Error("identity consistency gate should block legacy fallback without per-image pass review.");
+  }
+  fs.writeFileSync(path.join(qaDir, "identity-consistency-visual-review.json"), JSON.stringify({
+    status: "pass",
+    images: [
+      { file: "IMG-01-bridal-main-cover.png", status: "pass", notes: "Matches source silhouette, pearl shell density, bamboo handle, and gold end caps." },
+      { file: "IMG-02-garden-wedding-guest.png", status: "pass", notes: "Legacy fallback reviewed against source and accepted for temporary delivery." },
+    ],
+  }, null, 2));
+  run(process.execPath, ["scripts/identity-consistency-gate.mjs", "--run-dir", runDir, "--source", path.join(sourceDir, "source.png")]);
+  run(process.execPath, ["scripts/final-delivery-gate.mjs", "--run-dir", runDir]);
+  const finalGate = readJson(path.join(qaDir, "final-delivery-gate-report.json"));
+  if (finalGate.status !== "pass") {
+    throw new Error(`final gate should pass after per-image identity review passes, got ${finalGate.status}`);
   }
 });
 

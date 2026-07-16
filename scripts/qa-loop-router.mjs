@@ -427,6 +427,7 @@ function compareFindings(a, b) {
     micro_detail: 10,
     marketing_diversity: 10,
     export: 12,
+    artifact_integrity: 12,
     delivery: 13,
     unknown: 14,
   };
@@ -472,6 +473,7 @@ function imageIndexFromFile(file) {
 
 function failureCategory(type) {
   if (/surface-material|material-(palette|lightness|color-temperature|shape)|gradient-direction/.test(type)) return "surface_material";
+  if (/artifact-integrity|corrupt-.*json|local-artifact-corruption|stale-generation-progress-artifact/.test(type)) return "artifact_integrity";
   if (/source-cutout-used-as-scene/.test(type)) return "identity";
   if (/product-background-card|product-asset-no-alpha|source-background-normalization|background-card/.test(type)) return "source_asset_normalization";
   if (/geometry|hem-position|garment-length|sleeve-length|neckline|silhouette|crop-top|apparel-length/.test(type)) return "identity_geometry";
@@ -587,6 +589,16 @@ function returnNode(type) {
     "contact-sheet-or-banner-ratio": "export-packaging",
     "upstream-gate-not-passed": "qa-loop-router",
     "qa-loop-not-closed": "qa-loop-router",
+    "missing-identity-consistency-review": "identity-consistency-gate",
+    "missing-per-image-identity-review": "identity-consistency-gate",
+    "legacy-fallback-needs-identity-review": "identity-consistency-gate",
+    "missing-final-images-for-identity-review": "export-packaging",
+    "corrupt-anchor-batch-decision-json": "artifact-integrity-repair",
+    "corrupt-generation-progress-json": "artifact-integrity-repair",
+    "corrupt-final-images-manifest-json": "artifact-integrity-repair",
+    "corrupt-qa-report-json": "artifact-integrity-repair",
+    "local-artifact-corruption": "artifact-integrity-repair",
+    "stale-generation-progress-artifact": "artifact-integrity-repair",
     "blocked-runtime-unavailable": "generation-runtime-execution-boundary",
   };
   return map[type] || fallbackReturnNode(type);
@@ -613,6 +625,7 @@ function fallbackReturnNode(type) {
     layout_copy: "layout-wireframes",
     export: "export-packaging",
     runtime: "generation-runtime-execution-boundary",
+    artifact_integrity: "artifact-integrity-repair",
     delivery: "qa-loop-router",
   };
   return map[category] || "qa-compliance";
@@ -689,6 +702,14 @@ function nextAction(type, node) {
     "draft-exported-as-final": "Remove draft assets from final-images; generate or package only final approved assets.",
     "upstream-gate-not-passed": "Resolve upstream failed gates before final delivery.",
     "qa-loop-not-closed": "Return to the QA loop decision and close its return node before final delivery.",
+    "missing-identity-consistency-review": "Create source-vs-generated identity review evidence for every final image; do not regenerate unless review identifies drift.",
+    "missing-per-image-identity-review": "Review the listed final image against source product material, handle, hardware, shape, and distinctive details before delivery.",
+    "legacy-fallback-needs-identity-review": "Keep the fallback marked as fallback and require explicit identity pass, or replace only that role with a new approved image.",
+    "corrupt-anchor-batch-decision-json": "Regenerate the anchor batch decision JSON from the owning script or current run evidence; do not retry provider jobs.",
+    "corrupt-generation-progress-json": "Repair or reconcile generation progress from current run evidence; do not regenerate images to mask the corrupt progress file.",
+    "corrupt-final-images-manifest-json": "Rebuild the final images manifest from current run final-images; do not scan outside the run.",
+    "local-artifact-corruption": "Repair the corrupted machine artifact from source evidence and rerun artifact integrity gate.",
+    "stale-generation-progress-artifact": "Reconcile generation progress from current manifest/progress files and preserve already approved images.",
   };
   return actions[type] || `Return to ${node} and fix the smallest upstream artifact responsible for ${type}.`;
 }
@@ -716,6 +737,8 @@ function rerunFrom(node) {
     "localized-copy-pack": ["localized-copy-pack", "copy-strategy-gate", "localized-copy-qa-gate", "layout-composition", "marketing-quality-gate"],
     "visual-director": ["visual-director", "image-set-blueprint", "prompt-layer-gate"],
     "export-packaging": ["export-packaging", "image-set-export-gate"],
+    "identity-consistency-gate": ["identity-consistency-review", "identity-consistency-gate", "qa-loop-router"],
+    "artifact-integrity-repair": ["production-artifact-integrity-gate", "progress-reconcile-or-artifact-regeneration", "qa-loop-router"],
   };
   return map[node] || [node];
 }
@@ -726,6 +749,12 @@ function doNotRerun(node, type) {
   }
   if (/copy|layout|export/.test(node) || /internal-copy|bad-filename|wrong-image-count/.test(type)) {
     return ["source-image-enhancement", "product-fact-sheet", "platform-category-web-research", "scene-asset-generation-loop"];
+  }
+  if (node === "artifact-integrity-repair" || /corrupt-.*json|local-artifact-corruption|stale-generation-progress-artifact/.test(type)) {
+    return ["image-generation", "provider-retry", "full-image-set-generation", "approved-assets"];
+  }
+  if (node === "identity-consistency-gate" || /identity-review|identity-drift|legacy-fallback/.test(type)) {
+    return ["unaffected-images", "full-image-set-generation"];
   }
   if (/scene-asset|generation-request|personalized-prompt-delivery/.test(node)) {
     return ["product-fact-sheet", "platform-category-web-research", "approved-assets", "full-image-set-generation"];
@@ -762,6 +791,8 @@ function retryBudget(node) {
     "localized-copy-pack": 2,
     "visual-director": 2,
     "export-packaging": 2,
+    "identity-consistency-gate": 1,
+    "artifact-integrity-repair": 1,
     "generation-runtime-execution-boundary": 0,
   };
   return map[node] ?? 1;

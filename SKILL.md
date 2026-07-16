@@ -552,6 +552,13 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
 This preserves completed provider assets, failed job ids, pending jobs, and anchor QA evidence in the main progress file without creating final delivery claims.
 
 ```bash
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/production-artifact-integrity-gate.mjs \
+  --run-dir /abs/run
+```
+
+Use this before final delivery, after retry/revision repair, and whenever a run was continued after an interruption. It validates machine JSON artifacts such as `generation-progress.json`, `anchor-batch-qa-decision.json`, `final-images-manifest.json`, overview reports, QA loop state, and QA reports. If it finds patch markers, merge-conflict text, invalid JSON, or stale progress after final images exist, repair only the corrupted artifact or reconcile progress from current-run evidence. Do not trigger provider regeneration to hide a local artifact write error.
+
+```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/record-asset-reuse.mjs \
   --run-dir /abs/run \
   --write-progress
@@ -601,6 +608,17 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
 ```
 
 Use this after export when final images include derived crops, repaired roles, local text overlays, or imported/externally provided assets. The final manifest must declare each image's `lineage.source_type`, approved source asset, transformation type, repair IDs, and text overlay proof as applicable. Derived assets may be valid final images, but they must not be presented as fresh provider scene generations.
+
+```bash
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/identity-consistency-gate.mjs \
+  --run-dir /abs/run \
+  --manifest /abs/run/export/final-images-manifest.json \
+  --source /abs/source-product.png \
+  --identity-lock /abs/run/blueprint/02-identity-lock.yaml \
+  --review /abs/run/qa/identity-consistency-visual-review.json
+```
+
+Use this before final delivery for every source-backed product image set and for any final image with `legacy_fallback`, `derived`, `repaired`, `local_overlay`, `text_overlay`, or `needs_identity_review` lineage. It requires explicit per-image source-vs-generated review evidence. Check silhouette, proportions, color, material, hardware, closure/opening, strap/handle, accessories, logos/markings, and micro-details against the source product and identity lock. `needs_visual_review`, missing per-image review, fallback without an explicit pass, or any identity drift must block final delivery and route only the affected image/role back through QA.
 
 ```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/backfill-final-image-lineage.mjs \
@@ -690,7 +708,7 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
 
 Use the final delivery gate after all QA gates and before telling the user a set is complete. It aggregates upstream gate reports, blocks delivery when required generation is unavailable, requires a delivery overview contact sheet for multi-image sets, allows intentional single-image final delivery with a run manifest, and rejects draft/placeholder/wireframe assets in `final-images`. A technical export pass is not enough for ecommerce image acceptance.
 
-For multi-image sets it also checks `00-task-context.yaml`, stale generation progress, anchor batch QA evidence, and product-background/card consistency evidence. If final images exist but progress is still `planned`/`not_started` with no completed images, reconcile progress from the current run manifest before final delivery. If a 4+ image set lacks an anchor batch decision of `continue`/`pass`, generate and review the anchor batch before continuing the full set. If product/card background consistency fails, normalize the source product asset and rerender only affected card/infographic layouts.
+For multi-image sets it also checks `00-task-context.yaml`, stale generation progress, anchor batch QA evidence, product-background/card consistency evidence, artifact integrity, and identity consistency evidence. If final images exist but progress is still `planned`/`not_started` with no completed images, reconcile progress from the current run manifest before final delivery. If a 4+ image set lacks an anchor batch decision of `continue`/`pass`, generate and review the anchor batch before continuing the full set. If product/card background consistency fails, normalize the source product asset and rerender only affected card/infographic layouts. If final images include source-backed product identity or fallback/derived/repaired lineage, run `identity-consistency-gate.mjs`; do not count fallback images as final until per-image identity review passes.
 
 ```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/qa-loop-router.mjs \

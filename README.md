@@ -554,6 +554,28 @@ npm run progress:reconcile -- \
 
 这会把已完成 provider 资产、失败 job、pending job 和 anchor QA 状态同步到主进度文件，但不会把中间图冒充最终交付图。
 
+检查关键 run artifact 是否被本地 patch/markdown/冲突标记污染：
+
+```bash
+npm run qa:artifact-integrity -- \
+  --run-dir runs/demo-amazon-bag
+```
+
+它会写 `qa/production-artifact-integrity-gate-report.json`，检查 `generation-progress.json`、`anchor-batch-qa-decision.json`、`final-images-manifest.json`、overview report、QA loop state 和 QA reports。若发现 JSON 无法解析、含 patch marker，或 final images 已存在但 progress 仍是 planned/not_started，必须修复对应 artifact 或从当前 run manifest/progress 重新 reconcile；不要用重新生图掩盖本地写入错误。
+
+检查最终图与源商品素材的一致性：
+
+```bash
+npm run qa:identity-consistency -- \
+  --run-dir runs/demo-amazon-bag \
+  --manifest runs/demo-amazon-bag/export/final-images-manifest.json \
+  --source runs/demo-amazon-bag/source-original/source.png \
+  --identity-lock runs/demo-amazon-bag/blueprint/02-identity-lock.yaml \
+  --review runs/demo-amazon-bag/qa/identity-consistency-visual-review.json
+```
+
+`qa/identity-consistency-visual-review.json` 必须逐图标记 pass/fail。凡是 `legacy_fallback`、`derived`、`repaired`、`local_overlay`、`text_overlay` 或 `needs_identity_review` lineage 的图片，缺少逐图 pass 就不能通过 final delivery。审核重点是轮廓、材质、颜色、五金、开口、手柄/肩带、配件和微细节是否与源商品一致。
+
 长任务/卡点诊断：
 
 ```bash
