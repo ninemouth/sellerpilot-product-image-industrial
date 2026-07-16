@@ -641,6 +641,125 @@ record("provider instability, lineage, and personalized text smoke", () => {
   }
 });
 
+record("historical lineage backfill smoke", () => {
+  const runDir = path.join(tmpDir("sp-verify-lineage-backfill-"), "run");
+  const assetsDir = path.join(runDir, "generated-assets");
+  const imageDir = path.join(runDir, "final-images");
+  const qaDir = path.join(runDir, "qa");
+  fs.mkdirSync(path.join(assetsDir, "anchor-01"), { recursive: true });
+  fs.mkdirSync(path.join(assetsDir, "derived-gift-scene"), { recursive: true });
+  fs.mkdirSync(imageDir, { recursive: true });
+  fs.mkdirSync(qaDir, { recursive: true });
+  run(process.execPath, [
+    "scripts/create-run-skeleton.mjs",
+    "--out-dir", runDir,
+    "--platform", "Etsy",
+    "--category", "personalized cosmetic bag",
+    "--run-id", "verify-lineage-backfill",
+  ]);
+  execFileSync(process.execPath, ["-e", `
+    const sharp = require(${JSON.stringify(path.join(os.homedir(), ".cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/sharp"))});
+    const [assetsDir, imageDir] = process.argv.slice(1);
+    (async () => {
+      await sharp({create:{width:1200,height:1200,channels:4,background:'#eee6dd'}}).png().toFile(assetsDir + '/anchor-01/image.png');
+      await sharp({create:{width:1200,height:1200,channels:4,background:'#f4ebe3'}}).png().toFile(assetsDir + '/derived-gift-scene/image.png');
+      await sharp({create:{width:1200,height:1200,channels:4,background:'#fff8f0'}}).png().toFile(imageDir + '/IMG-01-personalized-hero.png');
+      await sharp({create:{width:1200,height:1200,channels:4,background:'#f4ebe3'}}).png().toFile(imageDir + '/IMG-02-gift-scene.png');
+    })().catch((e)=>{ console.error(e); process.exit(1); });
+  `, assetsDir, imageDir], { cwd: skillRoot, stdio: "inherit" });
+  fs.writeFileSync(path.join(assetsDir, "progress-anchor-01.json"), JSON.stringify({
+    status: "completed",
+    runtime: { completed_images: [{ image_path: path.join(assetsDir, "anchor-01", "image.png") }] },
+  }, null, 2));
+  fs.writeFileSync(path.join(qaDir, "failed-asset-repair-map.json"), JSON.stringify({
+    status: "completed",
+    repairs: { "progress-gift-scene.json": "final-images/IMG-02-gift-scene.png" },
+  }, null, 2));
+  fs.writeFileSync(path.join(qaDir, "final-visible-text-review.json"), JSON.stringify({
+    status: "pass",
+    allowlist: ["Olivia", "06.16.2026"],
+  }, null, 2));
+  run(process.execPath, [
+    "scripts/image-set-export-gate.mjs",
+    "--run-dir", runDir,
+    "--image-dir", imageDir,
+    "--out-dir", qaDir,
+    "--expected-count", "2",
+    "--require-square",
+  ]);
+  const oldManifest = readJson(path.join(runDir, "export", "final-images-manifest.json"));
+  if (oldManifest.images.some((item) => item.lineage?.source_type && item.lineage.source_type !== "unknown" && !item.lineage.repair_map)) {
+    throw new Error("fixture should start with incomplete historical lineage.");
+  }
+  run(process.execPath, [
+    "scripts/backfill-final-image-lineage.mjs",
+    "--run-dir", runDir,
+    "--font-family", "recorded_from_existing_final_export",
+  ]);
+  run(process.execPath, ["scripts/personalized-text-compositor-contract.mjs", "--run-dir", runDir]);
+  run(process.execPath, [
+    "scripts/image-set-export-gate.mjs",
+    "--run-dir", runDir,
+    "--image-dir", imageDir,
+    "--out-dir", qaDir,
+    "--expected-count", "2",
+    "--require-square",
+  ]);
+  const manifest = readJson(path.join(runDir, "export", "final-images-manifest.json"));
+  const hero = manifest.images.find((item) => item.file === "IMG-01-personalized-hero.png");
+  const repaired = manifest.images.find((item) => item.file === "IMG-02-gift-scene.png");
+  if (hero?.lineage?.source_type !== "local_text_overlay" || hero.lineage.text_overlay_proof !== "qa/personalized-text-compositor-contract-report.json") {
+    throw new Error("backfill should mark personalized hero as local_text_overlay with text proof.");
+  }
+  if (!["derived_from_approved_generated_asset", "local_text_overlay"].includes(repaired?.lineage?.source_type) || !repaired.lineage.repair_of_progress_ids?.includes("progress-gift-scene.json")) {
+    throw new Error("backfill should preserve repaired image progress id lineage.");
+  }
+  run(process.execPath, ["scripts/final-image-lineage-gate.mjs", "--run-dir", runDir]);
+  const lineageGate = readJson(path.join(qaDir, "final-image-lineage-gate-report.json"));
+  if (lineageGate.status !== "pass") throw new Error(`backfilled lineage gate should pass, got ${lineageGate.status}`);
+});
+
+record("provider telemetry sample guard smoke", () => {
+  const root = tmpDir("sp-verify-provider-telemetry-");
+  const runA = path.join(root, "run-a");
+  const runB = path.join(root, "run-b");
+  for (const runDir of [runA, runB]) fs.mkdirSync(path.join(runDir, "telemetry"), { recursive: true });
+  fs.writeFileSync(path.join(runA, "telemetry", "phase-trace.json"), JSON.stringify({
+    status: "needs_attention",
+    run_dir: runA,
+    snapshot: { child_progress_files: 1, completed_jobs: 1, failed_jobs: 0, pending_jobs: 0 },
+    metrics: { provider_first_byte_ms: { count: 1 } },
+    generation_jobs: [{ id: "anchor-01", status: "completed", total_ms: 3000, provider_first_byte_ms: 1000, provider_response_ms: 2500, download_ms: 500 }],
+  }, null, 2));
+  fs.writeFileSync(path.join(runB, "telemetry", "phase-trace.json"), JSON.stringify({
+    status: "needs_attention",
+    run_dir: runB,
+    snapshot: { child_progress_files: 1, completed_jobs: 0, failed_jobs: 1, pending_jobs: 0 },
+    metrics: { provider_first_byte_ms: { count: 0 } },
+    generation_jobs: [{ id: "remaining-01", status: "failed", total_ms: 2000 }],
+  }, null, 2));
+  run(process.execPath, [
+    "scripts/provider-telemetry-summary.mjs",
+    "--runs-root", root,
+    "--out-dir", path.join(root, "summary-default"),
+  ]);
+  const insufficient = readJson(path.join(root, "summary-default", "provider-telemetry-summary.json"));
+  if (insufficient.status !== "insufficient_sample" || insufficient.decision.may_tune_global_timeouts_or_concurrency) {
+    throw new Error("provider telemetry summary should block global tuning when sample is insufficient.");
+  }
+  run(process.execPath, [
+    "scripts/provider-telemetry-summary.mjs",
+    "--runs-root", root,
+    "--min-runs", "1",
+    "--min-meaningful-jobs", "1",
+    "--out-dir", path.join(root, "summary-ready"),
+  ]);
+  const ready = readJson(path.join(root, "summary-ready", "provider-telemetry-summary.json"));
+  if (ready.status !== "ready" || ready.metrics.provider_first_byte_ms.p50 !== 1000 || !ready.decision.may_tune_global_timeouts_or_concurrency) {
+    throw new Error("provider telemetry summary should allow tuning only when sample thresholds are met.");
+  }
+});
+
 record("tldraw lockfile", () => {
   const lockPath = path.join(skillRoot, "assets", "tldraw-review-workspace", "package-lock.json");
   if (!fs.existsSync(lockPath)) throw new Error("assets/tldraw-review-workspace/package-lock.json is missing.");
@@ -913,6 +1032,15 @@ record("production update gate contract", () => {
   }
   if (!readme.includes("用户选择前不进入生产规划、生图、QA 或画布启动")) {
     throw new Error("README.md must document the update_available pause behavior.");
+  }
+  if (!agents.includes("insufficient_sample") || !agents.includes("不得改全局 provider 参数")) {
+    throw new Error("AGENTS.md must require provider telemetry sample guard before global tuning.");
+  }
+  if (!skill.includes("provider-telemetry-summary.mjs") || !readme.includes("npm run telemetry:provider")) {
+    throw new Error("SKILL.md/README.md must document provider telemetry summary sample guard.");
+  }
+  if (!skill.includes("backfill-final-image-lineage.mjs") || !readme.includes("npm run lineage:backfill")) {
+    throw new Error("SKILL.md/README.md must document historical final-image lineage backfill.");
   }
 });
 

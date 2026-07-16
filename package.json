@@ -32,6 +32,8 @@
     "qa:provider-instability": "node scripts/provider-instability-circuit-breaker.mjs",
     "qa:lineage": "node scripts/final-image-lineage-gate.mjs",
     "qa:personalized-text": "node scripts/personalized-text-compositor-contract.mjs",
+    "lineage:backfill": "node scripts/backfill-final-image-lineage.mjs",
+    "telemetry:provider": "node scripts/provider-telemetry-summary.mjs",
     "resolve:image-provider": "node scripts/resolve-image-provider.mjs",
     "generate:proxy": "node scripts/thinkai-image-runtime.mjs",
     "generate:thinkai": "node scripts/thinkai-image-runtime.mjs",

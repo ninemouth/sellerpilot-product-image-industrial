@@ -559,6 +559,16 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
 Use this after long-running generation, after provider failures, and before performance tuning. It writes `telemetry/phase-trace.json` and `.md` with source/preflight, planning, provider, QA, export, canvas spans plus provider total, first-byte, response, and download p50/p95 metrics. Use the trace data before changing timeout, concurrency, or quality gates.
 
 ```bash
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/provider-telemetry-summary.mjs \
+  --runs-root /abs/runs \
+  --min-runs 3 \
+  --min-meaningful-jobs 10 \
+  --out-dir /abs/runs/telemetry
+```
+
+Use this before changing global provider timeout, concurrency, retry, or pacing defaults. It aggregates multiple run-local `telemetry/phase-trace.json` files and writes `provider-telemetry-summary.json`; if the status is `insufficient_sample`, keep any fix run-local, collect more traced production runs, and do not tune global provider defaults from a single incident.
+
+```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/provider-instability-circuit-breaker.mjs \
   --run-dir /abs/run
 ```
@@ -583,6 +593,14 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
 ```
 
 Use this after export when final images include derived crops, repaired roles, local text overlays, or imported/externally provided assets. The final manifest must declare each image's `lineage.source_type`, approved source asset, transformation type, repair IDs, and text overlay proof as applicable. Derived assets may be valid final images, but they must not be presented as fresh provider scene generations.
+
+```bash
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/backfill-final-image-lineage.mjs \
+  --run-dir /abs/run \
+  --font-family "recorded_from_existing_final_export"
+```
+
+Use this only for historical runs that already have final images and supporting evidence but whose manifest was created before explicit lineage was required. After backfill, rerun the personalized text compositor contract when text items are present, rerun `image-set-export-gate.mjs` so the manifest embeds lineage, then rerun `final-image-lineage-gate.mjs` and `final-delivery-gate.mjs`. Do not regenerate the full set merely to hide missing lineage metadata.
 
 ```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/runtime-watchdog.mjs \

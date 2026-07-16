@@ -375,6 +375,18 @@ npm run trace:phases -- --run-dir runs/demo-amazon-bag
 
 它会写入 `telemetry/phase-trace.json` 和 `.md`，包含 source/preflight、planning、provider、QA、export、canvas 阶段 span，以及 provider total、first byte、response、download 的 p50/p95。后续调整并发、timeout 或缓存策略应以这个事实文件为准，不以预算数字当 SLA。
 
+如果要把一次长耗时复盘上升为全局 provider timeout、并发或 retry 默认值调整，必须先聚合多个 run 的 phase trace：
+
+```bash
+npm run telemetry:provider -- \
+  --runs-root runs \
+  --min-runs 3 \
+  --min-meaningful-jobs 10 \
+  --out-dir runs/telemetry
+```
+
+当 `provider-telemetry-summary.json` 的 `status` 是 `insufficient_sample`，只能做当前 run 的最小修复或继续采样；不得用单个 Etsy/单个长任务直接改全局 provider 参数。
+
 如果 provider 对同类场景或同一图片角色反复失败，不要继续堆 prompt。先运行失败熔断：
 
 ```bash
@@ -401,6 +413,19 @@ npm run qa:lineage -- --run-dir runs/demo-etsy-bag
 ```
 
 `export/final-images-manifest.json` 中每张图应包含 `lineage.source_type`，例如 `provider_generated`、`derived_from_approved_generated_asset`、`repaired_final_asset`、`local_text_overlay`；衍生图还要记录 `derived_from` / `approved_source_path`、`transformation_type` 和必要的 `repair_of_progress_ids`。这能让性能审计直接统计真实生成、衍生补位和文字合成的比例。
+
+历史任务如果已经有最终图、失败修复映射和可见文字复核，但旧 manifest 没有 lineage，不要为了补元数据整套重生图。先回填当前 run 的 lineage，再重跑导出 gate 和最终 gate：
+
+```bash
+npm run lineage:backfill -- \
+  --run-dir runs/demo-etsy-bag \
+  --font-family "recorded_from_existing_final_export"
+
+npm run qa:personalized-text -- --run-dir runs/demo-etsy-bag
+npm run qa:lineage -- --run-dir runs/demo-etsy-bag
+```
+
+回填后还需要重新运行 `image-set-export-gate.mjs`，让 `export/final-images-manifest.json` 把 `export/final-image-lineage.json` 嵌入每张图片，再运行 `final-delivery-gate.mjs`。这条路径只补证据，不把中间图或本地文字合成图冒充新的 provider 原生生成图。
 
 ## 推荐输入
 
