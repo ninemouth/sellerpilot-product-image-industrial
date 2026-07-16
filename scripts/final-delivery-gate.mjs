@@ -444,6 +444,7 @@ function validateFinalImagesManifest({ manifestPath, runDir, finalImageDir, fina
         });
       }
     }
+    validateFinalImageLineageReports({ manifest, runDir, findings });
   } catch (error) {
     findings.push({
       severity: "fail",
@@ -451,6 +452,37 @@ function validateFinalImagesManifest({ manifestPath, runDir, finalImageDir, fina
       gate_id: "final-delivery-gate",
       source_report: path.relative(runDir, manifestPath),
       message: error.message,
+    });
+  }
+}
+
+function validateFinalImageLineageReports({ manifest, runDir, findings }) {
+  const images = Array.isArray(manifest.images) ? manifest.images : [];
+  const sourceTypes = images.map((item) => normalizeText(item.lineage?.source_type)).filter(Boolean);
+  const hasDerived = sourceTypes.some((type) => /derived|repair|repaired/.test(type));
+  const hasPersonalizedText = images.some((item) => {
+    const lineage = item.lineage || {};
+    const type = normalizeText(lineage.source_type);
+    return /text_overlay|personalized/.test(type)
+      || normalizeText(lineage.render_method) === "local_overlay"
+      || Array.isArray(lineage.personalized_text_items);
+  });
+  if (hasDerived && !fs.existsSync(path.join(runDir, "qa", "final-image-lineage-gate-report.json"))) {
+    findings.push({
+      severity: "fail",
+      type: "missing-final-image-lineage-gate",
+      gate_id: "final-delivery-gate",
+      source_report: "qa/final-image-lineage-gate-report.json",
+      message: "Final manifest contains derived/repaired image lineage; run final-image-lineage-gate before final delivery.",
+    });
+  }
+  if (hasPersonalizedText && !fs.existsSync(path.join(runDir, "qa", "personalized-text-compositor-contract-report.json"))) {
+    findings.push({
+      severity: "fail",
+      type: "missing-personalized-text-compositor-contract",
+      gate_id: "final-delivery-gate",
+      source_report: "qa/personalized-text-compositor-contract-report.json",
+      message: "Final manifest contains local/personalized text overlay lineage; run personalized-text-compositor-contract before final delivery.",
     });
   }
 }

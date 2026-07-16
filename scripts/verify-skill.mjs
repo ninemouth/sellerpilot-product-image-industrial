@@ -401,14 +401,244 @@ record("generation spec and anchor controller smoke", () => {
   fs.writeFileSync(path.join(runDir, "generated-assets", "generation-progress.json"), "{}\n");
   fs.writeFileSync(path.join(runDir, "generated-assets", "anchor-batch-qa-decision.json"), JSON.stringify({ qa_decision: "pending" }));
   const jobsPath = path.join(runDir, "jobs.json");
-  fs.writeFileSync(jobsPath, JSON.stringify({ jobs: [{ id: "IMG-01", anchor: true }, { id: "IMG-04", anchor: false }] }));
+  fs.writeFileSync(jobsPath, JSON.stringify({ jobs: [{ id: "IMG-01", anchor: true }, { id: "IMG-02", anchor: true }, { id: "IMG-03", anchor: true }, { id: "IMG-04", anchor: false }] }));
   run(process.execPath, ["scripts/generation-execution-controller.mjs", "--run-dir", runDir, "--jobs", jobsPath]);
+  const anchorState = readJson(path.join(runDir, "generated-assets", "execution-controller-state.json"));
+  if (anchorState.anchor_job_ids.length !== 2 || !anchorState.demoted_anchor_job_ids.includes("IMG-03")) {
+    throw new Error("Controller must cap anchor batch to two jobs and demote overflow anchors.");
+  }
   const blocked = spawnSync(process.execPath, ["scripts/generation-execution-controller.mjs", "--run-dir", runDir, "--jobs", jobsPath, "--continue-after-anchor-pass"], { cwd: skillRoot });
   if (blocked.status === 0) throw new Error("Controller must block remaining jobs before anchor approval.");
   fs.writeFileSync(path.join(runDir, "generated-assets", "anchor-batch-qa-decision.json"), JSON.stringify({ qa_decision: "continue" }));
   run(process.execPath, ["scripts/generation-execution-controller.mjs", "--run-dir", runDir, "--jobs", jobsPath, "--continue-after-anchor-pass"]);
   const state = readJson(path.join(runDir, "generated-assets", "execution-controller-state.json"));
   if (state.status !== "remaining_ready" || state.concurrency !== 2) throw new Error("Controller must permit only bounded remaining generation after anchor QA.");
+});
+
+record("phase tracer and child progress reconcile smoke", () => {
+  const runDir = path.join(tmpDir("sp-verify-phase-trace-"), "run");
+  const assetsDir = path.join(runDir, "generated-assets");
+  fs.mkdirSync(assetsDir, { recursive: true });
+  fs.writeFileSync(path.join(assetsDir, "generation-progress.json"), JSON.stringify({
+    schema_version: "sellerpilot.generation_progress.v1",
+    status: "not_started",
+    created_at: "2026-07-09T09:00:00.000Z",
+    updated_at: "2026-07-09T09:00:00.000Z",
+    image_count: 3,
+  }, null, 2));
+  fs.writeFileSync(path.join(assetsDir, "anchor-batch-qa-decision.json"), JSON.stringify({ qa_decision: "continue" }));
+  fs.mkdirSync(path.join(assetsDir, "anchor-01"), { recursive: true });
+  fs.writeFileSync(path.join(assetsDir, "anchor-01", "image.png"), "fake-image");
+  fs.writeFileSync(path.join(assetsDir, "progress-anchor-01.json"), JSON.stringify({
+    status: "completed",
+    updated_at: "2026-07-09T09:00:06.000Z",
+    runtime: {
+      completed_images: [{ image_path: path.join(assetsDir, "anchor-01", "image.png"), actual_size: "1200x1200" }],
+      meaningful_progress_events: [
+        { event: "request_started", at: "2026-07-09T09:00:00.000Z" },
+        { event: "provider_first_byte_received", at: "2026-07-09T09:00:01.000Z" },
+        { event: "response_received", at: "2026-07-09T09:00:04.000Z" },
+        { event: "download_started", at: "2026-07-09T09:00:04.500Z" },
+        { event: "asset_verified", at: "2026-07-09T09:00:06.000Z" },
+      ],
+    },
+  }, null, 2));
+  fs.writeFileSync(path.join(assetsDir, "progress-remaining-01.json"), JSON.stringify({
+    status: "failed",
+    updated_at: "2026-07-09T09:00:08.000Z",
+    runtime: {
+      failure: { code: "provider_request_failed" },
+      meaningful_progress_events: [
+        { event: "request_started", at: "2026-07-09T09:00:07.000Z" },
+        { event: "provider_first_byte_received", at: "2026-07-09T09:00:08.000Z" },
+      ],
+    },
+  }, null, 2));
+  fs.writeFileSync(path.join(assetsDir, "progress-remaining-02.json"), JSON.stringify({
+    status: "generating",
+    updated_at: "2026-07-09T09:00:09.000Z",
+    runtime: {
+      meaningful_progress_events: [
+        { event: "request_started", at: "2026-07-09T09:00:09.000Z" },
+      ],
+    },
+  }, null, 2));
+
+  run(process.execPath, ["scripts/production-phase-tracer.mjs", "--run-dir", runDir, "--now", "2026-07-09T09:00:10.000Z"]);
+  const trace = readJson(path.join(runDir, "telemetry", "phase-trace.json"));
+  if (trace.status !== "needs_attention" || trace.snapshot.child_progress_files !== 3) {
+    throw new Error("phase tracer should detect stale main progress and count child progress files.");
+  }
+  if (trace.metrics.provider_first_byte_ms.p50 !== 1000) {
+    throw new Error("phase tracer should compute provider first byte metrics from meaningful progress events.");
+  }
+  run(process.execPath, ["scripts/reconcile-generation-progress.mjs", "--run-dir", runDir, "--from-child-progress"]);
+  const reconciled = readJson(path.join(assetsDir, "generation-progress.json"));
+  if (reconciled.status !== "runtime_in_progress" || reconciled.completed_images.length !== 1 || reconciled.failed_images.length !== 1 || reconciled.pending_images.length !== 1) {
+    throw new Error("child progress reconcile should restore completed, failed, and pending job evidence.");
+  }
+  if (reconciled.anchor_batch?.qa_decision !== "continue") {
+    throw new Error("child progress reconcile should preserve anchor batch QA evidence.");
+  }
+});
+
+record("production orchestrator dag cache smoke", () => {
+  const runDir = path.join(tmpDir("sp-verify-orchestrator-"), "run");
+  fs.mkdirSync(path.join(runDir, "orchestration"), { recursive: true });
+  const taskFile = path.join(runDir, "orchestration", "tasks.json");
+  const writeTaskScript = "require('fs').writeFileSync(process.argv[1], process.argv[2])";
+  fs.writeFileSync(taskFile, JSON.stringify({
+    tasks: [
+      {
+        id: "source-preflight",
+        phase: "source_preflight",
+        outputs: ["source-preflight.txt"],
+        command: [process.execPath, "-e", writeTaskScript, path.join(runDir, "source-preflight.txt"), "source"],
+      },
+      {
+        id: "platform-profile",
+        phase: "platform",
+        outputs: ["platform.txt"],
+        command: [process.execPath, "-e", writeTaskScript, path.join(runDir, "platform.txt"), "platform"],
+      },
+      {
+        id: "identity-lock",
+        phase: "identity",
+        depends_on: ["source-preflight", "platform-profile"],
+        inputs: ["source-preflight.txt", "platform.txt"],
+        outputs: ["identity.txt"],
+        command: [process.execPath, "-e", writeTaskScript, path.join(runDir, "identity.txt"), "identity"],
+      },
+    ],
+  }, null, 2));
+  run(process.execPath, ["scripts/production-orchestrator.mjs", "--run-dir", runDir, "--tasks", taskFile, "--execute", "--concurrency", "2"]);
+  const first = readJson(path.join(runDir, "orchestration", "production-orchestrator-state.json"));
+  if (first.status !== "completed" || first.tasks.filter((item) => item.status === "completed").length !== 3) {
+    throw new Error("production orchestrator should execute a dependent DAG to completion.");
+  }
+  const identity = first.tasks.find((item) => item.id === "identity-lock");
+  if (!identity || identity.depends_on.length !== 2 || !Number.isFinite(identity.ms)) {
+    throw new Error("production orchestrator should preserve dependency and timing evidence.");
+  }
+  run(process.execPath, ["scripts/production-orchestrator.mjs", "--run-dir", runDir, "--tasks", taskFile, "--execute", "--concurrency", "2"]);
+  const second = readJson(path.join(runDir, "orchestration", "production-orchestrator-state.json"));
+  if (second.status !== "completed" || second.tasks.filter((item) => item.status === "cached").length !== 3) {
+    throw new Error("production orchestrator should reuse unchanged task outputs by hash.");
+  }
+});
+
+record("provider instability, lineage, and personalized text smoke", () => {
+  const runDir = path.join(tmpDir("sp-verify-lineage-provider-"), "run");
+  const assetsDir = path.join(runDir, "generated-assets");
+  const imageDir = path.join(runDir, "final-images");
+  const qaDir = path.join(runDir, "qa");
+  const exportDir = path.join(runDir, "export");
+  fs.mkdirSync(assetsDir, { recursive: true });
+  fs.mkdirSync(imageDir, { recursive: true });
+  fs.mkdirSync(qaDir, { recursive: true });
+  fs.mkdirSync(exportDir, { recursive: true });
+  run(process.execPath, [
+    "scripts/create-run-skeleton.mjs",
+    "--out-dir", runDir,
+    "--platform", "Etsy",
+    "--category", "personalized cosmetic bag",
+    "--run-id", "verify-lineage-provider",
+  ]);
+  fs.mkdirSync(path.join(assetsDir, "approved-source"), { recursive: true });
+  execFileSync(process.execPath, ["-e", `
+    const sharp = require(${JSON.stringify(path.join(os.homedir(), ".cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/sharp"))});
+    const [assetDir, imageDir] = process.argv.slice(1);
+    (async () => {
+      await sharp({create:{width:1200,height:1200,channels:4,background:'#f4ede6'}}).png().toFile(assetDir + '/image.png');
+      await sharp({create:{width:1200,height:1200,channels:4,background:'#f4ede6'}}).png().toFile(imageDir + '/IMG-01-provider-generated.png');
+      await sharp({create:{width:1200,height:1200,channels:4,background:'#eee5dc'}}).png().toFile(imageDir + '/IMG-02-derived-gift-scene.png');
+      await sharp({create:{width:1200,height:1200,channels:4,background:'#fff7f0'}}).png().toFile(imageDir + '/IMG-03-local-text-overlay.png');
+      await sharp({create:{width:1200,height:1200,channels:4,background:'#f8f1ea'}}).png().toFile(imageDir + '/IMG-04-provider-detail.png');
+    })().catch((e)=>{ console.error(e); process.exit(1); });
+  `, path.join(assetsDir, "approved-source"), imageDir], { cwd: skillRoot, stdio: "inherit" });
+
+  fs.writeFileSync(path.join(assetsDir, "progress-gift.json"), JSON.stringify({ status: "failed", runtime: { failure: { code: "provider_request_failed" } } }));
+  fs.writeFileSync(path.join(assetsDir, "progress-gift-retry.json"), JSON.stringify({ status: "failed", runtime: { failure: { code: "provider_request_failed" } } }));
+  const blocked = spawnSync(process.execPath, ["scripts/provider-instability-circuit-breaker.mjs", "--run-dir", runDir], { cwd: skillRoot });
+  if (blocked.status === 0) throw new Error("provider circuit breaker should block unresolved repeated provider failures.");
+
+  fs.writeFileSync(path.join(qaDir, "failed-asset-repair-map.json"), JSON.stringify({
+    status: "completed",
+    repairs: {
+      "progress-gift.json": "final-images/IMG-02-derived-gift-scene.png",
+      "progress-gift-retry.json": "final-images/IMG-02-derived-gift-scene.png",
+    },
+  }, null, 2));
+  run(process.execPath, ["scripts/provider-instability-circuit-breaker.mjs", "--run-dir", runDir]);
+  const providerReport = readJson(path.join(qaDir, "provider-instability-circuit-breaker-report.json"));
+  if (providerReport.status !== "pass_with_warnings" || providerReport.decision.stop_provider_retries) {
+    throw new Error("provider circuit breaker should allow repaired failures while preserving warnings.");
+  }
+
+  fs.mkdirSync(path.join(runDir, "copy"), { recursive: true });
+  fs.writeFileSync(path.join(qaDir, "final-visible-text-review.json"), JSON.stringify({ status: "pass", reviewed_text: ["Olivia", "06.16.2026"] }));
+  fs.writeFileSync(path.join(runDir, "copy", "personalized-text-compositor-contract.json"), JSON.stringify({
+    render_method: "local_overlay",
+    font_family: "Snell Roundhand",
+    personalized_text_items: [
+      { role: "name", exact_text: "Olivia" },
+      { role: "date", exact_text: "06.16.2026" },
+    ],
+  }, null, 2));
+  run(process.execPath, ["scripts/personalized-text-compositor-contract.mjs", "--run-dir", runDir]);
+
+  fs.writeFileSync(path.join(exportDir, "final-image-lineage.json"), JSON.stringify({
+    images: [
+      { file: "IMG-01-provider-generated.png", source_type: "provider_generated", generated_asset_path: "generated-assets/approved-source/image.png" },
+      { file: "IMG-02-derived-gift-scene.png", source_type: "derived_from_approved_generated_asset", derived_from: "generated-assets/approved-source/image.png", transformation_type: "crop_tone_adjust", repair_of_progress_ids: ["progress-gift.json", "progress-gift-retry.json"] },
+      { file: "IMG-03-local-text-overlay.png", source_type: "local_text_overlay", derived_from: "generated-assets/approved-source/image.png", transformation_type: "local_text_overlay", render_method: "local_overlay", text_overlay_proof: "qa/personalized-text-compositor-contract-report.json", personalized_text_items: [{ role: "name", exact_text: "Olivia" }] },
+      { file: "IMG-04-provider-detail.png", source_type: "provider_generated", generated_asset_path: "generated-assets/approved-source/image.png" },
+    ],
+  }, null, 2));
+
+  fs.writeFileSync(path.join(qaDir, "marketing-quality-gate-report.json"), JSON.stringify({ status: "pass", findings: [] }));
+  fs.writeFileSync(path.join(qaDir, "copy-strategy-gate-report.json"), JSON.stringify({ status: "pass", findings: [] }));
+  fs.writeFileSync(path.join(qaDir, "product-background-card-consistency-gate-report.json"), JSON.stringify({ status: "pass", findings: [] }));
+  fs.writeFileSync(path.join(qaDir, "text-layout-proof-gate-report.json"), JSON.stringify({ status: "pass", findings: [] }));
+  fs.writeFileSync(path.join(assetsDir, "anchor-batch-qa-decision.json"), JSON.stringify({ qa_decision: "pass" }));
+  run(process.execPath, [
+    "scripts/image-set-export-gate.mjs",
+    "--run-dir", runDir,
+    "--image-dir", imageDir,
+    "--out-dir", qaDir,
+    "--expected-count", "4",
+    "--require-square",
+  ]);
+  const manifest = readJson(path.join(exportDir, "final-images-manifest.json"));
+  const derived = manifest.images.find((item) => item.file === "IMG-02-derived-gift-scene.png");
+  if (derived?.lineage?.source_type !== "derived_from_approved_generated_asset" || !derived.lineage.repair_of_progress_ids?.length) {
+    throw new Error("final image manifest should include derived lineage and repair progress ids.");
+  }
+  run(process.execPath, [
+    "scripts/create-delivery-overview.mjs",
+    "--run-dir", runDir,
+    "--manifest", path.join(exportDir, "final-images-manifest.json"),
+    "--out-dir", path.join(runDir, "overview"),
+  ]);
+  fs.writeFileSync(path.join(assetsDir, "generation-progress.json"), JSON.stringify({
+    status: "final_exported",
+    image_count: 4,
+    completed_images: manifest.images.map((item) => ({ file: item.file, path: item.path })),
+    failed_images: [],
+    pending_images: [],
+    anchor_batch: { qa_decision: "pass" },
+  }, null, 2));
+  spawnSync(process.execPath, ["scripts/final-delivery-gate.mjs", "--run-dir", runDir], { cwd: skillRoot });
+  const missingLineageGate = readJson(path.join(qaDir, "final-delivery-gate-report.json"));
+  if (!missingLineageGate.findings.some((item) => item.type === "missing-final-image-lineage-gate")) {
+    throw new Error("final delivery gate should require lineage gate when manifest contains derived lineage.");
+  }
+  run(process.execPath, ["scripts/final-image-lineage-gate.mjs", "--run-dir", runDir]);
+  run(process.execPath, ["scripts/final-delivery-gate.mjs", "--run-dir", runDir]);
+  const finalReport = readJson(path.join(qaDir, "final-delivery-gate-report.json"));
+  if (!["pass", "pass_with_warnings"].includes(finalReport.status)) {
+    throw new Error(`final delivery should pass after lineage and personalized text gates, got ${finalReport.status}`);
+  }
 });
 
 record("tldraw lockfile", () => {
@@ -719,8 +949,8 @@ record("production mode router smoke", () => {
     "--scene-requested", "true",
   ]);
   const singleQuality = readJson(path.join(singleQualityDir, "production-mode-router-report.json"));
-  if (singleQuality.selected_mode !== "quality_production") {
-    throw new Error(`single high-quality image should route to quality_production, got ${singleQuality.selected_mode}`);
+  if (singleQuality.selected_mode !== "single_image_quality_production") {
+    throw new Error(`single high-quality image should route to single_image_quality_production, got ${singleQuality.selected_mode}`);
   }
   if (!singleQuality.execution_policy.required_quality_path.includes("single-image-generation")) {
     throw new Error("single quality production should use the single-image path.");
@@ -730,6 +960,18 @@ record("production mode router smoke", () => {
   }
   if (singleQuality.execution_policy.required_quality_path.includes("anchor-batch-imagegen") || singleQuality.execution_policy.required_quality_path.includes("overview-contact-sheet")) {
     throw new Error("single quality production should not require anchor batch or delivery overview.");
+  }
+
+  const standardSingleDir = path.join(dir, "single-standard");
+  run(process.execPath, [
+    "scripts/production-mode-router.mjs",
+    "--out-dir", standardSingleDir,
+    "--user-text", "生成一张商品主图",
+    "--image-count", "1",
+  ]);
+  const standardSingle = readJson(path.join(standardSingleDir, "production-mode-router-report.json"));
+  if (standardSingle.selected_mode !== "single_image_quality_production") {
+    throw new Error(`normal single final image should not silently route to fast_generation, got ${standardSingle.selected_mode}`);
   }
 
   const fastDir = path.join(dir, "fast");

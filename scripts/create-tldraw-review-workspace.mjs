@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { collectScopedImages, imageScopeUsage } from "./lib/image-scope.mjs";
 
@@ -47,9 +48,39 @@ const runDir = scope.runDir || (args["run-dir"] ? path.resolve(args["run-dir"]) 
 const sessionId = safeSessionId(args["session-id"] || scope.runId || inferSessionId(outDir));
 const sourceImages = [...new Set(scope.images.map((item) => path.resolve(item)))];
 if (!sourceImages.length) usage();
+const sourceFingerprint = imageFingerprint(sourceImages);
 
 if (!fs.existsSync(templateDir)) {
   throw new Error(`Template directory not found: ${templateDir}`);
+}
+
+const existingManifest = readJsonSafe(path.join(outDir, "data", "import-manifest.json"));
+const canReuseWorkspace = existingManifest?.workspace?.source_fingerprint === sourceFingerprint
+  && fs.existsSync(path.join(outDir, "data", "annotations.json"))
+  && fs.existsSync(path.join(outDir, "data", "canvas-state.json"))
+  && fs.existsSync(path.join(outDir, "public", "imported-images"));
+if (canReuseWorkspace) {
+  const next = [
+    `node ${path.join(skillRoot, "scripts", "register-tldraw-review-session.mjs")} --workspace-dir ${outDir} --session-id ${sessionId}`,
+    `node ${path.join(skillRoot, "scripts", "start-tldraw-shared-service.mjs")} --session-id ${sessionId}`,
+  ];
+  const autoStartResult = autoStart ? openReviewSession({ skillRoot, outDir, sessionId, args }) : null;
+  const status = autoStart
+    ? autoStartResult?.status === "ready" ? "reused_and_started" : "reused_auto_start_blocked"
+    : "reused";
+  console.log(JSON.stringify({
+    status,
+    workspaceStatus: "reused",
+    outDir,
+    sessionId,
+    images: existingManifest.images?.length || sourceImages.length,
+    autoStart,
+    url: autoStartResult?.url || null,
+    autoStartResult,
+    next,
+  }, null, 2));
+  if (autoStart && autoStartResult?.status !== "ready") process.exitCode = 1;
+  process.exit(0);
 }
 
 fs.rmSync(outDir, { recursive: true, force: true });
@@ -92,6 +123,7 @@ const manifest = {
     source: "sellerpilot-product-image-industrial",
     image_source: scope.source,
     image_manifest: scope.manifestPath || "",
+    source_fingerprint: sourceFingerprint,
   },
   images,
   protocol: {
@@ -313,4 +345,17 @@ function lastJsonObject(output) {
   const text = String(output || "").trim();
   const start = text.lastIndexOf("\n{");
   return start >= 0 ? text.slice(start + 1) : text;
+}
+
+function imageFingerprint(images) {
+  const hash = crypto.createHash("sha256");
+  for (const image of images) {
+    const stat = fs.statSync(image);
+    hash.update(JSON.stringify({ image, size: stat.size, mtimeMs: Math.round(stat.mtimeMs) }));
+  }
+  return hash.digest("hex");
+}
+
+function readJsonSafe(file) {
+  try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return null; }
 }

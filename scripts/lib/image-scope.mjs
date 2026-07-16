@@ -90,6 +90,7 @@ export function createFinalImagesManifest({ runDir, imageDir, images, outPath, p
   const context = readRunContext(runDir);
   const manifestPath = outPath || path.join(runDir, "export", "final-images-manifest.json");
   const resolvedImages = images.map((file) => path.resolve(file));
+  const lineage = collectFinalImageLineage(runDir);
   const manifest = {
     schema_version: "sellerpilot.final_images_manifest.v1",
     created_at: new Date().toISOString(),
@@ -99,17 +100,95 @@ export function createFinalImagesManifest({ runDir, imageDir, images, outPath, p
     purpose,
     source_manifest: existingManifest?.manifest_path || null,
     image_count: resolvedImages.length,
-    images: resolvedImages.map((file, index) => ({
-      index: index + 1,
-      id: inferImageId(file, index),
-      file: path.basename(file),
-      path: file,
-      sha256: sha256File(file),
-    })),
+    images: resolvedImages.map((file, index) => {
+      const fileName = path.basename(file);
+      return {
+        index: index + 1,
+        id: inferImageId(file, index),
+        file: fileName,
+        path: file,
+        sha256: sha256File(file),
+        lineage: lineage[fileName] || {
+          source_type: "unknown",
+          note: "No final image lineage metadata was supplied before manifest creation.",
+        },
+      };
+    }),
   };
   fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
   fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
   return { manifest, manifestPath };
+}
+
+export function collectFinalImageLineage(runDir) {
+  if (!runDir) return {};
+  const byFile = {};
+  for (const rel of [
+    path.join("export", "final-image-lineage.json"),
+    path.join("qa", "final-image-lineage.json"),
+  ]) {
+    const file = path.join(runDir, rel);
+    if (!fs.existsSync(file)) continue;
+    try {
+      const parsed = readJson(file);
+      const records = Array.isArray(parsed.images) ? parsed.images : Array.isArray(parsed.lineage) ? parsed.lineage : [];
+      for (const item of records) {
+        const key = path.basename(item.file || item.path || item.final_image || "");
+        if (!key) continue;
+        byFile[key] = normalizeLineage(item, runDir);
+      }
+    } catch {
+      // Invalid lineage is checked by the lineage gate; manifest creation stays non-destructive.
+    }
+  }
+
+  const repairMapPath = path.join(runDir, "qa", "failed-asset-repair-map.json");
+  if (fs.existsSync(repairMapPath)) {
+    try {
+      const repairMap = readJson(repairMapPath);
+      const repairs = repairMap.repairs || {};
+      for (const [progressFile, finalImage] of Object.entries(repairs)) {
+        const key = path.basename(finalImage);
+        if (!key) continue;
+        byFile[key] = {
+          source_type: byFile[key]?.source_type || "repaired_final_asset",
+          ...byFile[key],
+          repair_of_progress_ids: unique([...(byFile[key]?.repair_of_progress_ids || []), progressFile]),
+          repair_map: path.relative(runDir, repairMapPath),
+        };
+      }
+    } catch {
+      // The repair map gate/final gate can report this; avoid breaking export.
+    }
+  }
+
+  return byFile;
+}
+
+function normalizeLineage(item, runDir) {
+  const out = {
+    source_type: item.source_type || item.origin || "unknown",
+  };
+  for (const key of [
+    "derived_from",
+    "approved_source_path",
+    "generated_asset_path",
+    "text_overlay_proof",
+    "transformation_type",
+    "render_method",
+    "reason",
+    "note",
+    "claims_new_scene_asset",
+  ]) {
+    if (item[key] != null && item[key] !== "") out[key] = item[key];
+  }
+  for (const key of ["repair_of_progress_ids", "personalized_text_items"]) {
+    if (Array.isArray(item[key])) out[key] = item[key];
+  }
+  for (const key of ["derived_from", "approved_source_path", "generated_asset_path", "text_overlay_proof"]) {
+    if (out[key] && path.isAbsolute(out[key])) out[key] = path.relative(runDir, out[key]);
+  }
+  return out;
 }
 
 export function readRunContext(runDir) {
@@ -196,6 +275,10 @@ function inferImageId(file, index) {
 
 function sha256File(file) {
   return crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+}
+
+function unique(items) {
+  return [...new Set(items.filter(Boolean))];
 }
 
 function readJson(file) {

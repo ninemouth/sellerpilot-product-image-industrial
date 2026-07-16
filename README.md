@@ -354,7 +354,53 @@ npm run plan:efficiency -- \
 
 这个计划不会降低成图质量。它的作用是把完整工业工作流收敛为当次任务真正需要的质量路径：保留源图理解、身份锁、紧凑套图规划、prompt layer、anchor batch、关键 QA、总览图和最终画布；跳过未触发的 URL 读取、完整市场研究、完整爆品挖掘、预生成画布和多份长报告。
 
-高质量多图任务还会写入 `generated-assets/generation-progress.json`。每生成一张图都应更新 completed / pending / failed；导出 manifest 后如果发现进度文件落后，可以用 `npm run progress:reconcile` 从当前 run 的 manifest 回填进度，避免已经完成的图片因为机械进度文件过期而反复重跑。长任务超过 15 分钟，或最终导出后进入 QA/交付收口前，应运行 runtime watchdog，判断当前是在正常等待生图/网络、QA gate 空转、成品已有但未收口，还是已经无进展卡住。
+高质量多图任务还会写入 `generated-assets/generation-progress.json`。每生成一张图都应更新 completed / pending / failed；导出 manifest 后如果发现进度文件落后，可以用 `npm run progress:reconcile` 从当前 run 的 manifest 回填进度，避免已经完成的图片因为机械进度文件过期而反复重跑。若 final manifest 还没有生成，但 `generated-assets/progress-*.json` 已经记录了 provider 子任务事实，可以用 `npm run progress:reconcile -- --run-dir <run-dir> --from-child-progress` 先恢复主进度。长任务超过 15 分钟，或最终导出后进入 QA/交付收口前，应运行 runtime watchdog，判断当前是在正常等待生图/网络、QA gate 空转、成品已有但未收口，还是已经无进展卡住。
+
+如果 `production-efficiency-plan.json` 已经列出可并行工作，不应只停留在文字计划。把独立任务写入 run-local DAG 后执行：
+
+```bash
+npm run orchestrate:production -- \
+  --run-dir runs/demo-amazon-bag \
+  --tasks runs/demo-amazon-bag/orchestration/tasks.json \
+  --execute
+```
+
+`tasks.json` 中每个 task 声明 `id`、`depends_on`、`inputs`、`outputs` 和 `command`。orchestrator 会写 `orchestration/production-orchestrator-state.json`，按依赖并行执行无关任务，按输入/命令 hash 复用未变化输出，看到 `orchestration/cancel` 时停止，并只在 identity、physical truth、prompt、anchor QA、final delivery 这类真实依赖点汇合。
+
+性能优化或长耗时复盘前，先运行 phase trace：
+
+```bash
+npm run trace:phases -- --run-dir runs/demo-amazon-bag
+```
+
+它会写入 `telemetry/phase-trace.json` 和 `.md`，包含 source/preflight、planning、provider、QA、export、canvas 阶段 span，以及 provider total、first byte、response、download 的 p50/p95。后续调整并发、timeout 或缓存策略应以这个事实文件为准，不以预算数字当 SLA。
+
+如果 provider 对同类场景或同一图片角色反复失败，不要继续堆 prompt。先运行失败熔断：
+
+```bash
+npm run qa:provider-instability -- --run-dir runs/demo-amazon-bag
+```
+
+当报告要求停止 provider retry 时，只允许复核已批准资产、降级不稳定场景、从已批准生成图做合规衍生补位，或先询问用户是否继续高成本重试。
+
+Etsy 个性化姓名、日期、monogram 等 exact personalized text 默认不交给 provider 直接写字。生产方式是先生成无字/弱字底图，再本地精确合成文字：
+
+```bash
+npm run qa:personalized-text -- \
+  --run-dir runs/demo-etsy-bag \
+  --name Olivia \
+  --date 06.16.2026 \
+  --font-family "Snell Roundhand" \
+  --visible-text-status pass
+```
+
+最终导出后，manifest 需要能说明每张图的来源。若包含裁切、衍生、失败角色修复或本地文字合成，运行：
+
+```bash
+npm run qa:lineage -- --run-dir runs/demo-etsy-bag
+```
+
+`export/final-images-manifest.json` 中每张图应包含 `lineage.source_type`，例如 `provider_generated`、`derived_from_approved_generated_asset`、`repaired_final_asset`、`local_text_overlay`；衍生图还要记录 `derived_from` / `approved_source_path`、`transformation_type` 和必要的 `repair_of_progress_ids`。这能让性能审计直接统计真实生成、衍生补位和文字合成的比例。
 
 ## 推荐输入
 
@@ -463,7 +509,15 @@ npm run progress:reconcile -- \
   --manifest runs/demo-amazon-bag/export/final-images-manifest.json
 ```
 
-这个命令只根据当前任务的 `export/final-images-manifest.json` 更新 `generated-assets/generation-progress.json`，不会重新生图，也不会替代 anchor batch QA。它用于修复“图片已经导出，但进度仍显示 planned / not_started”的卡点。
+这个命令只根据当前任务的 `export/final-images-manifest.json` 更新 `generated-assets/generation-progress.json`，不会重新生图，也不会替代 anchor batch QA。它用于修复“图片已经导出，但进度仍显示 planned / not_started”的卡点。若图片尚未导出为 final images，但 provider 子任务已经有 `progress-*.json`，使用：
+
+```bash
+npm run progress:reconcile -- \
+  --run-dir runs/demo-amazon-bag \
+  --from-child-progress
+```
+
+这会把已完成 provider 资产、失败 job、pending job 和 anchor QA 状态同步到主进度文件，但不会把中间图冒充最终交付图。
 
 长任务/卡点诊断：
 

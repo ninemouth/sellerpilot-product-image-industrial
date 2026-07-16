@@ -286,6 +286,16 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
 Use this before heavy planning or generation. It writes `planning/production-efficiency-plan.json`, keeps compact image-set planning, records triggered vs skipped work, sets pre-generation/research/QA budgets, and initializes `generated-assets/generation-progress.json`. This is the guard against quality production drifting into full industrial audit mode.
 
 ```bash
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/production-orchestrator.mjs \
+  --run-dir /abs/run \
+  --tasks /abs/run/orchestration/tasks.json \
+  --execute \
+  --concurrency 4
+```
+
+Use this when independent pre-generation work should run as a real DAG instead of a written plan. The task file may include source preflight, AI visual text read, platform profile load, provider resolve, brief assumptions, compact copy/visual notes, and post-export workspace preparation. Tasks declare `depends_on`, `inputs`, `outputs`, and `command`; the orchestrator writes `orchestration/production-orchestrator-state.json`, reuses unchanged outputs by task hash, honors `orchestration/cancel`, and leaves identity, physical-truth, prompt, anchor-QA, and final-delivery gates as explicit convergence points.
+
+```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/brief-intake-gate.mjs \
   --out-dir /abs/run/brief-intake \
   --platform "拼多多" \
@@ -530,6 +540,49 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
 ```
 
 Use this after image export when `generated-assets/generation-progress.json` is stale but the current run-scoped final-images manifest is correct. It updates progress evidence without regenerating approved images. It does not replace anchor batch QA.
+
+When final export has not happened but per-job provider progress files already exist, reconcile from child progress instead:
+
+```bash
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/reconcile-generation-progress.mjs \
+  --run-dir /abs/run \
+  --from-child-progress
+```
+
+This preserves completed provider assets, failed job ids, pending jobs, and anchor QA evidence in the main progress file without creating final delivery claims.
+
+```bash
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/production-phase-tracer.mjs \
+  --run-dir /abs/run
+```
+
+Use this after long-running generation, after provider failures, and before performance tuning. It writes `telemetry/phase-trace.json` and `.md` with source/preflight, planning, provider, QA, export, canvas spans plus provider total, first-byte, response, and download p50/p95 metrics. Use the trace data before changing timeout, concurrency, or quality gates.
+
+```bash
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/provider-instability-circuit-breaker.mjs \
+  --run-dir /abs/run
+```
+
+Use this after repeated provider failures or before deciding to keep retrying scene-heavy roles. It reads `generated-assets/progress-*.json` plus `qa/failed-asset-repair-map.json`, stops automatic provider retries when unresolved repeated failures exceed the threshold, and tells the workflow to preserve approved assets, downgrade unstable scenes, derive from approved assets when allowed, or ask the user before more high-cost retries.
+
+```bash
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/personalized-text-compositor-contract.mjs \
+  --run-dir /abs/run \
+  --name "Olivia" \
+  --date "06.16.2026" \
+  --font-family "Snell Roundhand" \
+  --visible-text-status pass
+```
+
+Use this for Etsy personalized products, wedding gifts, monograms, names, dates, and any exact buyer-specific visible text. The default production contract is provider-generated blank/weak-text base imagery plus local exact typography overlay, followed by text-layout proof and final raster visible-text review. Do not rely on provider-rendered exact names/dates unless the user explicitly accepts the accuracy risk.
+
+```bash
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/final-image-lineage-gate.mjs \
+  --run-dir /abs/run \
+  --manifest /abs/run/export/final-images-manifest.json
+```
+
+Use this after export when final images include derived crops, repaired roles, local text overlays, or imported/externally provided assets. The final manifest must declare each image's `lineage.source_type`, approved source asset, transformation type, repair IDs, and text overlay proof as applicable. Derived assets may be valid final images, but they must not be presented as fresh provider scene generations.
 
 ```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/runtime-watchdog.mjs \

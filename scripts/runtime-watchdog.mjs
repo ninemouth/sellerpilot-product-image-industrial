@@ -43,17 +43,21 @@ const qaLoopDecision = readJsonSafe(path.join(qaDir, "qa-loop-routing-decision.j
 const qaLoopState = readJsonSafe(path.join(qaDir, "qa-loop-state.json")) || null;
 const finalGate = readJsonSafe(path.join(qaDir, "final-delivery-gate-report.json")) || null;
 const overviewReport = readJsonSafe(path.join(runDir, "overview", "delivery-overview-report.json")) || null;
+const anchorDecision = readJsonSafe(path.join(runDir, "generated-assets", "anchor-batch-qa-decision.json")) || null;
 const thresholds = resolveThresholds({ args, plan, progress });
 const files = collectRunFiles(runDir);
+const childProgress = collectChildProgress(path.join(runDir, "generated-assets"));
 const latestActivity = latestFileActivity(files, now);
 const progressActivity = fileActivity(path.join(runDir, "generated-assets", "generation-progress.json"), now);
 const manifestImages = manifestImageCount(manifest);
-const completed = normalizeProgressImages(progress.completed_images);
-const pending = normalizeProgressImages(progress.pending_images);
-const failed = normalizeProgressImages(progress.failed_images);
+const completed = unique([...normalizeProgressImages(progress.completed_images), ...childProgress.completed]);
+const pending = unique([...normalizeProgressImages(progress.pending_images), ...childProgress.pending]);
+const failed = unique([...normalizeProgressImages(progress.failed_images), ...childProgress.failed]);
 const imageCount = Number(progress.image_count || plan.image_count || manifestImages || 0) || null;
 const ageSeconds = secondsBetween(parseDate(progress.updated_at || progress.created_at) || progressActivity?.mtime || latestActivity?.mtime, now);
 const runAgeSeconds = secondsBetween(parseDate(progress.created_at) || latestActivity?.oldestMtime || now, now);
+const lastMeaningfulProgressAt = latestMeaningfulProgress(progress, childProgress.items);
+const meaningfulProgressAgeSeconds = secondsBetween(lastMeaningfulProgressAt, now);
 const findings = [];
 const decision = classify();
 
@@ -70,10 +74,13 @@ const report = {
     completed_images: completed.length,
     pending_images: pending.length,
     failed_images: failed.length,
+    child_progress_files: childProgress.items.length,
     manifest_images: manifestImages,
     overview_exists: Boolean(overviewReport),
     final_gate_status: finalGate?.status || null,
     qa_loop_status: qaLoopDecision?.loop_decision?.status || null,
+    last_meaningful_progress_at: lastMeaningfulProgressAt ? lastMeaningfulProgressAt.toISOString() : null,
+    meaningful_progress_seconds_ago: meaningfulProgressAgeSeconds,
     latest_activity_seconds_ago: latestActivity ? latestActivity.secondsAgo : null,
     progress_activity_seconds_ago: progressActivity ? progressActivity.secondsAgo : null,
     run_age_seconds: Math.max(0, Math.round(runAgeSeconds || 0)),
@@ -109,8 +116,20 @@ function classify() {
   const finalImagesExist = manifestImages > 0;
   const noRecentActivity = latestSeconds != null && latestSeconds > thresholds.stale_after_seconds;
   const noRecentProgress = progressSeconds != null && progressSeconds > thresholds.stale_after_seconds;
+  const noMeaningfulProgress = meaningfulProgressAgeSeconds != null && meaningfulProgressAgeSeconds > thresholds.meaningful_progress_stale_seconds;
   const oldEnoughToWarn = Math.max(runAgeSeconds || 0, ageSeconds || 0) >= thresholds.warn_after_seconds;
   const oldEnoughToBlock = Math.max(runAgeSeconds || 0, ageSeconds || 0) >= thresholds.block_after_seconds;
+  const anchorDecisionStatus = normalize(anchorDecision?.qa_decision || anchorDecision?.status);
+  const remainingStartedBeforeAnchorQa = childProgress.items.some((item) => /^progress-remaining-/i.test(path.basename(item.file))) && !["continue", "pass", "approved"].includes(anchorDecisionStatus);
+
+  if (childProgress.items.length && normalize(progress.status) === "not_started") {
+    findings.push(finding("fail", "stale-main-generation-progress", `Main generation-progress.json is still not_started while ${childProgress.items.length} per-job progress file(s) exist.`));
+  }
+
+  if (remainingStartedBeforeAnchorQa) {
+    findings.push(finding("fail", "remaining-started-before-anchor-qa", "Remaining image jobs ran before anchor batch QA recorded continue/pass/approved."));
+    return makeDecision("needs_attention", "anchor_qa_bypassed", true, true, "Stop generation. Reconcile per-job progress, review the completed anchor asset(s), then continue only failed or missing jobs after anchor QA approval.", "Remaining jobs bypassed anchor QA approval.");
+  }
 
   if (loopStatus === "blocked_retry_budget_exhausted" || retryBudgetExhausted(qaLoopState)) {
     findings.push(finding("fail", "gate-churn-detected", "QA loop retry budget is exhausted. Stop automatic regeneration and route to the earliest failed node or ask for user/source input."));
@@ -136,6 +155,10 @@ function classify() {
   }
 
   if (oldEnoughToWarn && noRecentProgress && pending.length) {
+    if (noMeaningfulProgress) {
+      findings.push(finding("fail", "provider-meaningful-progress-stale", `No provider meaningful progress event for ${meaningfulProgressAgeSeconds}s while ${pending.length} pending asset(s) remain.`));
+      return makeDecision("needs_attention", "provider_wait_stale", true, true, "Stop waiting on the current provider job. Preserve completed assets, mark only the stale job retryable, and continue from the failed/missing asset list.", "Heartbeat alone is not meaningful provider progress.");
+    }
     findings.push(finding("warn", "active-generation-or-network-wait", `No generation-progress update for ${progressSeconds}s while ${pending.length} pending asset(s) remain.`));
     return makeDecision("continue", "active_generation_wait", false, true, "Give the user a progress update, then continue only pending assets if the image generation call is still active.", "The run is long, but pending assets suggest generation/network wait rather than a QA loop.");
   }
@@ -157,11 +180,47 @@ function resolveThresholds({ args: rawArgs, plan: rawPlan, progress: rawProgress
   const warn = Number(rawArgs["warn-after-seconds"] || policy.long_running_threshold_seconds || policy.user_visible_update_interval_seconds || 900);
   const block = Number(rawArgs["block-after-seconds"] || policy.block_after_seconds || Math.max(warn * 2, 1800));
   const stale = Number(rawArgs["stale-after-seconds"] || policy.stale_after_seconds || warn);
+  const meaningful = Number(rawArgs["meaningful-progress-stale-seconds"] || policy.meaningful_progress_stale_seconds || Math.min(stale, 600));
   return {
     warn_after_seconds: Number.isFinite(warn) && warn > 0 ? warn : 900,
     block_after_seconds: Number.isFinite(block) && block > 0 ? block : 1800,
     stale_after_seconds: Number.isFinite(stale) && stale > 0 ? stale : 900,
+    meaningful_progress_stale_seconds: Number.isFinite(meaningful) && meaningful > 0 ? meaningful : 600,
   };
+}
+
+function collectChildProgress(dir) {
+  const result = { items: [], completed: [], pending: [], failed: [] };
+  if (!fs.existsSync(dir)) return result;
+  for (const file of fs.readdirSync(dir).filter((item) => /^progress-.+\.json$/i.test(item)).map((item) => path.join(dir, item)).sort()) {
+    const item = readJsonSafe(file);
+    if (!item) continue;
+    const id = path.basename(file).replace(/^progress-/i, "").replace(/\.json$/i, "");
+    const status = normalize(item.status);
+    const normalized = { id, file, ...item };
+    result.items.push(normalized);
+    if (status === "completed") result.completed.push(...normalizeProgressImages(item.runtime?.completed_images || item.completed_images || [id]));
+    else if (status === "failed") result.failed.push(id);
+    else if (/generating|downloading|pending|running|prepared/.test(status)) result.pending.push(id);
+  }
+  return result;
+}
+
+function latestMeaningfulProgress(mainProgress, childItems) {
+  const dates = [];
+  for (const item of [mainProgress, ...childItems]) {
+    const direct = parseDate(item?.runtime?.last_meaningful_progress_at);
+    if (direct) dates.push(direct);
+    for (const event of item?.runtime?.meaningful_progress_events || []) {
+      const date = parseDate(event.at);
+      if (date) dates.push(date);
+    }
+  }
+  return dates.sort((a, b) => b.getTime() - a.getTime())[0] || null;
+}
+
+function unique(items) {
+  return [...new Set(items.filter(Boolean))];
 }
 
 function collectRunFiles(dir) {

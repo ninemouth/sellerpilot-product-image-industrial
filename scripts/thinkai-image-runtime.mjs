@@ -126,14 +126,15 @@ try {
     throw new RuntimeError("configuration_required", `${providerName} image API key is not configured in ${apiKeyEnv}.`);
   }
 
-  writeProgress("generating", { endpoint: request.endpoint });
+  writeProgress("generating", { endpoint: request.endpoint, progress_event: "request_started" });
   const generation = isEdit
     ? executeEdit({ baseUrl, apiKey, request, requestTimeoutSeconds })
     : executeGeneration({ baseUrl, apiKey, request, requestTimeoutSeconds });
   const response = await withHeartbeat("generating", () => generation);
+  writeProgress("generating", { endpoint: request.endpoint, progress_event: "response_received" });
   writeJson(path.join(outputDir, "response.json"), response);
 
-  writeProgress("downloading", { response_items: Array.isArray(response.data) ? response.data.length : 0 });
+  writeProgress("downloading", { response_items: Array.isArray(response.data) ? response.data.length : 0, progress_event: "download_started" });
   const assets = await withHeartbeat("downloading", () => writeImagesFromResponse(response, outputDir, downloadTimeoutSeconds));
   const summary = {
     status: "generated",
@@ -151,7 +152,7 @@ try {
     response_path: path.join(outputDir, "response.json"),
   };
   writeJson(path.join(outputDir, "summary.json"), summary);
-  writeProgress("completed", { completed_images: assets, summary_path: path.join(outputDir, "summary.json") });
+  writeProgress("completed", { completed_images: assets, summary_path: path.join(outputDir, "summary.json"), progress_event: "asset_verified" });
   console.log(JSON.stringify(summary, null, 2));
 } catch (error) {
   writeProgress("failed", { failure: publicFailure(error) });
@@ -267,7 +268,7 @@ async function executeEdit({ baseUrl, apiKey, request, requestTimeoutSeconds: ti
   if (request.maskPath) {
     curlArgs.push("-F", `mask=@${request.maskPath};type=image/png`);
   }
-  const text = await runCurl(curlArgs, "Image edit request failed");
+  const text = await runCurl(curlArgs, "Image edit request failed", { progressEvent: "provider_first_byte_received" });
   return parseJsonPayload(text, "Image edit request failed");
 }
 
@@ -293,16 +294,23 @@ async function requestJsonWithCurl({ url, apiKey, body, label, timeoutSeconds })
     `User-Agent: ${DEFAULT_USER_AGENT}`,
     "--data-binary",
     JSON.stringify(body),
-  ], label);
+  ], label, { progressEvent: "provider_first_byte_received" });
   return parseJsonPayload(text, label);
 }
 
-function runCurl(curlArgs, label) {
+function runCurl(curlArgs, label, options = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn("curl", curlArgs, { stdio: ["ignore", "pipe", "pipe"] });
     const stdout = [];
     const stderr = [];
-    child.stdout.on("data", (chunk) => stdout.push(chunk));
+    let firstByteRecorded = false;
+    child.stdout.on("data", (chunk) => {
+      stdout.push(chunk);
+      if (!firstByteRecorded && options.progressEvent) {
+        firstByteRecorded = true;
+        writeProgress("generating", { progress_event: options.progressEvent });
+      }
+    });
     child.stderr.on("data", (chunk) => stderr.push(chunk));
     child.on("error", (error) => reject(new RuntimeError("transport_unavailable", `${label}: ${error.message}`)));
     child.on("close", (code, signal) => {
@@ -344,7 +352,7 @@ async function writeImagesFromResponse(response, dir, timeoutSeconds) {
     const filename = response.data.length === 1 ? "image.png" : `image-${String(index + 1).padStart(2, "0")}.png`;
     const imagePath = path.join(dir, filename);
     fs.writeFileSync(imagePath, imageBytes);
-    writeProgress("downloading", { completed_downloads: index + 1, total_downloads: response.data.length });
+    writeProgress("downloading", { completed_downloads: index + 1, total_downloads: response.data.length, progress_event: "download_item_verified" });
     return {
       image_path: imagePath,
       image_url: item.url || null,
@@ -370,7 +378,7 @@ async function downloadImageBytes(url, timeoutSeconds) {
     "-H",
     `User-Agent: ${DEFAULT_USER_AGENT}`,
     url,
-  ], "Image download failed");
+  ], "Image download failed", { progressEvent: "download_first_byte_received" });
 }
 
 function detectImageSize(bytes) {
@@ -398,12 +406,32 @@ function writeProgress(status, details = {}) {
   if (!progressFile) return;
   const existing = readJsonSafe(progressFile);
   const now = new Date().toISOString();
+  const existingRuntime = existing.runtime || {};
+  const event = details.progress_event;
+  const eventHistory = Array.isArray(existingRuntime.meaningful_progress_events)
+    ? existingRuntime.meaningful_progress_events.slice(-24)
+    : [];
+  if (event) eventHistory.push({ event, at: now });
   fs.mkdirSync(path.dirname(progressFile), { recursive: true });
-  writeJson(progressFile, { ...existing, status, updated_at: now, runtime: { provider: providerName, model, api_key_env: apiKeyEnv, heartbeat_seconds: heartbeatSeconds, ...details } });
+  writeJson(progressFile, {
+    ...existing,
+    status,
+    updated_at: now,
+    runtime: {
+      ...existingRuntime,
+      provider: providerName,
+      model,
+      api_key_env: apiKeyEnv,
+      heartbeat_seconds: heartbeatSeconds,
+      ...details,
+      last_meaningful_progress_at: event ? now : existingRuntime.last_meaningful_progress_at || null,
+      meaningful_progress_events: eventHistory,
+    },
+  });
 }
 
 async function withHeartbeat(status, task) {
-  const timer = setInterval(() => writeProgress(status, { waiting: true }), heartbeatSeconds * 1000);
+  const timer = setInterval(() => writeProgress(status, { heartbeat: true, waiting: true }), heartbeatSeconds * 1000);
   try {
     return await task();
   } finally {

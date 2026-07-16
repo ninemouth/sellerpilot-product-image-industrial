@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import crypto from "node:crypto";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
@@ -45,6 +46,20 @@ const outDir = path.resolve(args["out-dir"]);
 const cardColor = parseColor(args["card-color"] || "#ffffff");
 const threshold = clamp(Number(args.threshold || 30), 8, 80);
 fs.mkdirSync(outDir, { recursive: true });
+const reportPath = path.join(outDir, "product-normalization-report.json");
+const transparentPath = path.join(outDir, "product-cutout-transparent.png");
+const cardSafePath = path.join(outDir, "product-on-card-safe.png");
+const cacheKey = normalizationCacheKey({ input, cardColor, threshold });
+const cached = readJsonSafe(reportPath);
+if (cached?.cache?.key === cacheKey && fs.existsSync(cached.outputs?.product_cutout_transparent || transparentPath) && fs.existsSync(cached.outputs?.product_on_card_safe || cardSafePath)) {
+  console.log(JSON.stringify({
+    status: "cache_hit",
+    transparentPath: cached.outputs.product_cutout_transparent,
+    cardSafePath: cached.outputs.product_on_card_safe,
+    reportPath,
+  }, null, 2));
+  process.exit(0);
+}
 
 let sharp;
 try {
@@ -89,12 +104,10 @@ for (let i = 0; i < width * height; i += 1) {
   }
 }
 
-const transparentPath = path.join(outDir, "product-cutout-transparent.png");
-const cardSafePath = path.join(outDir, "product-on-card-safe.png");
-await sharp(output, { raw: { width, height, channels: 4 } }).png({ compressionLevel: 9 }).toFile(transparentPath);
+await sharp(output, { raw: { width, height, channels: 4 } }).png({ compressionLevel: 6 }).toFile(transparentPath);
 await sharp(output, { raw: { width, height, channels: 4 } })
   .flatten({ background: cardColor })
-  .png({ compressionLevel: 9 })
+  .png({ compressionLevel: 6 })
   .toFile(cardSafePath);
 
 const backgroundCoverage = transparentPixels / Math.max(1, width * height);
@@ -121,6 +134,12 @@ const report = {
     semitransparent_edge_pixels: semitransparentPixels,
     background_coverage: Number(backgroundCoverage.toFixed(4)),
     layout_use_policy: "Use product-cutout-transparent.png for cards/infographics. Use product-on-card-safe.png only when the renderer cannot preserve alpha.",
+    png_compression_level: 6,
+  },
+  cache: {
+    key: cacheKey,
+    source_hash: fileHash(input),
+    reusable_when: "source hash, threshold, and card color are unchanged",
   },
   warnings: [
     "Use the original or enhanced source image for product recognition and visible-text reading.",
@@ -129,13 +148,30 @@ const report = {
   ],
 };
 
-fs.writeFileSync(path.join(outDir, "product-normalization-report.json"), `${JSON.stringify(report, null, 2)}\n`);
+fs.writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
 console.log(JSON.stringify({
   status: report.status,
   transparentPath,
   cardSafePath,
-  reportPath: path.join(outDir, "product-normalization-report.json"),
+  reportPath,
 }, null, 2));
+
+function normalizationCacheKey({ input: inputPath, cardColor: cardRgb, threshold: thresholdValue }) {
+  return crypto.createHash("sha256").update(JSON.stringify({
+    source_hash: fileHash(inputPath),
+    card_color: rgbToHex(cardRgb),
+    threshold: thresholdValue,
+    algorithm: "edge-connected-background-removal-v1-png6",
+  })).digest("hex");
+}
+
+function fileHash(file) {
+  return crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+}
+
+function readJsonSafe(file) {
+  try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return null; }
+}
 
 function estimateBorderBackground(buffer, widthValue, heightValue) {
   const samples = [];

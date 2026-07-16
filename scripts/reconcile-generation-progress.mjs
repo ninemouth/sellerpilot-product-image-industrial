@@ -21,11 +21,13 @@ function parseArgs(argv) {
 function usage() {
   console.error(`Usage:
 node scripts/reconcile-generation-progress.mjs --run-dir /abs/run \\
-  [--manifest /abs/run/export/final-images-manifest.json] [--mode runtime-generated|external-import]
+  [--manifest /abs/run/export/final-images-manifest.json] [--mode runtime-generated|external-import] [--from-child-progress]
 
 Updates generated-assets/generation-progress.json from the current run-scoped
 final-images manifest after export. This fixes stale progress evidence without
-regenerating already-approved images.`);
+regenerating already-approved images. Use --from-child-progress before final
+export when per-job progress-*.json files exist but the main progress file is
+stale.`);
   process.exit(2);
 }
 
@@ -36,6 +38,12 @@ const runDir = path.resolve(args["run-dir"]);
 const manifestPath = args.manifest ? path.resolve(args.manifest) : path.join(runDir, "export", "final-images-manifest.json");
 const progressPath = path.join(runDir, "generated-assets", "generation-progress.json");
 const mode = String(args.mode || "runtime-generated");
+const fromChildProgress = Boolean(args["from-child-progress"]);
+
+if (fromChildProgress) {
+  reconcileFromChildProgress();
+  process.exit(0);
+}
 
 if (!fs.existsSync(manifestPath)) {
   throw new Error(`Final images manifest not found: ${manifestPath}`);
@@ -95,4 +103,122 @@ function readJsonSafe(file) {
   } catch {
     return {};
   }
+}
+
+function reconcileFromChildProgress() {
+  const now = new Date().toISOString();
+  const existing = fs.existsSync(progressPath) ? readJsonSafe(progressPath) : {};
+  const child = collectChildProgress(path.join(runDir, "generated-assets"));
+  if (!child.length) throw new Error("No generated-assets/progress-*.json files found to reconcile.");
+  const completed = [];
+  const pending = [];
+  const failed = [];
+  const seenCompletedPaths = new Set();
+  for (const item of child) {
+    const status = normalize(item.status);
+    const id = item.id;
+    if (status === "completed") {
+      const images = normalizeCompletedImages(item);
+      if (images.length) {
+        for (const image of images) {
+          const key = image.path || image.file || id;
+          if (seenCompletedPaths.has(key)) continue;
+          seenCompletedPaths.add(key);
+          completed.push({ id, ...image, reconciled_from_child_progress: true });
+        }
+      } else {
+        completed.push({ id, reconciled_from_child_progress: true });
+      }
+    } else if (/generating|downloading|pending|running|prepared/.test(status)) {
+      pending.push(id);
+    } else if (status === "failed") {
+      failed.push({
+        id,
+        code: item.runtime?.failure?.code || item.failure?.code || "generation_failed",
+        reconciled_from_child_progress: true,
+      });
+    }
+  }
+  const expected = Number(existing.image_count || existing.expected_count || 0) || null;
+  const status = pending.length
+    ? "runtime_in_progress"
+    : failed.length
+      ? "partial_runtime_progress"
+      : expected && completed.length >= expected
+        ? "runtime_completed"
+        : "runtime_progress_reconciled";
+  const anchorDecision = readJsonSafe(path.join(runDir, "generated-assets", "anchor-batch-qa-decision.json"));
+  const progress = {
+    schema_version: "sellerpilot.generation_progress.v1",
+    ...existing,
+    status,
+    updated_at: now,
+    mode: existing.mode || "quality_production",
+    image_count: expected,
+    completed_images: completed,
+    pending_images: pending,
+    failed_images: failed,
+    next_action: failed.length || pending.length
+      ? "review anchor batch decision and continue only failed or missing assets"
+      : "run export gate, overview, tldraw, and final-delivery-gate",
+    reconciled_from_child_progress: true,
+    child_progress_files: child.map((item) => item.file),
+    anchor_batch: anchorDecision?.qa_decision || anchorDecision?.status ? {
+      qa_decision: anchorDecision.qa_decision || anchorDecision.status,
+      source: path.join(runDir, "generated-assets", "anchor-batch-qa-decision.json"),
+    } : existing.anchor_batch || null,
+  };
+  fs.mkdirSync(path.dirname(progressPath), { recursive: true });
+  fs.writeFileSync(progressPath, `${JSON.stringify(progress, null, 2)}\n`);
+  console.log(JSON.stringify({
+    status: "reconciled_from_child_progress",
+    runDir,
+    progress: progressPath,
+    completed_images: completed.length,
+    pending_images: pending.length,
+    failed_images: failed.length,
+  }, null, 2));
+}
+
+function collectChildProgress(dir) {
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir)
+    .filter((item) => /^progress-.+\.json$/i.test(item))
+    .sort()
+    .map((item) => {
+      const file = path.join(dir, item);
+      const progressItem = readJsonSafe(file);
+      if (!progressItem || !Object.keys(progressItem).length) return null;
+      return {
+        id: item.replace(/^progress-/i, "").replace(/\.json$/i, ""),
+        file,
+        ...progressItem,
+      };
+    })
+    .filter(Boolean);
+}
+
+function normalizeCompletedImages(item) {
+  const images = item.runtime?.completed_images || item.completed_images || [];
+  if (!Array.isArray(images)) return [];
+  return images.map((image, index) => {
+    if (typeof image === "string") {
+      return {
+        index: index + 1,
+        file: path.basename(image),
+        path: image,
+      };
+    }
+    const imagePath = image.image_path || image.path || "";
+    return {
+      index: index + 1,
+      file: path.basename(imagePath || image.file || ""),
+      path: imagePath || image.path || "",
+      actual_size: image.actual_size || null,
+    };
+  }).filter((image) => image.path || image.file);
+}
+
+function normalize(value) {
+  return String(value || "").trim().toLowerCase();
 }

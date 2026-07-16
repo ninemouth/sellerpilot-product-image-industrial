@@ -85,10 +85,15 @@ function selectMode(flags, ctx) {
   if (flags.explicit_fast && !flags.explicit_high_quality && !flags.multi_image_set && !flags.scene_requested && !flags.physical_function_risk) {
     return { mode: "fast_generation", reason: "single_low_risk_fast_request" };
   }
+  if (!flags.multi_image_set && !flags.explicit_fast && (ctx.imageCount || 1) <= 1) {
+    return { mode: "single_image_quality_production", reason: "single_final_image_request_needs_manifest_final_gate_and_tldraw" };
+  }
   if (flags.multi_image_set || flags.explicit_high_quality || flags.scene_requested || flags.physical_function_risk || flags.platform_research_needed) {
     return { mode: "quality_production", reason: "quality_or_multi_asset_request_needs_full_critical_path_without_audit_artifacts" };
   }
-  if ((ctx.imageCount || 1) <= 1) return { mode: "fast_generation", reason: "single_standard_image_request" };
+  if ((ctx.imageCount || 1) <= 1) {
+    return { mode: "single_image_quality_production", reason: "single_standard_final_image_request" };
+  }
   return { mode: "quality_production", reason: "default_for_ecommerce_final_assets" };
 }
 
@@ -108,26 +113,25 @@ function modePolicy(mode, flags) {
       skipped_by_default: ["full-run-skeleton", "full-research-brief", "tldraw", "industrial-gate-pack"],
     };
   }
-  if (mode === "quality_production") {
-    const singleImagePath = [
-      "brief-intake",
-      "direction-options-if-rough",
-      "source-understanding-ai-text-first-ocr-if-needed",
-      "identity-lock",
-      flags.physical_function_risk ? "physical-truth-lock-and-gate" : "physical-truth-check-if-triggered",
-      flags.platform_research_needed ? "targeted-platform-research" : "cached-platform-profile",
-      "single-image-visual-plan",
-      "copy-strategy-gate-if-visible-copy",
-      "localized-copy-qa-gate-if-locale-needs-review",
-      "prompt-layer-gate",
-      "single-image-generation",
-      "identity-marketing-export-final-gates",
-      "final-image-manifest",
-      "post-generation-tldraw-auto-start",
-    ];
+  if (mode === "single_image_quality_production") {
     return {
       ...common,
-      required_quality_path: singleImage ? singleImagePath : [
+      required_quality_path: singleImageQualityPath(flags),
+      skipped_by_default: [
+        "anchor-batch-imagegen",
+        "overview-contact-sheet",
+        "verbose-industrial-reports",
+        "pre-generation-always-on-tldraw",
+        "untriggered-product-url-reader",
+        "untriggered-live-web-research",
+        "full-bestseller-mining-unless-requested",
+      ],
+    };
+  }
+  if (mode === "quality_production") {
+    return {
+      ...common,
+      required_quality_path: singleImage ? singleImageQualityPath(flags) : [
         "brief-intake",
         "direction-options-if-rough",
         "source-understanding-ai-text-first-ocr-if-needed",
@@ -173,6 +177,25 @@ function modePolicy(mode, flags) {
     required_quality_path: ["selftests", "fixtures", "focused-debug-artifacts"],
     skipped_by_default: ["real-user-delivery-unless-explicit"],
   };
+}
+
+function singleImageQualityPath(flags) {
+  return [
+      "brief-intake",
+      "direction-options-if-rough",
+      "source-understanding-ai-text-first-ocr-if-needed",
+      "identity-lock",
+      flags.physical_function_risk ? "physical-truth-lock-and-gate" : "physical-truth-check-if-triggered",
+      flags.platform_research_needed ? "targeted-platform-research" : "cached-platform-profile",
+      "single-image-visual-plan",
+      "copy-strategy-gate-if-visible-copy",
+      "localized-copy-qa-gate-if-locale-needs-review",
+      "prompt-layer-gate",
+      "single-image-generation",
+      "identity-marketing-export-final-gates",
+      "final-image-manifest",
+      "post-generation-tldraw-auto-start",
+    ];
 }
 
 function toMarkdown(report) {
