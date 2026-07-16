@@ -22,8 +22,6 @@ const args = parseArgs(process.argv);
 const codexHome = path.resolve(args["codex-home"] || process.env.CODEX_HOME || path.join(os.homedir(), ".codex"));
 const skillsDir = path.join(codexHome, "skills");
 const baseSkill = path.join(skillsDir, "sellerpilot-product-image-industrial");
-const thinkAiAlias = path.join(skillsDir, "sellerpilot-product-image-industrial-thinkai");
-const proxyAlias = path.join(skillsDir, "sellerpilot-product-image-industrial-proxy");
 const providerConfig = path.join(codexHome, "sellerpilot-product-image-industrial", "image-provider.json");
 const report = {
   schema_version: "sellerpilot.codex_path_info.v1",
@@ -34,8 +32,6 @@ const report = {
   skills_dir: skillsDir,
   installed_skills: {
     sellerpilot_product_image_industrial: baseSkill,
-    sellerpilot_product_image_industrial_thinkai_alias: thinkAiAlias,
-    sellerpilot_product_image_industrial_proxy_alias: proxyAlias,
   },
   image_provider_config: providerConfig,
   shell_examples: shellExamples({ codexHome, skillsDir, baseSkill }),

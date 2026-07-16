@@ -12,9 +12,9 @@
   "scripts": {
     "verify": "node scripts/verify-skill.mjs",
     "sync": "npm run sync:codex",
-    "sync:codex": "node scripts/sync-to-codex-skill.mjs --skill-name sellerpilot-product-image-industrial && node scripts/sync-compatibility-aliases.mjs",
+    "sync:codex": "node scripts/sync-to-codex-skill.mjs --skill-name sellerpilot-product-image-industrial",
     "sync:aliases": "node scripts/sync-compatibility-aliases.mjs",
-    "sync:thinkai": "node scripts/sync-compatibility-aliases.mjs",
+    "sync:thinkai": "node scripts/sync-compatibility-aliases.mjs --only sellerpilot-product-image-industrial-thinkai",
     "paths:codex": "node scripts/codex-path-info.mjs",
     "configure:image-provider": "node scripts/configure-image-provider.mjs",
     "configure:thinkai": "node scripts/configure-image-provider.mjs",

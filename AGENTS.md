@@ -64,7 +64,7 @@ Intent -> Normalize -> Mode Router -> Efficiency Plan -> Brief Intake Gate -> So
 45. ThinkAI 或任何 provider 生图前必须先写 provider-compatible 的平台比例 generation spec；不得以横向默认尺寸生成后才由 export gate 发现比例不符。多图任务必须先完成 anchor batch QA，之后才可对独立剩余角色使用最多 2 路受控并发；不得在 anchor QA 前并发整套生图。
 46. 共享 tldraw 服务的模板和依赖必须在 skill 安装或更新时预热到 `${CODEX_HOME:-$HOME/.codex}/sellerpilot-product-image-industrial/canvas-service`。若更新发现依赖缺失或 lockfile 已变化，必须先完成 `npm ci` 再结束更新；生图结束后的画布启动不得执行依赖安装，只能复用已准备依赖并做就绪检查。
 47. 对穿戴甲、美甲贴、纹身贴、贴纸、印花织物等 `surface_material_transfer` 商品，源商品图的可见图案必须作为 canonical material，不是可由模型自由重绘的身份参考。必须先剔除背景、网页 UI、文案和水印，再记录每种材质的色彩、色温、亮度层级、渐变方向、纹理和形状；只允许为目标表面进行透视、曲率、遮挡、尺寸和有限环境光适配。最终交付前必须通过 `surface-material-transfer-gate`，失败只重做受影响材质/区域，不得泛化整套重生图。
-48. 对用户只展示并维护 `$sellerpilot-product-image-industrial`。`sellerpilot-product-image-industrial-thinkai` 和 `sellerpilot-product-image-industrial-proxy` 仅是兼容别名，必须加载主 skill 的同一套 workflow/QA/画布逻辑；不得再作为独立版本或独立发布产物维护。旧 ThinkAI 别名只保留第三方 provider preference，以保护历史调用语义。
+48. 对用户只展示并安装 `$sellerpilot-product-image-industrial`。`sellerpilot-product-image-industrial-thinkai` 和 `sellerpilot-product-image-industrial-proxy` 仅保留为仓库内迁移模板，默认不得安装，以免 Codex skill picker 出现重复条目；只有明确为历史用户恢复旧调用名时才按需安装，且必须加载主 skill 的同一套 workflow/QA/画布逻辑。
 
 ## Default Workflow
 

@@ -145,7 +145,6 @@ record("README variant naming contract", () => {
   }
   for (const required of [
     "sellerpilot-product-image-industrial",
-    "sellerpilot-product-image-industrial-proxy",
     "npm run paths:codex",
     "请检查并更新 sellerpilot-product-image-industrial",
   ]) {
@@ -566,6 +565,9 @@ record("skill sync release metadata branch smoke", () => {
   if (!release.local_commit || !release.remote_url) {
     throw new Error("sync release metadata should include local commit and remote url.");
   }
+  if (fs.existsSync(path.join(dest, "compatibility-aliases"))) {
+    throw new Error("main skill sync must exclude migration alias templates so Codex cannot discover nested duplicate skills.");
+  }
   const installedCopy = path.join(dir, "installed-copy");
   fs.mkdirSync(installedCopy, { recursive: true });
   fs.copyFileSync(path.join(dest, "SKILL.md"), path.join(installedCopy, "SKILL.md"));
@@ -652,8 +654,8 @@ record("codex path info smoke", () => {
   if (!report.platform || !report.os_type || !report.codex_home || !report.skills_dir) {
     throw new Error("codex path info should include platform, os type, codex home, and skills dir.");
   }
-  if (!report.installed_skills?.sellerpilot_product_image_industrial || !report.installed_skills?.sellerpilot_product_image_industrial_thinkai_alias || !report.installed_skills?.sellerpilot_product_image_industrial_proxy_alias) {
-    throw new Error("codex path info should include the main SellerPilot skill and compatibility aliases.");
+  if (!report.installed_skills?.sellerpilot_product_image_industrial || Object.keys(report.installed_skills).length !== 1) {
+    throw new Error("codex path info should expose only the single user-facing SellerPilot skill.");
   }
   if (!report.image_provider_config?.endsWith(path.join("sellerpilot-product-image-industrial", "image-provider.json"))) {
     throw new Error("codex path info should include the shared image provider config path.");
@@ -663,9 +665,6 @@ record("codex path info smoke", () => {
   const custom = JSON.parse(customOut);
   if (custom.codex_home !== path.resolve(dir) || !custom.skills_dir.startsWith(path.resolve(dir))) {
     throw new Error("codex path info should honor --codex-home for custom installs.");
-  }
-  if (!custom.installed_skills.sellerpilot_product_image_industrial_thinkai_alias.startsWith(custom.skills_dir)) {
-    throw new Error("custom compatibility alias path should be under the reported skills dir.");
   }
 });
 

@@ -64,6 +64,7 @@ const syncExcludes = new Set([
   "runs",
   "outputs",
   "dist",
+  "compatibility-aliases",
   ".cache",
   ".DS_Store",
   ".sellerpilot-skill-release.json",
@@ -129,7 +130,7 @@ console.log(JSON.stringify({
 
 function copyTree(src, target, { deleteExtra, excludes }) {
   fs.mkdirSync(target, { recursive: true });
-  const sourceNames = new Set(fs.readdirSync(src));
+  const sourceNames = new Set(fs.readdirSync(src).filter((name) => !excludes.has(name)));
   for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
     if (excludes.has(entry.name)) continue;
     const sourcePath = path.join(src, entry.name);
@@ -150,7 +151,9 @@ function copyTree(src, target, { deleteExtra, excludes }) {
   }
   if (!deleteExtra) return;
   for (const entry of fs.readdirSync(target, { withFileTypes: true })) {
-    if (excludes.has(entry.name)) continue;
+    // Private runtime config stays local, but alias templates must be removed
+    // from an installed main skill so Codex cannot recursively discover them.
+    if (excludes.has(entry.name) && entry.name !== "compatibility-aliases") continue;
     if (!sourceNames.has(entry.name)) {
       fs.rmSync(path.join(target, entry.name), { recursive: true, force: true });
     }

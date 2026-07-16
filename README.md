@@ -15,7 +15,7 @@
 
 - **只安装和调用一个主 skill**：用户只需使用 `sellerpilot-product-image-industrial`。它会自动识别当前 Codex 是否使用原生 provider 或第三方 OpenAI-compatible `model_provider`，并路由到正确的图片执行层。
 - **ThinkAI 是默认第三方 profile**：第三方模式默认使用 `https://www.thinkai.tv/v1` 与 `gpt-image-2`；若 Codex `config.toml` 已配置其他第三方 endpoint，则自动采用该 endpoint、模型和 key 环境变量。
-- **兼容旧名称但不再双维护**：`sellerpilot-product-image-industrial-thinkai` 和 `sellerpilot-product-image-industrial-proxy` 仅是轻量兼容别名，加载主 skill 的同一套 workflow、QA、画布与店铺记忆逻辑。
+- **不再产生重复条目**：旧 ThinkAI/Proxy 名称只保留为仓库内迁移模板，不会随安装或更新进入 Codex skill 列表。
 - **跨平台路径识别**：`npm run paths:codex` 会输出 macOS/Linux/Windows 的主 skill、兼容别名与统一 provider 配置路径。
 
 2026-07-10 版本重点增强了店铺统一风格记忆和商业研究闭环：
@@ -84,7 +84,7 @@ npm install
 
 主 skill 会先解析 provider：原生 Codex 环境使用 `imagegen` / `image_gen`；当前 Codex 配置选用第三方 `model_provider` 时，使用该 OpenAI-compatible endpoint。它不猜测会员身份，也不会静默切换模型。ThinkAI 是第三方模式的默认 profile，模型为 `gpt-image-2`。
 
-旧用户仍可使用 `$sellerpilot-product-image-industrial-thinkai` 或 `$sellerpilot-product-image-industrial-proxy`，但它们只是兼容别名，统一加载主 skill，分别偏好已配置的第三方 provider。
+旧 ThinkAI/Proxy 名称只为历史迁移保留模板，不会默认安装；Codex 列表中只应显示主 skill。
 
 ### 店铺统一风格记忆
 
@@ -180,7 +180,7 @@ Windows 默认路径是：
 
 https://github.com/ninemouth/sellerpilot-product-image-industrial
 
-注意：这个 skill 位于仓库根目录，请使用 --path .，并把安装后的 skill 名称设为 sellerpilot-product-image-industrial。安装完成后请验证 SKILL.md 存在。若本机已有旧的 sellerpilot-product-image-industrial-thinkai 安装，请把它替换为兼容别名而不是第二套完整 skill。提醒我重启 Codex。
+注意：这个 skill 位于仓库根目录，请使用 --path .，并把安装后的 skill 名称设为 sellerpilot-product-image-industrial。安装完成后请验证 SKILL.md 存在，并清理旧的 sellerpilot-product-image-industrial-thinkai / sellerpilot-product-image-industrial-proxy 安装目录，避免显示重复条目。提醒我重启 Codex。
 ```
 
 Codex 应该会使用内置的 `skill-installer`。安装成功后，重启 Codex。
@@ -232,13 +232,13 @@ cd sellerpilot-product-image-industrial
 npm run verify
 ```
 
-同步主 skill 和两个轻量兼容别名到 Codex skills 目录：
+同步唯一主 skill 到 Codex skills 目录：
 
 ```bash
 npm run sync
 ```
 
-同步脚本会先备份旧版本，再同步主 skill 和两个兼容别名，并验证每个安装目录与对应源目录一致。它不会覆盖 `${CODEX_HOME:-$HOME/.codex}/sellerpilot-product-image-industrial/image-provider.json` 中的私密 provider 配置。同步脚本是 Node 原生实现，支持 macOS、Linux 和 Windows。
+同步脚本会先备份旧版本，再同步唯一主 skill，并验证安装目录与源码一致。它不会覆盖 `${CODEX_HOME:-$HOME/.codex}/sellerpilot-product-image-industrial/image-provider.json` 中的私密 provider 配置。同步脚本是 Node 原生实现，支持 macOS、Linux 和 Windows。
 
 ### 方式 4：更新已经安装过的 skill
 
@@ -248,7 +248,7 @@ npm run sync
 请检查并更新 sellerpilot-product-image-industrial
 ```
 
-这句话已经授权 Codex 检查、拉取、验证并同步唯一主 skill；有旧 alias 时一并更新。保留本地 clone 的用户也可以运行：
+这句话已经授权 Codex 检查、拉取、验证并同步唯一主 skill，并清理历史 alias 的重复条目。保留本地 clone 的用户也可以运行：
 
 ```bash
 cd sellerpilot-product-image-industrial

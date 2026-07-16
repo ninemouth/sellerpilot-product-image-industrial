@@ -216,7 +216,7 @@ npm run configure:image-provider -- --api-key "<API_KEY>"
 
 Use `--base-url`, `--model`, `--name`, or `--api-key-env` only when the current third-party proxy differs from ThinkAI.
 
-`$sellerpilot-product-image-industrial-thinkai` and `$sellerpilot-product-image-industrial-proxy` remain compatibility aliases only. They load this main skill and prefer `third_party_proxy`; new users should only invoke `$sellerpilot-product-image-industrial`.
+The old ThinkAI/Proxy names are repository migration templates only and are not installed by default, so Codex shows one SellerPilot skill. New and updated users should invoke only `$sellerpilot-product-image-industrial`.
 
 For resolved third-party provider runs:
 
