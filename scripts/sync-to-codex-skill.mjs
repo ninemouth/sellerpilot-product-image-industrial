@@ -22,10 +22,14 @@ function parseArgs(argv) {
 
 function usage() {
   console.error(`Usage:
-node scripts/sync-to-codex-skill.mjs [--source /abs/skill] [--dest /abs/codex/skill] [--remote-branch branch] [--skip-verify] [--no-backup]
+node scripts/sync-to-codex-skill.mjs [--source /abs/skill] [--dest /abs/codex/skill] [--remote-branch branch] [--skip-verify] [--no-backup] [--include-diagnostics]
 
 Runs verification by default, backs up the installed skill, copies this project
-to the Codex skill directory, and verifies source/destination content matches.`);
+to the Codex skill directory, and verifies source/destination content matches.
+
+Default stdout is safe to summarize to a user and omits local source,
+destination, backup, and Codex home paths. Use --include-diagnostics only for
+internal debugging.`);
   process.exit(2);
 }
 
@@ -52,6 +56,7 @@ function timestamp() {
 
 const args = parseArgs(process.argv);
 if (args.help) usage();
+const includeDiagnostics = Boolean(args["include-diagnostics"]);
 
 const source = path.resolve(args.source || new URL("..", import.meta.url).pathname);
 const codexHome = process.env.CODEX_HOME || path.join(os.homedir(), ".codex");
@@ -84,12 +89,12 @@ let backupDir = null;
 if (fs.existsSync(dest) && !args["no-backup"]) {
   fs.mkdirSync(backupRoot, { recursive: true });
   backupDir = path.join(backupRoot, `${skillName}-${timestamp()}`);
-  console.log(`Backing up installed skill to ${backupDir}`);
+  console.log(includeDiagnostics ? `Backing up installed skill to ${backupDir}` : "Backing up installed skill.");
   copyTree(dest, backupDir, { deleteExtra: false, excludes: new Set() });
 }
 
 fs.mkdirSync(dest, { recursive: true });
-console.log(`Syncing ${source} -> ${dest}`);
+console.log(includeDiagnostics ? `Syncing ${source} -> ${dest}` : "Syncing development skill to installed Codex skill.");
 copyTree(source, dest, { deleteExtra: true, excludes: syncExcludes });
 
 console.log("Verifying source and installed skill are identical...");
@@ -113,20 +118,28 @@ if (fs.existsSync(canvasScript)) {
   }
 }
 
-console.log(JSON.stringify({
+const safeSummary = {
   status: "synced",
-  source,
-  dest,
-  backup: backupDir,
-  release: releaseMetadata,
-  canvas_preparation: canvasPreparationReport,
-  paths: {
-    os: process.platform,
-    codex_home: codexHome,
-    skills_dir: path.join(codexHome, "skills"),
-    installed_skill: dest,
-  },
-}, null, 2));
+  skill_name: skillName,
+  release: publicReleaseMetadata(releaseMetadata),
+  canvas_preparation: publicCanvasPreparation(canvasPreparationReport),
+  user_message: "SellerPilot product image skill was verified and synced.",
+};
+if (includeDiagnostics) {
+  safeSummary.diagnostics = {
+    source,
+    dest,
+    backup: backupDir,
+    release: releaseMetadata,
+    paths: {
+      os: process.platform,
+      codex_home: codexHome,
+      skills_dir: path.join(codexHome, "skills"),
+      installed_skill: dest,
+    },
+  };
+}
+console.log(JSON.stringify(safeSummary, null, 2));
 
 function copyTree(src, target, { deleteExtra, excludes }) {
   fs.mkdirSync(target, { recursive: true });
@@ -222,6 +235,34 @@ function buildReleaseMetadata({ source: sourceDir, dest: destDir }) {
     remote_url: gitValue(sourceDir, ["config", "--get", "remote.origin.url"]) || existingRelease.remote_url || gitValue(fallbackGitRoot, ["config", "--get", "remote.origin.url"]) || normalizeGitUrl(packageJson.repository?.url) || "",
     remote_branch: args["remote-branch"] || existingRelease.remote_branch || detectRemoteBranch(sourceDir) || detectRemoteBranch(fallbackGitRoot) || "main",
     synced_at: new Date().toISOString(),
+  };
+}
+
+function publicReleaseMetadata(releaseMetadata) {
+  return {
+    schema_version: releaseMetadata.schema_version,
+    package_version: releaseMetadata.package_version,
+    local_commit: releaseMetadata.local_commit,
+    local_branch: releaseMetadata.local_branch,
+    remote_branch: releaseMetadata.remote_branch,
+    synced_at: releaseMetadata.synced_at,
+  };
+}
+
+function publicCanvasPreparation(report) {
+  return {
+    status: report?.status || "unknown",
+    dependency: {
+      status: report?.dependency?.status || "",
+      lock_hash: report?.dependency?.lock_hash || "",
+      would_install: Boolean(report?.dependency?.would_install),
+    },
+    templateSync: {
+      source_hash: report?.templateSync?.source_hash || "",
+      previous_hash: report?.templateSync?.previous_hash || null,
+      changed: Boolean(report?.templateSync?.changed),
+      dry_run: Boolean(report?.templateSync?.dry_run),
+    },
   };
 }
 

@@ -498,6 +498,12 @@ npm run verify
 npm run check:update -- --cache-ttl-hours 24 --timeout-ms 1500
 ```
 
+默认输出是可用于用户提示的安全摘要，不包含本机路径、临时目录、cache/backup/source/dest 路径或 raw network/git 错误。只有内部排错时才使用：
+
+```bash
+npm run check:update -- --include-diagnostics
+```
+
 选择生产模式：
 
 ```bash
@@ -754,6 +760,8 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
 - `update_available`：安装版落后于 GitHub，Codex 必须先询问是否现在更新；用户选择前不进入生产规划、生图、QA 或画布启动。
 - `unknown_local_revision` / `unknown_remote_revision`：无法确认版本，例如网络不可达、没有 release metadata 或远端超时。此时不阻塞出图，但不能声称当前安装版已是最新。
 
+用户可见提示只能复述默认安全摘要：版本状态、是否需要更新、下一步。不得把 `--include-diagnostics` 输出、`.sellerpilot-skill-release.json`、`source_path`、`dest_path`、`skill_root`、backup/cache 路径、临时 build source、development clone、本机用户名、本机绝对路径或 raw network/curl/git 错误粘贴给用户。
+
 为什么不完全自动更新：
 
 - Codex skill 是本地能力目录，覆盖前应该备份并验证。
@@ -769,6 +777,14 @@ npm run sync -- --source "$PWD"
 ```
 
 `npm run sync` 会备份旧安装版、同步当前源码、验证开发目录和安装目录一致，并写入 `.sellerpilot-skill-release.json`。后续 `check:update` 会用这个 release metadata 判断本地安装版是否落后于 GitHub。同步脚本默认记录当前 git upstream 分支；如果你需要明确指定分支，可以使用：
+
+```bash
+npm run sync -- --source "$PWD" --remote-branch main
+```
+
+同步脚本默认 stdout 也是安全摘要；如需内部路径证据，用 `npm run sync -- --source "$PWD" --include-diagnostics`，但不要把 diagnostics 原样作为用户提示。
+
+历史兼容 alias 只在迁移旧调用名时使用：
 
 ```bash
 node scripts/sync-compatibility-aliases.mjs

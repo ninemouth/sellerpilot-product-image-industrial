@@ -21,11 +21,15 @@ function parseArgs(argv) {
 
 function usage() {
   console.error(`Usage:
-node scripts/check-skill-update.mjs [--skill-root /abs/skill] [--remote URL] [--branch main] [--cache-ttl-hours 24] [--timeout-ms 1500]
+node scripts/check-skill-update.mjs [--skill-root /abs/skill] [--remote URL] [--branch main] [--cache-ttl-hours 24] [--timeout-ms 1500] [--include-diagnostics]
 
 Checks whether the installed SellerPilot skill appears behind its GitHub
 remote. The check is cache-first and best-effort; it must never block image
-generation or QA when the network is slow/unavailable.`);
+generation or QA when the network is slow/unavailable.
+
+Default stdout is safe to summarize to a user and omits local paths, cache
+locations, raw remote errors, and install/source directories. Use
+--include-diagnostics only for internal debugging.`);
   process.exit(2);
 }
 
@@ -41,9 +45,11 @@ const pkg = readJson(path.join(skillRoot, "package.json")) || {};
 const remote = args.remote || release.remote_url || normalizeGitUrl(pkg.repository?.url) || "https://github.com/ninemouth/sellerpilot-product-image-industrial.git";
 const branch = args.branch || release.remote_branch || "main";
 const cached = readJson(cacheFile);
+const includeDiagnostics = Boolean(args["include-diagnostics"]);
 
 if (!args.force && cached?.checked_at && ttlMs > 0 && Date.now() - Date.parse(cached.checked_at) < ttlMs) {
-  console.log(JSON.stringify({ ...cached, cache_hit: true }, null, 2));
+  const output = makeOutputReport({ report: cached, cacheHit: true, includeDiagnostics });
+  console.log(JSON.stringify(output, null, 2));
   process.exit(0);
 }
 
@@ -56,24 +62,37 @@ const report = {
   needs_update: status === "update_available",
   checked_at: new Date().toISOString(),
   cache_hit: false,
-  skill_root: skillRoot,
-  local,
+  local: publicLocal(local),
   remote: {
-    url: remote,
     branch,
     commit: remoteResult.commit,
     status: remoteResult.status,
-    error: remoteResult.error || null,
+    error_summary: publicRemoteErrorSummary(remoteResult),
   },
+  user_message: userMessage(status),
   install_hint: status === "update_available"
-    ? "Ask Codex to update the skill from https://github.com/ninemouth/sellerpilot-product-image-industrial, or run the repository sync script from the development copy."
+    ? "Ask whether to update the SellerPilot product image skill before starting production."
     : "",
   non_blocking_policy: "If this check is unknown, timed out, or cached, continue the image workflow and surface only a concise note.",
+  diagnostics: {
+    skill_root: skillRoot,
+    cache_file: cacheFile,
+    remote_url: remote,
+    local,
+    remote: {
+      url: remote,
+      branch,
+      commit: remoteResult.commit,
+      status: remoteResult.status,
+      source: remoteResult.source || "",
+      error: remoteResult.error || null,
+    },
+  },
 };
 
 fs.mkdirSync(path.dirname(cacheFile), { recursive: true });
 fs.writeFileSync(cacheFile, JSON.stringify(report, null, 2));
-console.log(JSON.stringify(report, null, 2));
+console.log(JSON.stringify(makeOutputReport({ report, cacheHit: false, includeDiagnostics }), null, 2));
 if (args["fail-on-update"] && report.needs_update) process.exitCode = 1;
 
 function getLocalRevision(root, releaseMeta, packageJson) {
@@ -112,6 +131,70 @@ function decideStatus(local, remoteResult) {
   if (remoteResult.status !== "ok" || !remoteResult.commit) return "unknown_remote_revision";
   if (local.commit === remoteResult.commit) return "current";
   return "update_available";
+}
+
+function makeOutputReport({ report, cacheHit, includeDiagnostics: withDiagnostics }) {
+  const safe = {
+    schema_version: report.schema_version || "sellerpilot.skill_update_status.v1",
+    status: report.status || "unknown_remote_revision",
+    needs_update: Boolean(report.needs_update),
+    checked_at: report.checked_at || "",
+    cache_hit: Boolean(cacheHit),
+    local: publicLocal(report.local || report.diagnostics?.local || {}),
+    remote: publicRemote(report.remote || report.diagnostics?.remote || {}),
+    user_message: report.user_message || userMessage(report.status),
+    install_hint: report.install_hint || "",
+    non_blocking_policy: report.non_blocking_policy || "If this check is unknown, timed out, or cached, continue the image workflow and surface only a concise note.",
+  };
+  if (!withDiagnostics) return safe;
+  return {
+    ...safe,
+    diagnostics: report.diagnostics || {
+      skill_root: report.skill_root || "",
+      cache_file: cacheFile,
+      remote_url: report.remote?.url || remote,
+      local: report.local || {},
+      remote: report.remote || {},
+    },
+  };
+}
+
+function publicLocal(local) {
+  return {
+    commit: normalizeCommit(local.commit),
+    source: safeToken(local.source),
+    branch: safeToken(local.branch),
+    package_version: safeToken(local.package_version),
+    synced_at: safeToken(local.synced_at),
+  };
+}
+
+function publicRemote(remoteReport) {
+  return {
+    branch: safeToken(remoteReport.branch || branch),
+    commit: normalizeCommit(remoteReport.commit),
+    status: safeToken(remoteReport.status),
+    error_summary: publicRemoteErrorSummary(remoteReport),
+  };
+}
+
+function publicRemoteErrorSummary(remoteReport) {
+  if (!remoteReport?.error) return null;
+  if (String(remoteReport.error).toLowerCase().includes("timed out")) return "remote_check_timeout";
+  return "remote_check_unavailable";
+}
+
+function userMessage(status) {
+  if (status === "current") return "Installed SellerPilot product image skill is current.";
+  if (status === "update_available") return "A newer SellerPilot product image skill version is available; ask the user whether to update before production.";
+  if (status === "unknown_local_revision") return "Skill version freshness could not be confirmed because the local revision is unknown.";
+  if (status === "unknown_remote_revision") return "Skill version freshness could not be confirmed because the remote revision was unavailable.";
+  return "Skill update status is unknown.";
+}
+
+function safeToken(value) {
+  const text = String(value || "").trim();
+  return text.includes("/") || text.includes("\\") ? "" : text;
 }
 
 function gitValue(root, gitArgs) {

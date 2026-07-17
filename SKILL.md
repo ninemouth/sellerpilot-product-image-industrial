@@ -264,6 +264,8 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
 
 Use this as the mandatory first gate for production requests. It compares the installed release metadata or local git commit against the configured GitHub branch when the cache is stale. `current` continues silently. `update_available` must pause formal production and ask the user whether to update before continuing. Unknown freshness should not block production, but it must not be presented as current.
 
+The default update-check output is intentionally user-safe: it must not include `skill_root`, `source_path`, `dest_path`, backup/cache paths, temporary build directories, development clone paths, raw remote URLs, raw network errors, or local usernames. Use `--include-diagnostics` only for internal debugging and never quote those diagnostic fields in a user-facing production/update message. If a check or sync fails, summarize only the safe status, preserved work, and next action.
+
 ```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/production-mode-router.mjs \
   --out-dir /abs/run/mode \

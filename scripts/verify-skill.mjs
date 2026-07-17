@@ -1038,6 +1038,9 @@ record("skill update checker smoke", () => {
   if (report.status !== "update_available" || !report.needs_update) {
     throw new Error("update checker should report update_available when local and remote commits differ.");
   }
+  if (out.includes(dir) || out.includes(cachePath) || out.includes("skill_root") || out.includes("remote_url")) {
+    throw new Error("update checker default output must not expose local paths or diagnostics.");
+  }
   const cachedOut = run(process.execPath, [
     "scripts/check-skill-update.mjs",
     "--skill-root", dir,
@@ -1049,12 +1052,26 @@ record("skill update checker smoke", () => {
   if (!cached.cache_hit || cached.remote.commit !== "2222222222222222222222222222222222222222") {
     throw new Error("update checker should use fresh cache instead of rechecking remote.");
   }
+  if (cachedOut.includes(dir) || cachedOut.includes(cachePath) || cachedOut.includes("skill_root") || cachedOut.includes("remote_url")) {
+    throw new Error("update checker cached default output must stay path-safe.");
+  }
+  const diagnosticOut = run(process.execPath, [
+    "scripts/check-skill-update.mjs",
+    "--skill-root", dir,
+    "--cache-file", cachePath,
+    "--cache-ttl-hours", "24",
+    "--include-diagnostics",
+  ]);
+  const diagnostic = JSON.parse(diagnosticOut);
+  if (diagnostic.diagnostics?.skill_root !== dir || diagnostic.diagnostics?.cache_file !== cachePath) {
+    throw new Error("update checker diagnostics mode should expose internal paths only when requested.");
+  }
 });
 
 record("skill sync release metadata branch smoke", () => {
   const dir = tmpDir("sp-verify-sync-release-");
   const dest = path.join(dir, "installed-skill");
-  run(process.execPath, [
+  const syncOut = run(process.execPath, [
     "scripts/sync-to-codex-skill.mjs",
     "--source", skillRoot,
     "--dest", dest,
@@ -1063,6 +1080,9 @@ record("skill sync release metadata branch smoke", () => {
     "--skip-verify",
     "--no-backup",
   ]);
+  if (syncOut.includes(dir) || syncOut.includes(dest) || syncOut.includes(skillRoot) || syncOut.includes("source_path") || syncOut.includes("dest_path")) {
+    throw new Error("sync script default output must not expose local source, destination, or release paths.");
+  }
   const release = readJson(path.join(dest, ".sellerpilot-skill-release.json"));
   if (release.remote_branch !== "codex/test-branch") {
     throw new Error("sync release metadata should preserve the configured remote branch for update checks.");
