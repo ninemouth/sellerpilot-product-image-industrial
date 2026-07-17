@@ -22,7 +22,9 @@ Do not label those outputs as final generated ecommerce images.
 
 ## Runtime Interaction Boundary
 
-Provider diagnostics are run evidence, not user-facing product copy. Never show sandbox, DNS, network-permission, raw transport, API-key, or local filesystem errors to a shopper or skill user. Never promise to request external permissions, bypass sandboxing, or modify API configuration. Preserve completed assets and report only the affected asset status plus the smallest safe next action.
+Provider diagnostics are run evidence, not user-facing product copy. Never show sandbox, DNS, network-permission, raw transport, API-key, or local filesystem errors to a shopper or skill user. Never promise to bypass sandboxing or modify API configuration. Preserve completed assets and report only the affected asset status plus the smallest safe next action.
+
+If the selected runtime fails because a necessary capability is not authorized, ask the user for authorization before rerunning the affected step. Use the user-facing capability name, such as local review service startup, network access for update checks, installed skill sync, or provider generation call. Do not expose the internal permission mechanism or raw error text. If authorization cannot be requested in the current session, mark only that step blocked, keep completed outputs, and tell the user which authorization is needed to continue.
 
 Before execution, resolve the platform-required ratio and provider request size with `scripts/resolve-generation-spec.mjs`. The export gate remains a final check, not the first place a wrong ratio may be discovered. For multi-image runs, record anchor-only scheduling with `scripts/generation-execution-controller.mjs`; only after approved anchor QA may independent remaining roles use bounded concurrency of two.
 

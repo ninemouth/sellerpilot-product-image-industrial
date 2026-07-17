@@ -82,7 +82,9 @@ Do not require the user to recite the industrial workflow, QA policy, generation
 
 The long strict prompt is an internal acceptance policy, not a required user prompt.
 
-Never expose sandbox, DNS, network-permission, raw curl, API-key, or local-path diagnostics as a user-facing production update. Keep those only in the run diagnostic files. A user-facing failure message may state that the affected asset is blocked, that completed assets were preserved, and the smallest safe next action; it must not claim that Codex will request external permissions, bypass a sandbox, or alter API configuration.
+Never expose sandbox, DNS, network-permission, raw curl, API-key, or local-path diagnostics as a user-facing production update. Keep those only in the run diagnostic files. A user-facing failure message may state that the affected asset is blocked, that completed assets were preserved, and the smallest safe next action; it must not claim that Codex will bypass a sandbox or alter API configuration.
+
+When a task cannot continue because the current environment lacks permission for a necessary action, request user authorization in plain language before rerunning that action. Name the user-relevant capability, not the internal mechanism: "需要你授权我启动本地临时审核服务", "需要你授权我访问网络以检查更新", or "需要你授权我同步已安装 skill". Do not say "sandbox 禁止", "受控权限", "我会绕过", or paste raw permission errors. If the current session cannot request authorization, stop the affected step, preserve completed assets, write diagnostics to the run, and tell the user what authorization is needed and what will remain blocked without it.
 
 Store style memory is also a natural user request. If the user says "创建店铺 xxx 的统一风格", "保存店铺视觉风格", or similar and provides a store URL, first analyze the store/page evidence, then show 2-3 unified style directions and ask only high-value questions. Write a durable Markdown store memory only after the user confirms the final direction. Later product image requests that name the store or reuse the URL must apply that Markdown as a store/brand style layer before platform context planning and prompt layering.
 

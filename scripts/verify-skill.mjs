@@ -1197,6 +1197,8 @@ record("production update gate contract", () => {
   const skill = fs.readFileSync(path.join(skillRoot, "SKILL.md"), "utf8");
   const agents = fs.readFileSync(path.join(skillRoot, "AGENTS.md"), "utf8");
   const readme = fs.readFileSync(path.join(skillRoot, "README.md"), "utf8");
+  const generationPolicy = fs.readFileSync(path.join(skillRoot, "references", "gpt-built-in-image-generation-policy.md"), "utf8");
+  const reviewCanvas = fs.readFileSync(path.join(skillRoot, "references", "review-canvas.md"), "utf8");
   if (!skill.includes("Every production request must start with the update check")) {
     throw new Error("SKILL.md must require update check as the first production gate.");
   }
@@ -1217,6 +1219,18 @@ record("production update gate contract", () => {
   }
   if (!skill.includes("backfill-final-image-lineage.mjs") || !readme.includes("npm run lineage:backfill")) {
     throw new Error("SKILL.md/README.md must document historical final-image lineage backfill.");
+  }
+  if (!skill.includes("request user authorization") || !skill.includes("Do not say \"sandbox 禁止\"")) {
+    throw new Error("SKILL.md must require user authorization prompts for missing permissions without exposing sandbox wording.");
+  }
+  if (!agents.includes("权限不足") || !agents.includes("必须用用户能理解的能力名请求授权")) {
+    throw new Error("AGENTS.md must require user authorization when permissions are insufficient.");
+  }
+  if (!readme.includes("先用用户能理解的能力名请求授权") || !readme.includes("不要出现 `sandbox`")) {
+    throw new Error("README.md must document safe user authorization prompts for permission failures.");
+  }
+  if (!generationPolicy.includes("ask the user for authorization") || !reviewCanvas.includes("authorize starting a temporary local review service")) {
+    throw new Error("Runtime references must require authorization before rerunning permission-blocked steps.");
   }
 });
 

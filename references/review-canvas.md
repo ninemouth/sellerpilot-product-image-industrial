@@ -107,6 +107,7 @@ The capture JSON records whether a completion payload was present in browser sto
 - Start or reuse the shared tldraw service automatically for review workspaces so the user receives a ready localhost URL without another prompt.
 - Use `--no-auto-start` only for selftests, file-only artifact generation, or explicitly non-interactive audit archives.
 - Use `open-tldraw-review-session.mjs` so the final response only presents a verified ready URL.
+- If local service startup is blocked by missing authorization, ask the user to authorize starting a temporary local review service before rerunning the launcher. Do not tell the user that an internal sandbox blocked a listener, expose `127.0.0.1` details as the root cause, or paste raw listener errors.
 - Prefer one shared dev server for the whole local Codex user environment. Different chats/runs should be different sessions under `/?session=<session-id>`, not separate servers.
 - Use one workspace directory per run for artifacts: `/abs/run/review-workspace`.
 - Register each run workspace into the shared service with `register-tldraw-review-session.mjs`.

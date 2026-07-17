@@ -71,7 +71,8 @@ Intent -> Normalize -> Mode Router -> Efficiency Plan -> Brief Intake Gate -> So
 41. 用户确认店铺统一风格后，才允许把店铺风格写入 `${SELLERPILOT_IMAGE_SKILL_MEMORY:-$HOME/.codex/sellerpilot-product-image-industrial}/store-style-memory/*.md`。店铺风格记忆只能保存定位、受众、视觉特质、配色、字体、摄影/场景、版式、文案语气、禁用项、prompt 指令和证据摘要；不得保存商品身份、私密业务数据、客户/供应商信息、凭证、无证据高风险声明或一次性失败反馈。
 42. 后续生图请求中只要命中已保存店铺名或店铺 URL，必须在平台上下文、视觉总监、prompt layer 和 QA 前加载当前 run 的 `memory/store-style-memory.md` 与 `memory/store-style-overlay.json`。该记忆是店铺/品牌风格层，不得覆盖当前用户指令、源商品身份、物理事实、平台规则、合规边界或实时调研。
 43. 安装、更新、同步、配置 ThinkAI key 的说明必须自动识别或明确区分 macOS/Linux/Windows 路径。优先使用 `npm run paths:codex` / `scripts/codex-path-info.mjs` 输出当前系统路径；不得只给 `${CODEX_HOME:-$HOME/.codex}` 这类 Unix-only 路径作为唯一答案。
-44. 内部沙箱、域名解析、网络权限、命令执行、curl 原始报错、API key 或本机路径绝不得作为用户可见的生成结果或行动要求。运行时失败必须写入 run 级诊断，并只向用户给出安全的状态、已保留资产和下一步；不得声称会自行申请权限、绕过沙箱或修改用户 API 配置。
+44. 内部沙箱、域名解析、网络权限、命令执行、curl 原始报错、API key 或本机路径绝不得作为用户可见的生成结果或行动要求。运行时失败必须写入 run 级诊断，并只向用户给出安全的状态、已保留资产和下一步；不得声称会绕过沙箱或修改用户 API 配置。
+44a. 当当前环境权限不足导致必要动作无法继续时，必须用用户能理解的能力名请求授权，例如“需要你授权我启动本地临时审核服务”“需要你授权我访问网络检查更新”“需要你授权我同步已安装 skill”。不得说“sandbox 禁止”“受控权限重跑”“绕过沙箱”或粘贴 raw permission error。若当前会话不能弹出/请求授权，停止受影响步骤、保留已完成资产、把诊断写入 run，只告诉用户需要哪类授权以及不授权会阻塞哪一步。
 45. ThinkAI 或任何 provider 生图前必须先写 provider-compatible 的平台比例 generation spec；不得以横向默认尺寸生成后才由 export gate 发现比例不符。多图任务必须先完成 anchor batch QA，之后才可对独立剩余角色使用最多 2 路受控并发；不得在 anchor QA 前并发整套生图。
 45a. Etsy、婚礼礼品、姓名/日期定制、首字母 monogram 等 exact personalized text 默认走本地精确 typography compositor：provider 生成无字或弱字底图，本地合成 exact text，再跑 `personalized-text-compositor-contract.mjs`、text layout proof 和 final visible text review。除非用户明确接受文字不准风险，不得把 provider 直接渲染姓名/日期作为默认路线。
 46. 共享 tldraw 服务的模板和依赖必须在 skill 安装或更新时预热到 `${CODEX_HOME:-$HOME/.codex}/sellerpilot-product-image-industrial/canvas-service`。若更新发现依赖缺失或 lockfile 已变化，必须先完成 `npm ci` 再结束更新；生图结束后的画布启动不得执行依赖安装，只能复用已准备依赖并做就绪检查。

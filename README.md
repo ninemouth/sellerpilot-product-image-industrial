@@ -616,6 +616,8 @@ npm run launch:canvas -- \
 
 这个命令会读取当前任务的 final-images manifest，创建 `review-workspace/`，把图片作为 tldraw 底层锁定图形导入，并默认启动或复用共享 tldraw 服务。用户在画布中标注后点击 **Complete Review**，本地服务会把交接数据写回 `review-workspace/data/review-completion.json`，并生成 `review-workspace/data/review-completion-ready.json`。Codex 随后可以运行 `wait-for-review-completion.mjs` 自动解析成 `generation-tasks.json` 并继续只修改受影响图片。自测或只想生成文件时才加 `--no-auto-start`。
 
+如果当前环境没有启动本地临时审核服务、访问网络或同步安装目录的权限，Codex 应先用用户能理解的能力名请求授权，再重试受影响步骤。用户可见提示不要出现 `sandbox`、`127.0.0.1` 监听失败、raw permission error、本机路径或“受控权限重跑”这类内部实现细节。
+
 等待画布完成并转换为修订任务：
 
 ```bash
@@ -848,6 +850,8 @@ cd assets/tldraw-review-workspace
 npm install
 npm run build
 ```
+
+如果失败原因是当前环境缺少启动本地临时服务的授权，先提示用户授权；不要把内部权限机制或监听错误原样贴给用户。若无法请求授权，则保留已生成图片和 `review-workspace/` 文件，并说明审核服务启动需要授权。
 
 OCR 没有结果：
 
