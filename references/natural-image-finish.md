@@ -29,6 +29,16 @@ Production must never install dependencies into the global Python environment. I
 
 ## Complete-Set Contract
 
+User-facing invocation should be short. These are enough:
+
+```text
+让这批图更自然。
+继续这个历史任务，只做自然质感收尾，不重生图。
+独立测试自然质感能力。
+```
+
+Do not require the user to describe FFT, profiles, noise, blur, sharpening, lineage, or gate reruns. Those are internal execution details and proof fields. The natural finish is not part of the provider generation prompt; it runs after final images exist, or as an isolated processor test when explicitly requested.
+
 Run the batch after all current final images exist and product/background consistency has passed:
 
 ```bash

@@ -277,6 +277,18 @@ record("natural image runtime preparation contract", () => {
   for (const forbidden of ["import torch", "clip-based", "adversarial"]) {
     if (processor.toLowerCase().includes(forbidden)) throw new Error(`natural image finish processor must not include detector-evasion code: ${forbidden}`);
   }
+  const skillMd = fs.readFileSync(path.join(skillRoot, "SKILL.md"), "utf8");
+  const readme = fs.readFileSync(path.join(skillRoot, "README.md"), "utf8");
+  const reference = fs.readFileSync(path.join(skillRoot, "references", "natural-image-finish.md"), "utf8");
+  for (const [name, text] of [["SKILL.md", skillMd], ["README.md", readme], ["references/natural-image-finish.md", reference]]) {
+    if (!text.includes("让这批图更自然")) throw new Error(`${name} should document a simple natural-finish user request.`);
+  }
+  if (!skillMd.includes("Do not add these natural-finish internals to the provider generation prompt")) {
+    throw new Error("SKILL.md should keep natural finish internals out of generation prompts.");
+  }
+  if (readme.includes("按图识别参数，完成带字图复核后重跑 lineage")) {
+    throw new Error("README.md must not require a complex natural-finish prompt from the user.");
+  }
 });
 
 record("adaptive natural image finish mixed batch smoke", () => {

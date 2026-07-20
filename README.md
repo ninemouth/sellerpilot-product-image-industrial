@@ -455,7 +455,15 @@ npm run qa:post-natural-finish-text -- \
   --evidence runs/demo-amazon-bag/qa/post-finish-review-evidence.json
 ```
 
-历史任务不需要整套重生图。对话里可以直接说：“继续处理历史任务 `<run_id 或任务目录>`，不要重生图；对当前 manifest 的全部最终图片执行自适应自然质感批处理，按图识别参数，完成带字图复核后重跑 lineage、营销、导出和最终交付 gate。”skill 会从该任务自己的 manifest 读取图片，并把处理前原图保留在同一 run 下。
+历史任务不需要整套重生图，也不需要用户背内部流程。对话里直接说下面任意一句就够：
+
+```text
+继续这个历史任务，只做自然质感收尾，不重生图。
+让这批图更自然，降低 AI 味。
+独立测试自然质感能力。
+```
+
+skill 会从该任务自己的 manifest 读取图片，并把处理前原图保留在同一 run 下。FFT、profile、文字复核、lineage 和最终 gate 都是内部执行细节，不应该写进生图提示词。
 
 最终导出后，manifest 需要能说明每张图的来源。若包含裁切、衍生、失败角色修复或本地文字合成，运行：
 
