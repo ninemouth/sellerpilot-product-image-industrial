@@ -13,10 +13,11 @@
 
 2026-07-20 自然质感能力升级为全量自适应批处理，并保留依赖自准备：
 
-- **安装/更新自动准备依赖**：同步主 skill 时自动检测 Python、FFmpeg、NumPy、Pillow 和 OpenCV；缺少 FFmpeg 时按 macOS/Linux/Windows 可用的包管理器尝试安装，并把 Python 库放进独立虚拟环境，不污染全局 Python。
+- **安装/更新自动准备依赖**：同步主 skill 时自动检测 Python、FFmpeg、NumPy、Pillow、OpenCV 和 SciPy；缺少 FFmpeg 时按 macOS/Linux/Windows 可用的包管理器尝试安装，并把 Python 库放进独立虚拟环境，不污染全局 Python。
 - **正式生图不临时装包**：生产任务只检查运行环境是否 ready；缺失或版本过期时保留已批准图片并阻断该可选阶段，回到安装/更新流程准备。
 - **所有正式成品图都批量处理**：当前 run manifest 中的每张生成图片都会进入同一事务批次，不再只处理无字摄影图；整批成功后才替换成品，失败则保留/恢复原图。
-- **按图识别后使用不同参数**：结合图片角色和像素特征，自动区分场景图、棚拍商品图、微距细节、文字信息图、透明素材和混合电商图；不同类型使用不同颗粒、模糊、锐化、对比和编码策略。
+- **按图识别后使用不同参数**：结合图片角色和像素特征，自动区分场景图、棚拍商品图、微距细节、文字信息图、透明素材和混合电商图；不同类型使用不同亮度/色度颗粒、模糊、锐化、对比、tone curve、频谱诊断和编码策略。
+- **频谱只做伪影修复**：新增 FFT 周期峰值诊断；只有检测到具体条纹、网格、振铃等周期性伪影且超过 profile 阈值时，才做克制 notch attenuation，不做通用 AI 频率指纹压制。
 - **文字与透明通道有专门保护**：带文字图片使用保守参数并恢复文字区域，之后必须做逐图哈希绑定的可见文字复核；透明图片保留原 alpha。
 - **派生资产可追溯**：处理器写入原图备份、输入/输出哈希、依赖版本、分类、参数、随机种子、QA proof 和 `natural_image_finish` lineage；后续仍需身份一致性、文字、营销、导出和 Final Delivery Gate。
 
@@ -75,7 +76,7 @@
 - Node.js 20 或更新版本。
 - npm。
 - Python 3.10+ 与 FFmpeg；安装/更新流程会自动检测，FFmpeg 缺失时会尝试通过当前系统可用的包管理器安装。
-- NumPy、Pillow、OpenCV：无需手工装到全局 Python，skill 会在独立虚拟环境中自动准备。
+- NumPy、Pillow、OpenCV、SciPy：无需手工装到全局 Python，skill 会在独立虚拟环境中自动准备。
 - 可选：`tesseract`，用于 AI 视觉识别不确定时本地 OCR 兜底读取源图文字。
 - 可选：Google Chrome、Microsoft Edge 或 Playwright 浏览器，用于 HTML/画布渲染。
 - 可选：第三方 OpenAI-compatible 图片 API key。当前 Codex 使用第三方 provider 时才需要；默认 profile 是 ThinkAI `gpt-image-2`。
@@ -444,7 +445,7 @@ npm run finish:natural-image-batch -- \
   --run-dir runs/demo-amazon-bag
 ```
 
-它会根据 panel/role 和图片像素自动选择 `photographic_scene`、`studio_product`、`macro_detail`、`graphic_text`、`transparent_asset` 或 `hybrid_commerce`，不会给所有图片套同一组参数。原图保存在当前 run 的 `generated-assets/natural-finish-originals/`。带文字图片处理后会进入 `post-natural-finish-visible-text-review`，透明图会保留 alpha。它不是“去 AI 检测”工具，也不能保证图片被判断为人类制作；目标只是以克制、可审计的颗粒、微对比、细节恢复和编码处理降低不自然的数字塑料感。
+它会根据 panel/role 和图片像素自动选择 `photographic_scene`、`studio_product`、`macro_detail`、`graphic_text`、`transparent_asset` 或 `hybrid_commerce`，不会给所有图片套同一组参数。原图保存在当前 run 的 `generated-assets/natural-finish-originals/`。带文字图片处理后会进入 `post-natural-finish-visible-text-review`，透明图会保留 alpha。它不是“去 AI 检测”工具，也不能保证图片被判断为人类制作；目标只是以克制、可审计的亮度/色度颗粒、微对比、细节恢复、条件性周期伪影修复和编码处理降低不自然的数字塑料感。不会加入 CLIP-based adversarial perturbation 或其他检测器对抗扰动。
 
 当批次包含可见文字时，完成视觉复核后用结构化证据收口：
 

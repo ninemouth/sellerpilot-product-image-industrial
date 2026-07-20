@@ -15,7 +15,7 @@ The preparation script:
 - detects Python 3.10 or newer.
 - detects FFmpeg and attempts an OS-appropriate package-manager installation when it is missing.
 - creates an isolated virtual environment under the Codex runtime root.
-- installs NumPy, Pillow, and headless OpenCV from `runtime/natural-image-finish/requirements.txt`.
+- installs NumPy, Pillow, headless OpenCV, and SciPy from `runtime/natural-image-finish/requirements.txt`.
 - runs import, classification, alpha, text-protection, and FFmpeg self-checks.
 - records requirement and processor hashes so source changes make an old runtime fail closed.
 
@@ -42,12 +42,14 @@ The processor combines structured role, title, scene, usage, and visible-copy me
 
 | Profile | Typical input | Processing policy |
 | --- | --- | --- |
-| `photographic_scene` | lifestyle, use-case, outdoor/interior scene | moderate sensor grain, restrained blur/detail recovery, micro contrast |
-| `studio_product` | hero, main product, clean studio or white background | lighter grain and blur, product-edge restraint |
-| `macro_detail` | material, stitch, hardware, texture close-up | minimal blur, stronger detail retention, fine grain |
-| `graphic_text` | parameter, comparison, instruction, infographic, text card | very conservative frame processing, detected text pixels restored, no FFmpeg grain over exact text |
-| `transparent_asset` | transparent or partially transparent PNG | alpha retained exactly, conservative RGB processing, alpha-safe encoding |
-| `hybrid_commerce` | mixed product photography and graphic composition | balanced low-strength finish with role-aware protection |
+| `photographic_scene` | lifestyle, use-case, outdoor/interior scene | signal-dependent luminance/chroma grain, restrained tone curve, bounded detail recovery, conditional periodic artifact repair |
+| `studio_product` | hero, main product, clean studio or white background | lighter material-aware grain, product-edge restraint, high-threshold periodic artifact repair only |
+| `macro_detail` | material, stitch, hardware, texture close-up | minimal blur, stronger detail retention, fine grain, very high-threshold artifact repair |
+| `graphic_text` | parameter, comparison, instruction, infographic, text card | very conservative frame processing, detected text pixels restored, no FFmpeg grain or FFT repair over exact text |
+| `transparent_asset` | transparent or partially transparent PNG | alpha retained exactly, conservative RGB processing, alpha-safe encoding, no FFT repair |
+| `hybrid_commerce` | mixed product photography and graphic composition | balanced low-strength finish with role-aware protection and conservative artifact diagnostics |
+
+The spectral layer is diagnostic-first. It records radial power samples, high-frequency roll-off, directional anisotropy, and periodic peak scores. FFT notch attenuation is allowed only for visible periodic artifacts such as banding, grid-like repetition, or ringing that exceed the current profile threshold. It must not be tuned or described as suppressing generic AI fingerprints, and the skill must not add CLIP-based adversarial perturbations or other detector-targeted changes.
 
 `--profile auto` is the production default. Manual `--noise` and `--blur` overrides are diagnostic tools and should not replace adaptive classification across a normal set.
 

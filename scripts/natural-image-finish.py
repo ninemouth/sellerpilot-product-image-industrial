@@ -18,92 +18,139 @@ from typing import Any
 import cv2
 import numpy as np
 from PIL import Image, ImageEnhance, ImageOps
+import scipy
+from scipy import ndimage
 
 
 PRESETS = {
     "light": {
         "noise_sigma": 0.8,
+        "chroma_noise_ratio": 0.16,
         "blur_sigma": 0.35,
         "sharpen_amount": 0.10,
         "contrast": 1.01,
         "brightness": 1.002,
+        "tone_curve": 0.004,
         "ffmpeg_noise": 0.35,
         "jpeg_quality": 94,
+        "spectral_peak_threshold": 12.0,
+        "spectral_notch_strength": 0.08,
+        "vignette": 0.006,
     },
     "medium": {
         "noise_sigma": 1.35,
+        "chroma_noise_ratio": 0.18,
         "blur_sigma": 0.55,
         "sharpen_amount": 0.16,
         "contrast": 1.02,
         "brightness": 1.003,
+        "tone_curve": 0.006,
         "ffmpeg_noise": 0.65,
         "jpeg_quality": 92,
+        "spectral_peak_threshold": 10.0,
+        "spectral_notch_strength": 0.10,
+        "vignette": 0.010,
     },
     "strong": {
         "noise_sigma": 2.1,
+        "chroma_noise_ratio": 0.20,
         "blur_sigma": 0.8,
         "sharpen_amount": 0.22,
         "contrast": 1.03,
         "brightness": 1.005,
+        "tone_curve": 0.008,
         "ffmpeg_noise": 1.0,
         "jpeg_quality": 90,
+        "spectral_peak_threshold": 8.0,
+        "spectral_notch_strength": 0.12,
+        "vignette": 0.014,
     },
 }
 
 PROFILES = {
     "photographic_scene": {
         "noise_sigma": 1.2,
+        "chroma_noise_ratio": 0.18,
         "blur_sigma": 0.45,
         "sharpen_amount": 0.14,
         "contrast": 1.016,
         "brightness": 1.002,
+        "tone_curve": 0.006,
         "ffmpeg_noise": 0.55,
         "jpeg_quality": 93,
+        "spectral_peak_threshold": 10.0,
+        "spectral_notch_strength": 0.10,
+        "vignette": 0.010,
     },
     "studio_product": {
         "noise_sigma": 0.55,
+        "chroma_noise_ratio": 0.12,
         "blur_sigma": 0.20,
         "sharpen_amount": 0.10,
         "contrast": 1.008,
         "brightness": 1.001,
+        "tone_curve": 0.003,
         "ffmpeg_noise": 0.20,
         "jpeg_quality": 96,
+        "spectral_peak_threshold": 13.0,
+        "spectral_notch_strength": 0.06,
+        "vignette": 0.004,
     },
     "macro_detail": {
         "noise_sigma": 0.38,
+        "chroma_noise_ratio": 0.10,
         "blur_sigma": 0.12,
         "sharpen_amount": 0.20,
         "contrast": 1.010,
         "brightness": 1.000,
+        "tone_curve": 0.002,
         "ffmpeg_noise": 0.16,
         "jpeg_quality": 97,
+        "spectral_peak_threshold": 18.0,
+        "spectral_notch_strength": 0.04,
+        "vignette": 0.0,
     },
     "graphic_text": {
         "noise_sigma": 0.10,
+        "chroma_noise_ratio": 0.04,
         "blur_sigma": 0.0,
         "sharpen_amount": 0.03,
         "contrast": 1.002,
         "brightness": 1.000,
+        "tone_curve": 0.0,
         "ffmpeg_noise": 0.0,
         "jpeg_quality": 98,
+        "spectral_peak_threshold": 999.0,
+        "spectral_notch_strength": 0.0,
+        "vignette": 0.0,
     },
     "transparent_asset": {
         "noise_sigma": 0.28,
+        "chroma_noise_ratio": 0.08,
         "blur_sigma": 0.10,
         "sharpen_amount": 0.08,
         "contrast": 1.004,
         "brightness": 1.000,
+        "tone_curve": 0.001,
         "ffmpeg_noise": 0.0,
         "jpeg_quality": 100,
+        "spectral_peak_threshold": 999.0,
+        "spectral_notch_strength": 0.0,
+        "vignette": 0.0,
     },
     "hybrid_commerce": {
         "noise_sigma": 0.48,
+        "chroma_noise_ratio": 0.10,
         "blur_sigma": 0.16,
         "sharpen_amount": 0.10,
         "contrast": 1.006,
         "brightness": 1.001,
+        "tone_curve": 0.002,
         "ffmpeg_noise": 0.12,
         "jpeg_quality": 97,
+        "spectral_peak_threshold": 15.0,
+        "spectral_notch_strength": 0.04,
+        "vignette": 0.002,
     },
 }
 
@@ -161,6 +208,7 @@ def dependency_versions(ffmpeg_path: str) -> dict[str, str]:
     return {
         "python": sys.version.split()[0],
         "numpy": np.__version__,
+        "scipy": scipy.__version__,
         "opencv": cv2.__version__,
         "pillow": Image.__version__,
         "ffmpeg": ffmpeg_version,
@@ -214,6 +262,206 @@ def text_protection_mask(rgb: np.ndarray) -> tuple[np.ndarray, dict[str, float |
     }
 
 
+def radial_power_spectrum(log_power: np.ndarray) -> list[float]:
+    height, width = log_power.shape
+    y, x = np.indices((height, width))
+    center_y = (height - 1) / 2.0
+    center_x = (width - 1) / 2.0
+    radius = np.sqrt((x - center_x) ** 2 + (y - center_y) ** 2).astype(np.int32)
+    max_radius = max(1, min(width, height) // 2)
+    sums = np.bincount(radius.ravel(), weights=log_power.ravel(), minlength=max_radius + 1)
+    counts = np.bincount(radius.ravel(), minlength=max_radius + 1)
+    radial = sums[:max_radius] / np.maximum(1, counts[:max_radius])
+    if len(radial) > 32:
+        sample_points = np.linspace(0, len(radial) - 1, 32).astype(np.int32)
+        radial = radial[sample_points]
+    return [round(float(value), 5) for value in radial]
+
+
+def spectral_artifact_diagnostics(rgb: np.ndarray) -> dict[str, Any]:
+    gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY).astype(np.float32)
+    gray = gray - float(np.mean(gray))
+    window_y = np.hanning(gray.shape[0])[:, None]
+    window_x = np.hanning(gray.shape[1])[None, :]
+    spectrum = np.fft.fftshift(np.fft.fft2(gray * window_y * window_x))
+    power = np.abs(spectrum) ** 2
+    log_power = np.log1p(power)
+    height, width = gray.shape
+    y, x = np.indices((height, width))
+    center_y = height // 2
+    center_x = width // 2
+    radius = np.sqrt((x - center_x) ** 2 + (y - center_y) ** 2)
+    valid = (radius > min(width, height) * 0.035) & (radius < min(width, height) * 0.46)
+    valid_values = log_power[valid]
+    baseline = float(np.median(valid_values)) if valid_values.size else 0.0
+    spread = float(np.median(np.abs(valid_values - baseline))) + 1e-6 if valid_values.size else 1.0
+    normalized_peak = float((np.max(valid_values) - baseline) / spread) if valid_values.size else 0.0
+
+    local_max = log_power == ndimage.maximum_filter(log_power, size=9, mode="nearest")
+    candidates = np.argwhere(local_max & valid)
+    peaks: list[dict[str, float | int]] = []
+    if candidates.size:
+        scores = log_power[candidates[:, 0], candidates[:, 1]]
+        order = np.argsort(scores)[::-1][:8]
+        for index in order:
+            row, col = candidates[index]
+            score = float((log_power[row, col] - baseline) / spread)
+            if score < 4.0:
+                continue
+            peaks.append({
+                "x": int(col - center_x),
+                "y": int(row - center_y),
+                "radius": round(float(radius[row, col]), 3),
+                "score": round(score, 3),
+            })
+
+    angles = np.arctan2(y - center_y, x - center_x)
+    bins = np.linspace(-np.pi, np.pi, 33)
+    angular = []
+    weights = log_power * valid
+    for left, right in zip(bins[:-1], bins[1:]):
+        mask = valid & (angles >= left) & (angles < right)
+        angular.append(float(np.mean(weights[mask])) if np.any(mask) else 0.0)
+    angular_mean = float(np.mean(angular)) if angular else 0.0
+    angular_std = float(np.std(angular)) if angular else 0.0
+    high_mask = radius > min(width, height) * 0.34
+    mid_mask = (radius > min(width, height) * 0.12) & (radius <= min(width, height) * 0.34)
+    high_frequency_rolloff = float(np.mean(log_power[high_mask]) / max(1e-6, np.mean(log_power[mid_mask]))) if np.any(high_mask) and np.any(mid_mask) else 0.0
+
+    return {
+        "periodic_peak_score": round(normalized_peak, 3),
+        "periodic_peak_count": len(peaks),
+        "dominant_peaks": peaks[:4],
+        "directional_anisotropy": round(angular_std / max(1e-6, angular_mean), 5),
+        "high_frequency_rolloff": round(high_frequency_rolloff, 5),
+        "radial_power_sample": radial_power_spectrum(log_power),
+    }
+
+
+def suppress_periodic_luminance_artifacts(
+    rgb: np.ndarray,
+    params: dict[str, float],
+    preserve_text: bool,
+    preserve_alpha: bool,
+) -> tuple[np.ndarray, dict[str, Any]]:
+    diagnostics = spectral_artifact_diagnostics(rgb)
+    strength = float(params.get("spectral_notch_strength", 0.0))
+    threshold = float(params.get("spectral_peak_threshold", 999.0))
+    should_suppress = (
+        strength > 0
+        and not preserve_text
+        and not preserve_alpha
+        and diagnostics["periodic_peak_score"] >= threshold
+        and diagnostics["periodic_peak_count"] > 0
+    )
+    if not should_suppress:
+        return rgb, {
+            **diagnostics,
+            "suppression_applied": False,
+            "reason": "no_periodic_artifact_above_profile_threshold",
+        }
+
+    ycrcb = cv2.cvtColor(rgb, cv2.COLOR_RGB2YCrCb).astype(np.float32)
+    luminance = ycrcb[:, :, 0]
+    height, width = luminance.shape
+    spectrum = np.fft.fftshift(np.fft.fft2(luminance - float(np.mean(luminance))))
+    yy, xx = np.indices((height, width))
+    center_y = height // 2
+    center_x = width // 2
+    attenuation = np.ones((height, width), dtype=np.float32)
+    radius = max(3.0, min(width, height) * 0.008)
+    used_peaks = []
+    for peak in diagnostics["dominant_peaks"][:4]:
+        offset_x = int(peak["x"])
+        offset_y = int(peak["y"])
+        if offset_x == 0 and offset_y == 0:
+            continue
+        for sign in (1, -1):
+            px = center_x + offset_x * sign
+            py = center_y + offset_y * sign
+            if px < 0 or py < 0 or px >= width or py >= height:
+                continue
+            distance2 = (xx - px) ** 2 + (yy - py) ** 2
+            notch = np.exp(-distance2 / (2.0 * radius * radius))
+            attenuation *= (1.0 - strength * notch).astype(np.float32)
+        used_peaks.append(peak)
+    filtered = np.real(np.fft.ifft2(np.fft.ifftshift(spectrum * attenuation)))
+    filtered = filtered + float(np.mean(luminance))
+    ycrcb[:, :, 0] = np.clip(filtered, 0, 255)
+    output = cv2.cvtColor(ycrcb.astype(np.uint8), cv2.COLOR_YCrCb2RGB)
+    after = spectral_artifact_diagnostics(output)
+    return output, {
+        **diagnostics,
+        "suppression_applied": True,
+        "notch_strength": round(strength, 4),
+        "notch_radius": round(radius, 3),
+        "peaks_used": used_peaks,
+        "post_periodic_peak_score": after["periodic_peak_score"],
+    }
+
+
+def apply_signal_dependent_sensor_grain(
+    rgb: np.ndarray,
+    params: dict[str, float],
+    rng: np.random.Generator,
+) -> tuple[np.ndarray, dict[str, float]]:
+    sigma = float(params["noise_sigma"])
+    if sigma <= 0:
+        return rgb.copy(), {
+            "luminance_sigma": 0.0,
+            "chroma_sigma": 0.0,
+            "spatial_variance_min": 1.0,
+            "spatial_variance_max": 1.0,
+        }
+    ycrcb = cv2.cvtColor(rgb, cv2.COLOR_RGB2YCrCb).astype(np.float32)
+    y = ycrcb[:, :, 0]
+    signal = np.sqrt(np.clip(y, 0, 255) / 255.0)
+    variance_field = rng.normal(0.0, 1.0, y.shape).astype(np.float32)
+    variance_field = ndimage.gaussian_filter(variance_field, sigma=max(6.0, min(y.shape) / 44.0), mode="reflect")
+    variance_field -= float(np.mean(variance_field))
+    variance_std = float(np.std(variance_field)) or 1.0
+    variance_field = np.clip(1.0 + 0.18 * (variance_field / variance_std), 0.72, 1.28)
+    luminance_sigma = sigma * (0.36 + 0.72 * signal) * variance_field
+    read_noise = rng.normal(0.0, sigma * 0.22, y.shape).astype(np.float32)
+    shot_noise = rng.normal(0.0, 1.0, y.shape).astype(np.float32) * luminance_sigma
+    ycrcb[:, :, 0] = np.clip(y + read_noise + shot_noise, 0, 255)
+    chroma_sigma = sigma * float(params.get("chroma_noise_ratio", 0.12))
+    if chroma_sigma > 0:
+        ycrcb[:, :, 1] = np.clip(ycrcb[:, :, 1] + rng.normal(0.0, chroma_sigma, y.shape), 0, 255)
+        ycrcb[:, :, 2] = np.clip(ycrcb[:, :, 2] + rng.normal(0.0, chroma_sigma, y.shape), 0, 255)
+    return cv2.cvtColor(ycrcb.astype(np.uint8), cv2.COLOR_YCrCb2RGB), {
+        "luminance_sigma": round(float(np.mean(luminance_sigma)), 4),
+        "chroma_sigma": round(float(chroma_sigma), 4),
+        "spatial_variance_min": round(float(np.min(variance_field)), 4),
+        "spatial_variance_max": round(float(np.max(variance_field)), 4),
+    }
+
+
+def apply_filmic_tone_curve(rgb: np.ndarray, params: dict[str, float]) -> tuple[np.ndarray, dict[str, float]]:
+    amount = float(params.get("tone_curve", 0.0))
+    if amount <= 0:
+        return rgb, {"tone_curve_amount": 0.0}
+    normalized = rgb.astype(np.float32) / 255.0
+    centered = normalized - 0.5
+    curve = normalized + amount * centered * (1.0 - 4.0 * centered * centered)
+    curve = np.clip(curve, 0.0, 1.0)
+    return (curve * 255.0).astype(np.uint8), {"tone_curve_amount": round(amount, 5)}
+
+
+def apply_subtle_lens_vignette(rgb: np.ndarray, params: dict[str, float]) -> tuple[np.ndarray, dict[str, float | bool]]:
+    amount = float(params.get("vignette", 0.0))
+    if amount <= 0:
+        return rgb, {"applied": False, "amount": 0.0}
+    height, width = rgb.shape[:2]
+    y, x = np.indices((height, width))
+    center_y = (height - 1) / 2.0
+    center_x = (width - 1) / 2.0
+    radius = np.sqrt(((x - center_x) / max(1.0, center_x)) ** 2 + ((y - center_y) / max(1.0, center_y)) ** 2)
+    mask = 1.0 - amount * np.clip(radius ** 1.7, 0.0, 1.0)
+    output = np.clip(rgb.astype(np.float32) * mask[:, :, None], 0, 255).astype(np.uint8)
+    return output, {"applied": True, "amount": round(amount, 5)}
+
+
 def inspect_image(image: Image.Image, role_hint: str = "", visible_text_hint: bool | None = None) -> dict[str, Any]:
     oriented = ImageOps.exif_transpose(image)
     alpha_present = "A" in oriented.getbands()
@@ -230,6 +478,7 @@ def inspect_image(image: Image.Image, role_hint: str = "", visible_text_hint: bo
     saturation = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)[:, :, 1]
     mean_saturation = float(np.mean(saturation))
     _, text_metrics = text_protection_mask(rgb)
+    spectral_metrics = spectral_artifact_diagnostics(rgb)
 
     role = str(role_hint or "").strip().lower()
     graphic_role = bool(re.search(
@@ -280,7 +529,11 @@ def inspect_image(image: Image.Image, role_hint: str = "", visible_text_hint: bo
             "white_ratio": round(white_ratio, 6),
             "luminance_std": round(luminance_std, 4),
             "mean_saturation": round(mean_saturation, 4),
+            "periodic_peak_score": spectral_metrics["periodic_peak_score"],
+            "directional_anisotropy": spectral_metrics["directional_anisotropy"],
+            "high_frequency_rolloff": spectral_metrics["high_frequency_rolloff"],
         },
+        "spectral_artifacts": spectral_metrics,
         "role_hint": role_hint,
         "role_signals": {
             "graphic": graphic_role,
@@ -310,18 +563,28 @@ def process_pixels(
 ) -> tuple[Image.Image, dict[str, Any]]:
     oriented = ImageOps.exif_transpose(image)
     alpha = oriented.getchannel("A") if "A" in oriented.getbands() else None
+    alpha_requires_preservation = False
+    if alpha is not None:
+        low, _ = alpha.getextrema()
+        alpha_requires_preservation = low < 255
     original = np.asarray(oriented.convert("RGB"), dtype=np.uint8)
-    source = original.astype(np.float32)
     rng = np.random.default_rng(seed)
-    noise = rng.normal(0.0, params["noise_sigma"], source.shape).astype(np.float32)
-    noisy = np.clip(source + noise, 0, 255).astype(np.uint8)
+    deperiodized, spectral_policy = suppress_periodic_luminance_artifacts(
+        original,
+        params,
+        preserve_text=preserve_text,
+        preserve_alpha=alpha_requires_preservation,
+    )
+    noisy, grain_metrics = apply_signal_dependent_sensor_grain(deperiodized, params, rng)
+    toned, tone_metrics = apply_filmic_tone_curve(noisy, params)
+    vignetted, vignette_metrics = apply_subtle_lens_vignette(toned, params)
 
     if params["blur_sigma"] > 0:
-        blurred = cv2.GaussianBlur(noisy, (3, 3), params["blur_sigma"])
+        blurred = cv2.GaussianBlur(vignetted, (3, 3), params["blur_sigma"])
     else:
-        blurred = noisy
+        blurred = vignetted
     amount = params["sharpen_amount"]
-    finished = cv2.addWeighted(noisy, 1.0 + amount, blurred, -amount, 0)
+    finished = cv2.addWeighted(vignetted, 1.0 + amount, blurred, -amount, 0)
 
     result = Image.fromarray(finished, mode="RGB")
     result = ImageEnhance.Contrast(result).enhance(params["contrast"])
@@ -343,7 +606,11 @@ def process_pixels(
         "text_protection_applied": bool(preserve_text),
         "text_protection_mode": protection_mode,
         "text_protection": text_metrics,
-        "alpha_preserved": alpha is not None,
+        "alpha_preserved": alpha_requires_preservation,
+        "sensor_grain": grain_metrics,
+        "tone_curve": tone_metrics,
+        "vignette": vignette_metrics,
+        "spectral_policy": spectral_policy,
     }
 
 
@@ -527,7 +794,11 @@ def main() -> int:
 
     operations = [
         "adaptive_image_classification",
-        "deterministic_gaussian_sensor_noise",
+        "spectral_periodic_artifact_diagnostics",
+        "conditional_fft_periodic_artifact_suppression",
+        "signal_dependent_luminance_chroma_sensor_grain",
+        "subtle_filmic_tone_curve",
+        "profile_subtle_lens_vignette",
         "profile_bounded_micro_blur_and_detail_recovery",
         "profile_micro_contrast_and_brightness",
         "ffmpeg_temporal_uniform_grain_and_output_encode",

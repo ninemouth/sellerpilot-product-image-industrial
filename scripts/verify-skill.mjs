@@ -257,6 +257,8 @@ record("natural image runtime preparation contract", () => {
     throw new Error("natural image runtime diagnostics should expose the runtime path only when requested.");
   }
   const pkg = readJson(path.join(skillRoot, "package.json"));
+  const requirements = fs.readFileSync(path.join(skillRoot, "runtime", "natural-image-finish", "requirements.txt"), "utf8");
+  if (!/scipy/i.test(requirements)) throw new Error("Natural image runtime requirements should include SciPy for spectral diagnostics.");
   for (const name of ["prepare:natural-image-runtime", "check:natural-image-runtime", "finish:natural-image", "finish:natural-image-batch", "qa:post-natural-finish-text"]) {
     if (!pkg.scripts?.[name]) throw new Error(`package.json is missing ${name}.`);
   }
@@ -267,6 +269,13 @@ record("natural image runtime preparation contract", () => {
   const batch = fs.readFileSync(path.join(skillRoot, "scripts", "natural-image-finish-batch.mjs"), "utf8");
   for (const guard of ["all_final_images_processed", "natural-finish-originals", "selected_profile", "initializeVisibleTextReview"]) {
     if (!batch.includes(guard)) throw new Error(`natural image finish batch is missing ${guard}.`);
+  }
+  const processor = fs.readFileSync(path.join(skillRoot, "scripts", "natural-image-finish.py"), "utf8");
+  for (const guard of ["spectral_artifact_diagnostics", "conditional_fft_periodic_artifact_suppression", "signal_dependent_luminance_chroma_sensor_grain"]) {
+    if (!processor.includes(guard)) throw new Error(`natural image finish processor is missing ${guard}.`);
+  }
+  for (const forbidden of ["import torch", "clip-based", "adversarial"]) {
+    if (processor.toLowerCase().includes(forbidden)) throw new Error(`natural image finish processor must not include detector-evasion code: ${forbidden}`);
   }
 });
 
@@ -336,6 +345,13 @@ record("adaptive natural image finish mixed batch smoke", () => {
   for (const [file, profile] of Object.entries(expectedProfiles)) {
     const asset = report.assets.find((item) => item.file === file);
     if (asset?.selected_profile !== profile) throw new Error(`${file} should use ${profile}.`);
+    const proof = readJson(path.join(runDir, asset.proof));
+    if (!proof.protection?.sensor_grain || !proof.protection?.spectral_policy) {
+      throw new Error(`${file} should include sensor-grain and spectral-policy proof.`);
+    }
+    if (!proof.operations.includes("signal_dependent_luminance_chroma_sensor_grain")) {
+      throw new Error(`${file} should record signal-dependent sensor grain operation.`);
+    }
   }
   const graphic = report.assets.find((item) => item.file === "IMG-04-parameter-card.png");
   const transparent = report.assets.find((item) => item.file === "IMG-05-transparent-product.png");
@@ -418,6 +434,55 @@ record("adaptive natural image finish mixed batch smoke", () => {
   if (failed.status === 0) throw new Error("Batch should fail when one image cannot pass processing validation.");
   for (const file of failureFiles) {
     if (failureHashes[file] !== sha256Path(path.join(failedImages, file))) throw new Error(`Failed transaction changed ${file}.`);
+  }
+});
+
+record("adaptive natural image finish spectral artifact fixture", () => {
+  const runtimeCheck = spawnSync(process.execPath, [
+    "scripts/prepare-natural-image-runtime.mjs",
+    "--check",
+    "--include-diagnostics",
+  ], { cwd: skillRoot, encoding: "utf8" });
+  if (runtimeCheck.status !== 0) return;
+  const runtime = JSON.parse(runtimeCheck.stdout);
+  const runtimePython = runtime.diagnostics?.runtime_python;
+  const ffmpeg = runtime.diagnostics?.ffmpeg;
+  if (!runtimePython || !ffmpeg) return;
+
+  const root = tmpDir("sp-verify-natural-spectral-");
+  const input = path.join(root, "periodic-scene.png");
+  const output = path.join(root, "periodic-scene-finished.png");
+  const proofPath = path.join(root, "periodic-scene-proof.json");
+  const sharpPath = (() => {
+    try { return require.resolve("sharp"); }
+    catch { return path.join(os.homedir(), ".cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/sharp"); }
+  })();
+  execFileSync(process.execPath, ["-e", `
+    const sharp = require(${JSON.stringify(sharpPath)});
+    const out = process.argv[1];
+    const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="640" height="640"><defs><pattern id="p" width="16" height="16" patternUnits="userSpaceOnUse"><rect width="8" height="16" fill="#8899a6"/><rect x="8" width="8" height="16" fill="#aab6bf"/></pattern></defs><rect width="640" height="640" fill="url(#p)"/><circle cx="330" cy="330" r="170" fill="#d7a46f" opacity="0.88"/><rect x="120" y="480" width="400" height="70" rx="18" fill="#52646f"/></svg>');
+    sharp(svg).png().toFile(out).catch((error) => { console.error(error); process.exit(1); });
+  `, input], { cwd: skillRoot, stdio: "inherit" });
+  run(runtimePython, [
+    "scripts/natural-image-finish.py",
+    input,
+    "--output", output,
+    "--profile", "photographic_scene",
+    "--role-hint", "lifestyle scene with visible periodic banding artifact",
+    "--contains-visible-text", "false",
+    "--ffmpeg", ffmpeg,
+    "--report", proofPath,
+  ], { maxBuffer: 50 * 1024 * 1024 });
+  const proof = readJson(proofPath);
+  const spectral = proof.protection?.spectral_policy;
+  if (!spectral || spectral.periodic_peak_score < 10) {
+    throw new Error("Periodic fixture should record a strong spectral peak score.");
+  }
+  if (!spectral.suppression_applied) {
+    throw new Error("Periodic fixture should apply conditional FFT artifact suppression.");
+  }
+  if (!(spectral.post_periodic_peak_score < spectral.periodic_peak_score)) {
+    throw new Error("Conditional FFT suppression should reduce the periodic peak score.");
   }
 });
 
