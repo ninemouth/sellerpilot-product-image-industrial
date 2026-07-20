@@ -151,11 +151,12 @@ steps:
   - surface-material-transfer-gate-if-triggered
   - identity-geometry-gate-if-proportion-sensitive
   - product-physics-fact-gate-if-function-use-or-scale-sensitive
-  - natural-image-finish-if-approved-text-free-photographic-asset
   - layout-composition
   - text-layout-proof-gate-before-final-export-if-visible-copy
   - localized-final-visible-text-qa-if-locale-needs-review
   - product-background-card-consistency-gate
+  - adaptive-natural-image-finish-batch-all-generated-images
+  - post-natural-finish-visible-text-regression-review-if-copy
   - marketing-quality-gate
   - image-set-export-gate
   - generation-progress-reconcile-before-final-delivery

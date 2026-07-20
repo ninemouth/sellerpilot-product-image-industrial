@@ -175,20 +175,27 @@ function normalizeLineage(item, runDir) {
     "generated_asset_path",
     "text_overlay_proof",
     "natural_finish_proof",
+    "natural_finish_batch_proof",
     "transformation_type",
+    "upstream_source_type",
+    "upstream_transformation_type",
     "render_method",
+    "adaptive_profile",
     "reason",
     "note",
     "claims_new_scene_asset",
     "output_sha256",
     "requires_identity_review",
+    "contains_visible_text",
+    "text_protection_applied",
+    "alpha_preserved",
   ]) {
     if (item[key] != null && item[key] !== "") out[key] = item[key];
   }
   for (const key of ["repair_of_progress_ids", "personalized_text_items"]) {
     if (Array.isArray(item[key])) out[key] = item[key];
   }
-  for (const key of ["derived_from", "approved_source_path", "generated_asset_path", "text_overlay_proof", "natural_finish_proof"]) {
+  for (const key of ["derived_from", "approved_source_path", "generated_asset_path", "text_overlay_proof", "natural_finish_proof", "natural_finish_batch_proof"]) {
     if (out[key] && path.isAbsolute(out[key])) out[key] = path.relative(runDir, out[key]);
   }
   return out;

@@ -42,7 +42,7 @@ When developing this skill outside the installed capability root, verify the dev
 
 The shared tldraw canvas is prepared during skill installation and update at `${CODEX_HOME:-$HOME/.codex}/sellerpilot-product-image-industrial/canvas-service`. Do not run dependency installation during a product-image task. When the canvas is missing or its lockfile changes, complete preparation first; normal post-generation startup may only reuse prepared dependencies and verify the local service.
 
-The optional natural image finish runtime follows the same install-time rule. Skill installation/update runs `scripts/prepare-natural-image-runtime.mjs` to detect Python and FFmpeg, create an isolated virtual environment, install NumPy/Pillow/OpenCV, and self-check the stack. Production tasks only run `--check`; they must not install into the global Python environment or install packages while generation is active.
+The required adaptive natural image finish runtime follows the same install-time rule. Skill installation/update runs `scripts/prepare-natural-image-runtime.mjs` to detect Python and FFmpeg, create an isolated virtual environment, install NumPy/Pillow/OpenCV, and self-check the stack. Production tasks only run `--check`; they must not install into the global Python environment or install packages while generation is active. Every generated final image in the current run manifest must pass the adaptive batch before marketing/export/final delivery gates.
 
 Do not copy competitor visuals, invent product facts, auto-publish assets, or promise CTR, CVR, ROAS, ACOS, ranking, or sales lift.
 
@@ -626,20 +626,14 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
 
 Use this before final delivery for every source-backed product image set and for any final image with `legacy_fallback`, `derived`, `repaired`, `local_overlay`, `text_overlay`, or `needs_identity_review` lineage. It requires explicit per-image source-vs-generated review evidence. Check silhouette, proportions, color, material, hardware, closure/opening, strap/handle, accessories, logos/markings, and micro-details against the source product and identity lock. `needs_visual_review`, missing per-image review, fallback without an explicit pass, or any identity drift must block final delivery and route only the affected image/role back through QA.
 
-For an approved text-free photographic plate or scene that looks excessively smooth or uniformly synthetic, optionally apply the restrained natural image finish before local typography:
+After all current-run final images exist and product/background consistency has passed, apply the adaptive natural finish to the complete manifest in one transactional batch:
 
 ```bash
-node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/natural-image-finish.mjs \
-  --run-dir /abs/run \
-  --input /abs/run/generated-assets/approved-scene.png \
-  --output /abs/run/final-images/IMG-01-lifestyle-scene.png \
-  --role lifestyle_scene \
-  --approved-source true \
-  --contains-visible-text false \
-  --preset light
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/natural-image-finish-batch.mjs \
+  --run-dir /abs/run
 ```
 
-This stage is optional and must not be described as AI-detector evasion. It is blocked for visible text, localized/personalized copy, packaging/labels/logos, transparent cutouts, infographics, comparison/parameter cards, and unapproved assets. A blocked attempt preserves the source and writes `qa/natural-image-finish-attempt.json`; it does not create lineage or poison final delivery for an otherwise approved unchanged asset. A successful finish writes a per-asset proof, `qa/natural-image-finish-gate-report.json`, and `natural_image_finish` lineage. Rerun identity review when applicable, then text/layout review after any later typography, followed by export, lineage, artifact-integrity, and final-delivery gates. Read `references/natural-image-finish.md` for the complete boundary and dependency lifecycle.
+The batch does not use one parameter set for every image. It combines structured role/panel metadata with pixel inspection and selects `photographic_scene`, `studio_product`, `macro_detail`, `graphic_text`, `transparent_asset`, or `hybrid_commerce`. Visible-text assets use conservative processing plus text-region restoration and then require `post-natural-finish-visible-text-review.mjs` evidence bound to each final file hash. Transparent assets preserve their alpha channel. Originals remain in `generated-assets/natural-finish-originals/`, all outputs are staged before promotion, and a failed batch preserves/restores the complete original set. Successful processing writes batch/gate/per-asset proofs and preserves upstream provider/text-overlay lineage under `natural_image_finish`. This is a natural-quality finish, not AI-detector evasion. Read `references/natural-image-finish.md` for the full execution and review contract.
 
 ```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/backfill-final-image-lineage.mjs \
@@ -980,7 +974,7 @@ Read these skill references as needed:
 - `references/multi-source-image-fusion.md` for multi-image source classification, complementary enhancement, and identity-lock fusion.
 - `references/visual-director.md` for photography, camera angle, lighting, scene, detail-crop, and buyer-facing-copy direction.
 - `references/source-image-quality.md` for source-photo preflight and enhancement.
-- `references/natural-image-finish.md` for install-time Python/FFmpeg dependency preparation and the optional approved text-free photographic finishing stage.
+- `references/natural-image-finish.md` for install-time Python/FFmpeg dependency preparation and the required all-final-image adaptive finishing batch.
 - `references/source-product-understanding.md` for source-image product recognition, AI-first text reading, conditional OCR fallback, text fact extraction, and propagation into locks.
 - `references/platform-category-research.md` for web-search backed platform/category tone research.
 - `references/loop-efficiency.md` for gated generation loops and retry budgets.

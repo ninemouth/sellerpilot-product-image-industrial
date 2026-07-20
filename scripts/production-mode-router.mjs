@@ -109,7 +109,7 @@ function modePolicy(mode, flags) {
   if (mode === "fast_generation") {
     return {
       ...common,
-      required_quality_path: ["brief-intake", "source-understanding-if-source-image", "identity-lock", "visual-director-mini-plan", "imagegen", "focused-qa", "export"],
+      required_quality_path: ["brief-intake", "source-understanding-if-source-image", "identity-lock", "visual-director-mini-plan", "imagegen", "adaptive-natural-image-finish-batch-all-generated-images", "focused-qa", "export"],
       skipped_by_default: ["full-run-skeleton", "full-research-brief", "tldraw", "industrial-gate-pack"],
     };
   }
@@ -145,6 +145,7 @@ function modePolicy(mode, flags) {
         "localized-copy-qa-gate-if-locale-needs-review",
         "prompt-layer-gate",
         "anchor-batch-imagegen",
+        "adaptive-natural-image-finish-batch-all-generated-images",
         "identity-marketing-export-final-gates",
         "overview-contact-sheet",
       ],
@@ -161,14 +162,14 @@ function modePolicy(mode, flags) {
   if (mode === "revision_repair") {
     return {
       ...common,
-      required_quality_path: ["failed-output-review", "parse-annotations-if-present", "route-to-earliest-failed-node", "rerun-affected-assets-only", "focused-regression-qa"],
+      required_quality_path: ["failed-output-review", "parse-annotations-if-present", "route-to-earliest-failed-node", "rerun-affected-assets-only", "adaptive-natural-image-finish-batch-all-generated-images", "focused-regression-qa"],
       skipped_by_default: ["new-full-set-generation", "unaffected-assets-regeneration"],
     };
   }
   if (mode === "industrial_audit") {
     return {
       ...common,
-      required_quality_path: ["full-workflow-artifact-pack", "all-required-gates", "audit-reports", "review-workspace", "final-delivery-gate"],
+      required_quality_path: ["full-workflow-artifact-pack", "adaptive-natural-image-finish-batch-all-generated-images", "all-required-gates", "audit-reports", "review-workspace", "final-delivery-gate"],
       skipped_by_default: [],
     };
   }
@@ -192,6 +193,7 @@ function singleImageQualityPath(flags) {
       "localized-copy-qa-gate-if-locale-needs-review",
       "prompt-layer-gate",
       "single-image-generation",
+      "adaptive-natural-image-finish-batch-all-generated-images",
       "identity-marketing-export-final-gates",
       "final-image-manifest",
       "post-generation-tldraw-auto-start",

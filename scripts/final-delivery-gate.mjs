@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -37,6 +38,7 @@ const overviewReportPath = path.join(runDir, "overview", "delivery-overview-repo
 const sourceUnderstandingPath = path.join(runDir, "source-understanding", "source-product-understanding.json");
 const taskContextPath = path.join(runDir, "00-task-context.yaml");
 const generationProgressPath = path.join(runDir, "generated-assets", "generation-progress.json");
+const modeReportPath = path.join(runDir, "mode", "production-mode-router-report.json");
 fs.mkdirSync(qaDir, { recursive: true });
 
 const reports = loadGateReports(qaDir);
@@ -44,6 +46,7 @@ const findings = [];
 const allowMissingGates = Boolean(args["allow-missing-gates"]);
 const runContext = inferRunContext(runDir);
 const runLocale = runContext.locale;
+const adaptiveNaturalFinishBatchRequired = requiresAdaptiveNaturalFinishBatch(modeReportPath);
 
 validateCriticalJsonArtifacts({ runDir, qaDir, findings });
 
@@ -66,6 +69,15 @@ if (!allowMissingGates) {
         message: `${requiredName} is required before final ecommerce image delivery can pass.`,
       });
     }
+  }
+  if (adaptiveNaturalFinishBatchRequired && !reports.some((item) => item.name === "natural-image-finish-batch-report.json")) {
+    findings.push({
+      severity: "fail",
+      type: "missing-adaptive-natural-image-finish-batch",
+      gate_id: "final-delivery-gate",
+      source_report: "natural-image-finish-batch-report.json",
+      message: "This production mode requires adaptive natural finishing for every generated final image.",
+    });
   }
   if (hasVisiblePanelCopy(runDir) && !reports.some((item) => item.name === "text-layout-proof-gate-report.json")) {
     findings.push({
@@ -458,7 +470,7 @@ function validateFinalImagesManifest({ manifestPath, runDir, finalImageDir, fina
         });
       }
     }
-    validateFinalImageLineageReports({ manifest, runDir, findings });
+    validateFinalImageLineageReports({ manifest, runDir, findings, adaptiveNaturalFinishBatchRequired });
   } catch (error) {
     findings.push({
       severity: "fail",
@@ -470,7 +482,7 @@ function validateFinalImagesManifest({ manifestPath, runDir, finalImageDir, fina
   }
 }
 
-function validateFinalImageLineageReports({ manifest, runDir, findings }) {
+function validateFinalImageLineageReports({ manifest, runDir, findings, adaptiveNaturalFinishBatchRequired = false }) {
   const images = Array.isArray(manifest.images) ? manifest.images : [];
   const sourceTypes = images.map((item) => normalizeText(item.lineage?.source_type)).filter(Boolean);
   const hasDerived = sourceTypes.some((type) => /derived|repair|repaired/.test(type));
@@ -509,6 +521,116 @@ function validateFinalImageLineageReports({ manifest, runDir, findings }) {
       message: "Final manifest contains natural_image_finish lineage; run the natural image finish gate before final delivery.",
     });
   }
+  if (adaptiveNaturalFinishBatchRequired) {
+    validateAdaptiveNaturalFinishBatch({ manifest, runDir, findings });
+  }
+}
+
+function validateAdaptiveNaturalFinishBatch({ manifest, runDir, findings }) {
+  const batchPath = path.join(runDir, "qa", "natural-image-finish-batch-report.json");
+  const batch = readJsonSafe(batchPath);
+  const images = Array.isArray(manifest.images) ? manifest.images : [];
+  const assets = Array.isArray(batch?.assets) ? batch.assets : [];
+  const manifestFiles = new Set(images.map((item) => path.basename(item.file || item.path || "")));
+  const processedFiles = new Set(assets.map((item) => path.basename(item.file || item.output || "")));
+  if (
+    batch?.status !== "pass"
+    || batch?.all_final_images_processed !== true
+    || Number(batch?.processed_count) !== images.length
+    || manifestFiles.size !== processedFiles.size
+    || [...manifestFiles].some((file) => !processedFiles.has(file))
+  ) {
+    findings.push({
+      severity: "fail",
+      type: "adaptive-natural-image-finish-batch-incomplete",
+      gate_id: "final-delivery-gate",
+      source_report: "qa/natural-image-finish-batch-report.json",
+      message: "Adaptive natural finish batch must pass and cover every current manifest image exactly once.",
+    });
+    return;
+  }
+  for (const image of images) {
+    const file = path.basename(image.file || image.path || "");
+    const asset = assets.find((item) => path.basename(item.file || item.output || "") === file);
+    if (
+      normalizeText(image.lineage?.transformation_type) !== "natural_image_finish"
+      || !asset?.selected_profile
+      || !asset?.proof
+    ) {
+      findings.push({
+        severity: "fail",
+        type: "adaptive-natural-image-finish-image-missing-profile-or-lineage",
+        gate_id: "final-delivery-gate",
+        source_report: "qa/natural-image-finish-batch-report.json",
+        file,
+        message: `${file} is missing adaptive profile, proof, or natural_image_finish lineage.`,
+      });
+    }
+  }
+  const visibleAssets = assets.filter((item) => item.contains_visible_text === true);
+  const reviewPath = path.join(runDir, "qa", "post-natural-finish-visible-text-review.json");
+  const review = readJsonSafe(reviewPath);
+  const acceptableStatus = visibleAssets.length ? "pass" : "not_required";
+  if (normalizeStatus(review?.status) !== acceptableStatus) {
+    findings.push({
+      severity: "fail",
+      type: "post-natural-finish-visible-text-review-not-passed",
+      gate_id: "final-delivery-gate",
+      source_report: "qa/post-natural-finish-visible-text-review.json",
+      message: visibleAssets.length
+        ? "Visible-text images require a post-finish raster text review before delivery."
+        : "Textless batches require a not_required post-finish text review record.",
+    });
+  }
+  if (visibleAssets.length) {
+    const reviewerMethod = String(review?.reviewer_method || "").trim();
+    if (!reviewerMethod) {
+      findings.push({
+        severity: "fail",
+        type: "post-natural-finish-visible-text-reviewer-method-missing",
+        gate_id: "final-delivery-gate",
+        source_report: "qa/post-natural-finish-visible-text-review.json",
+        message: "Post-finish visible-text review must record the reviewer method.",
+      });
+    }
+    const reviewed = new Map((review?.images || []).map((item) => [path.basename(item.file || ""), item]));
+    for (const asset of visibleAssets) {
+      const item = reviewed.get(asset.file);
+      const image = images.find((candidate) => path.basename(candidate.file || candidate.path || "") === asset.file);
+      const imagePath = path.resolve(image?.path || path.join(runDir, "final-images", asset.file));
+      const currentSha256 = fs.existsSync(imagePath) ? sha256File(imagePath) : "";
+      const reviewedSha256 = String(item?.reviewed_sha256 || item?.sha256 || "").trim().toLowerCase();
+      if (normalizeStatus(item?.status) !== "pass") {
+        findings.push({
+          severity: "fail",
+          type: "post-natural-finish-visible-text-image-unreviewed",
+          gate_id: "final-delivery-gate",
+          source_report: "qa/post-natural-finish-visible-text-review.json",
+          file: asset.file,
+          message: `${asset.file} contains visible text and lacks a passing post-finish review.`,
+        });
+      } else if (!reviewedSha256 || reviewedSha256 !== currentSha256 || reviewedSha256 !== asset.output_sha256) {
+        findings.push({
+          severity: "fail",
+          type: "post-natural-finish-visible-text-review-hash-mismatch",
+          gate_id: "final-delivery-gate",
+          source_report: "qa/post-natural-finish-visible-text-review.json",
+          file: asset.file,
+          message: `${asset.file} no longer matches the raster payload that passed post-finish visible-text review.`,
+        });
+      }
+    }
+  }
+}
+
+function sha256File(file) {
+  return crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+}
+
+function requiresAdaptiveNaturalFinishBatch(reportPath) {
+  const report = readJsonSafe(reportPath);
+  return Array.isArray(report?.execution_policy?.required_quality_path)
+    && report.execution_policy.required_quality_path.includes("adaptive-natural-image-finish-batch-all-generated-images");
 }
 
 function validateCriticalJsonArtifacts({ runDir: currentRunDir, qaDir: currentQaDir, findings: output }) {

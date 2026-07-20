@@ -100,12 +100,25 @@ for (const image of images) {
         message: `${image.file} natural image finish proof is missing the FFmpeg finish operation.`,
       });
     }
-    if (finishGate?.status !== "pass" || !gateAsset || gateAsset.approved_source !== true || gateAsset.contains_visible_text !== false) {
+    const visibleTextProtected = gateAsset?.contains_visible_text !== true || gateAsset?.text_protection_applied === true;
+    const alphaProtected = gateAsset?.recognition?.alpha_non_opaque !== true || (
+      gateAsset?.alpha_preserved === true
+      && proofReport?.alpha_verification?.status === "pass"
+      && proofReport?.alpha_verification?.input_alpha_sha256 === proofReport?.alpha_verification?.output_alpha_sha256
+    );
+    if (
+      finishGate?.status !== "pass"
+      || !gateAsset
+      || gateAsset.approved_source !== true
+      || !gateAsset.selected_profile
+      || !visibleTextProtected
+      || !alphaProtected
+    ) {
       findings.push({
         severity: "fail",
         type: "natural-image-finish-eligibility-gate-missing",
         file: image.file,
-        message: `${image.file} is missing a passing natural image finish eligibility record for approved source and no visible text.`,
+        message: `${image.file} is missing adaptive classification or required visible-text/alpha protection evidence.`,
       });
     }
   }

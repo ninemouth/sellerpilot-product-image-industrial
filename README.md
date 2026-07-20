@@ -11,12 +11,14 @@
 
 ## 最新更新
 
-2026-07-20 新增可审计的自然质感收尾与依赖自准备：
+2026-07-20 自然质感能力升级为全量自适应批处理，并保留依赖自准备：
 
 - **安装/更新自动准备依赖**：同步主 skill 时自动检测 Python、FFmpeg、NumPy、Pillow 和 OpenCV；缺少 FFmpeg 时按 macOS/Linux/Windows 可用的包管理器尝试安装，并把 Python 库放进独立虚拟环境，不污染全局 Python。
 - **正式生图不临时装包**：生产任务只检查运行环境是否 ready；缺失或版本过期时保留已批准图片并阻断该可选阶段，回到安装/更新流程准备。
-- **自然质感收尾有严格边界**：只处理已批准、无可见文字、无透明通道的摄影底图/场景，默认使用克制的 `light` preset；参数卡、信息图、logo、包装标签、本地化/个性化文字和透明商品母版不会进入该处理。
-- **派生资产可追溯**：处理器写入输入/输出哈希、依赖版本、参数、随机种子、QA proof 和 `natural_image_finish` lineage；后续仍需身份一致性、文字、导出和 Final Delivery Gate。
+- **所有正式成品图都批量处理**：当前 run manifest 中的每张生成图片都会进入同一事务批次，不再只处理无字摄影图；整批成功后才替换成品，失败则保留/恢复原图。
+- **按图识别后使用不同参数**：结合图片角色和像素特征，自动区分场景图、棚拍商品图、微距细节、文字信息图、透明素材和混合电商图；不同类型使用不同颗粒、模糊、锐化、对比和编码策略。
+- **文字与透明通道有专门保护**：带文字图片使用保守参数并恢复文字区域，之后必须做逐图哈希绑定的可见文字复核；透明图片保留原 alpha。
+- **派生资产可追溯**：处理器写入原图备份、输入/输出哈希、依赖版本、分类、参数、随机种子、QA proof 和 `natural_image_finish` lineage；后续仍需身份一致性、文字、营销、导出和 Final Delivery Gate。
 
 2026-07-15 版本收敛为一个用户入口和自动 provider 路由：
 
@@ -53,7 +55,7 @@
 - 对最终图片文案做策略 gate，避免无证据的夸张卖点、内部 QA 语言、平台水印或系统标记。
 - 强制保留商品套图总览图，但在日常高质量成品中收敛规划和报告产物，避免把完整工业审计包误跑成普通出图流程。
 - 用身份一致性、几何比例、物理功能、导出规范、总览图和 QA loop guard 降低“生造功能”“商品变形”“多任务图片串流”等风险。
-- 对已批准的无字摄影场景做可选的细颗粒、微对比和轻压缩收尾，降低过度平滑和统一塑料感，同时保留来源与参数证据。
+- 对当前任务所有正式生成图片做全量自适应自然质感收尾，按场景/棚拍/微距/文字/透明/混合类型调整参数，同时保留文字、alpha、来源和处理证据。
 - 多图成品在生图导出和总览图完成后自动启动 tldraw 画布，让用户直接批注，然后把批注转换成修订任务。
 
 ## 它不能做什么
@@ -435,20 +437,24 @@ npm run qa:personalized-text -- \
   --visible-text-status pass
 ```
 
-已批准的无字摄影底图或真实/generated 场景如果有过度平滑、纹理过于均一的问题，可以在本地文字合成前运行可选收尾：
+所有正式生成图片进入当前 run 的 final manifest 后，运行全量自适应批处理：
 
 ```bash
-npm run finish:natural-image -- \
-  --run-dir runs/demo-amazon-bag \
-  --input runs/demo-amazon-bag/generated-assets/approved-scene.png \
-  --output runs/demo-amazon-bag/final-images/IMG-01-lifestyle-scene.png \
-  --role lifestyle_scene \
-  --approved-source true \
-  --contains-visible-text false \
-  --preset light
+npm run finish:natural-image-batch -- \
+  --run-dir runs/demo-amazon-bag
 ```
 
-这不是“去 AI 检测”工具，也不能保证图片被判断为人类制作。它只做克制的颗粒、微对比、细节恢复和 FFmpeg 输出编码。带文字、logo、包装标签、透明通道、信息图/参数卡会被默认阻断；处理后必须重新跑需要的身份一致性、文字、lineage、导出和最终交付 gate。
+它会根据 panel/role 和图片像素自动选择 `photographic_scene`、`studio_product`、`macro_detail`、`graphic_text`、`transparent_asset` 或 `hybrid_commerce`，不会给所有图片套同一组参数。原图保存在当前 run 的 `generated-assets/natural-finish-originals/`。带文字图片处理后会进入 `post-natural-finish-visible-text-review`，透明图会保留 alpha。它不是“去 AI 检测”工具，也不能保证图片被判断为人类制作；目标只是以克制、可审计的颗粒、微对比、细节恢复和编码处理降低不自然的数字塑料感。
+
+当批次包含可见文字时，完成视觉复核后用结构化证据收口：
+
+```bash
+npm run qa:post-natural-finish-text -- \
+  --run-dir runs/demo-amazon-bag \
+  --evidence runs/demo-amazon-bag/qa/post-finish-review-evidence.json
+```
+
+历史任务不需要整套重生图。对话里可以直接说：“继续处理历史任务 `<run_id 或任务目录>`，不要重生图；对当前 manifest 的全部最终图片执行自适应自然质感批处理，按图识别参数，完成带字图复核后重跑 lineage、营销、导出和最终交付 gate。”skill 会从该任务自己的 manifest 读取图片，并把处理前原图保留在同一 run 下。
 
 最终导出后，manifest 需要能说明每张图的来源。若包含裁切、衍生、失败角色修复或本地文字合成，运行：
 

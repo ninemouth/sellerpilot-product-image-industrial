@@ -91,6 +91,44 @@ function readJson(file) {
   return JSON.parse(fs.readFileSync(file, "utf8"));
 }
 
+function sha256Path(file) {
+  return crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+}
+
+function createAdaptiveBatchFixtures(imageDir, failureSet) {
+  const sharpPath = (() => {
+    try { return require.resolve("sharp"); }
+    catch { return path.join(os.homedir(), ".cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/sharp"); }
+  })();
+  execFileSync(process.execPath, ["-e", `
+    const sharp = require(${JSON.stringify(sharpPath)});
+    const dir = process.argv[1];
+    const fail = process.argv[2] === 'true';
+    const svg = (body) => Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="640" height="640">' + body + '</svg>');
+    (async () => {
+      await sharp({create:{width:640,height:640,channels:3,background:'#8797a5'}})
+        .composite([{input:svg('<rect width="640" height="640" fill="#8797a5"/><circle cx="330" cy="310" r="155" fill="#d7a46f"/><rect x="70" y="455" width="500" height="110" rx="16" fill="#52646f"/>')}])
+        .png().toFile(dir + '/IMG-01-lifestyle-scene.png');
+      if (fail) {
+        await sharp({create:{width:128,height:128,channels:3,background:'#f4f4f4'}}).png().toFile(dir + '/IMG-02-too-small.png');
+        return;
+      }
+      await sharp({create:{width:640,height:640,channels:3,background:'#ffffff'}})
+        .composite([{input:svg('<rect x="180" y="120" width="280" height="400" rx="60" fill="#487363"/><ellipse cx="320" cy="535" rx="180" ry="22" fill="#dddddd"/>')}])
+        .png().toFile(dir + '/IMG-02-studio-hero.png');
+      await sharp({create:{width:640,height:640,channels:3,background:'#7b6655'}})
+        .composite([{input:svg('<defs><pattern id="p" width="18" height="18" patternUnits="userSpaceOnUse"><path d="M0 18L18 0M-5 5L5-5M13 23L23 13" stroke="#c6aa86" stroke-width="5"/></pattern></defs><rect width="640" height="640" fill="url(#p)"/>')}])
+        .png().toFile(dir + '/IMG-03-macro-detail.png');
+      await sharp({create:{width:640,height:640,channels:3,background:'#f7f7f4'}})
+        .composite([{input:svg('<rect x="55" y="55" width="530" height="530" rx="20" fill="#ffffff" stroke="#202020" stroke-width="3"/><text x="95" y="155" font-family="Arial" font-size="42" font-weight="700">PREMIUM PRODUCT</text><text x="95" y="225" font-family="Arial" font-size="30">Exact size 28 x 20 cm</text><rect x="95" y="285" width="450" height="210" rx="20" fill="#5d8273"/>')}])
+        .png().toFile(dir + '/IMG-04-parameter-card.png');
+      await sharp({create:{width:640,height:640,channels:4,background:{r:0,g:0,b:0,alpha:0}}})
+        .composite([{input:svg('<rect x="150" y="90" width="340" height="460" rx="70" fill="#527965"/><circle cx="320" cy="260" r="80" fill="#d9bd86"/>')}])
+        .png().toFile(dir + '/IMG-05-transparent-product.png');
+    })().catch((error) => { console.error(error); process.exit(1); });
+  `, imageDir, String(failureSet)], { cwd: skillRoot, stdio: "inherit" });
+}
+
 function writeIdentityConsistencyPass(runDir, files, options = {}) {
   const qaDir = path.join(runDir, "qa");
   const blueprintDir = path.join(runDir, "blueprint");
@@ -219,12 +257,167 @@ record("natural image runtime preparation contract", () => {
     throw new Error("natural image runtime diagnostics should expose the runtime path only when requested.");
   }
   const pkg = readJson(path.join(skillRoot, "package.json"));
-  for (const name of ["prepare:natural-image-runtime", "check:natural-image-runtime", "finish:natural-image"]) {
+  for (const name of ["prepare:natural-image-runtime", "check:natural-image-runtime", "finish:natural-image", "finish:natural-image-batch", "qa:post-natural-finish-text"]) {
     if (!pkg.scripts?.[name]) throw new Error(`package.json is missing ${name}.`);
   }
   const runner = fs.readFileSync(path.join(skillRoot, "scripts", "natural-image-finish.mjs"), "utf8");
   for (const guard of ["approved_source_required", "visible_text_must_be_explicitly_false", "input_not_run_local", "natural_image_finish"]) {
     if (!runner.includes(guard)) throw new Error(`natural image finish runner is missing ${guard}.`);
+  }
+  const batch = fs.readFileSync(path.join(skillRoot, "scripts", "natural-image-finish-batch.mjs"), "utf8");
+  for (const guard of ["all_final_images_processed", "natural-finish-originals", "selected_profile", "initializeVisibleTextReview"]) {
+    if (!batch.includes(guard)) throw new Error(`natural image finish batch is missing ${guard}.`);
+  }
+});
+
+record("adaptive natural image finish mixed batch smoke", () => {
+  const runtimeCheck = spawnSync(process.execPath, [
+    "scripts/prepare-natural-image-runtime.mjs",
+    "--check",
+  ], { cwd: skillRoot, encoding: "utf8" });
+  if (runtimeCheck.status !== 0) {
+    const processor = fs.readFileSync(path.join(skillRoot, "scripts", "natural-image-finish.py"), "utf8");
+    for (const profile of ["photographic_scene", "studio_product", "macro_detail", "graphic_text", "transparent_asset", "hybrid_commerce"]) {
+      if (!processor.includes(`\"${profile}\"`)) throw new Error(`Adaptive processor is missing ${profile}.`);
+    }
+    return;
+  }
+
+  const runDir = path.join(tmpDir("sp-verify-natural-batch-"), "run");
+  const imageDir = path.join(runDir, "final-images");
+  const exportDir = path.join(runDir, "export");
+  const blueprintDir = path.join(runDir, "blueprint");
+  const qaDir = path.join(runDir, "qa");
+  fs.mkdirSync(imageDir, { recursive: true });
+  fs.mkdirSync(exportDir, { recursive: true });
+  fs.mkdirSync(blueprintDir, { recursive: true });
+  fs.mkdirSync(qaDir, { recursive: true });
+  createAdaptiveBatchFixtures(imageDir, false);
+  const files = [
+    "IMG-01-lifestyle-scene.png",
+    "IMG-02-studio-hero.png",
+    "IMG-03-macro-detail.png",
+    "IMG-04-parameter-card.png",
+    "IMG-05-transparent-product.png",
+  ];
+  fs.writeFileSync(path.join(blueprintDir, "panels.json"), JSON.stringify({ panels: [
+    { id: "IMG-01", image_role: "lifestyle scene" },
+    { id: "IMG-02", image_role: "studio hero product" },
+    { id: "IMG-03", image_role: "macro texture detail" },
+    { id: "IMG-04", image_role: "parameter infographic card", visible_copy: ["Exact size 28 x 20 cm"] },
+    { id: "IMG-05", image_role: "transparent product asset" },
+  ] }, null, 2));
+  fs.writeFileSync(path.join(exportDir, "final-images-manifest.json"), JSON.stringify({
+    schema_version: "sellerpilot.final_images_manifest.v1",
+    run_id: "verify-natural-batch",
+    run_dir: runDir,
+    image_dir: imageDir,
+    image_count: files.length,
+    images: files.map((file, index) => ({
+      id: `IMG-${String(index + 1).padStart(2, "0")}`,
+      file,
+      path: path.join(imageDir, file),
+      lineage: { source_type: "provider_generated" },
+    })),
+  }, null, 2));
+
+  run(process.execPath, ["scripts/natural-image-finish-batch.mjs", "--run-dir", runDir]);
+  const report = readJson(path.join(qaDir, "natural-image-finish-batch-report.json"));
+  if (report.status !== "pass" || report.processed_count !== 5 || report.all_final_images_processed !== true) {
+    throw new Error("Adaptive natural finish batch should process all five mixed fixtures.");
+  }
+  const expectedProfiles = {
+    "IMG-01-lifestyle-scene.png": "photographic_scene",
+    "IMG-02-studio-hero.png": "studio_product",
+    "IMG-03-macro-detail.png": "macro_detail",
+    "IMG-04-parameter-card.png": "graphic_text",
+    "IMG-05-transparent-product.png": "transparent_asset",
+  };
+  for (const [file, profile] of Object.entries(expectedProfiles)) {
+    const asset = report.assets.find((item) => item.file === file);
+    if (asset?.selected_profile !== profile) throw new Error(`${file} should use ${profile}.`);
+  }
+  const graphic = report.assets.find((item) => item.file === "IMG-04-parameter-card.png");
+  const transparent = report.assets.find((item) => item.file === "IMG-05-transparent-product.png");
+  if (!graphic.text_protection_applied) throw new Error("Visible-text fixture should apply text protection.");
+  if (!transparent.alpha_preserved) throw new Error("Transparent fixture should preserve alpha.");
+  const transparentProof = readJson(path.join(runDir, transparent.proof));
+  if (
+    transparentProof.alpha_verification?.status !== "pass"
+    || transparentProof.alpha_verification.input_alpha_sha256 !== transparentProof.alpha_verification.output_alpha_sha256
+  ) {
+    throw new Error("Transparent fixture should prove byte-identical alpha preservation.");
+  }
+
+  const reviewInit = readJson(path.join(qaDir, "post-natural-finish-visible-text-review.json"));
+  if (reviewInit.status !== "needs_visual_review" || reviewInit.required_files?.[0] !== "IMG-04-parameter-card.png") {
+    throw new Error("Visible-text batch should initialize a post-finish visual review.");
+  }
+  fs.writeFileSync(path.join(qaDir, "post-finish-review-evidence.json"), JSON.stringify({
+    reviewer_method: "codex_visual_inspection",
+    images: [{
+      file: "IMG-04-parameter-card.png",
+      status: "pass",
+      reviewed_sha256: report.final_image_hashes["IMG-04-parameter-card.png"],
+      notes: "Visible copy remains legible and unchanged after adaptive finish.",
+    }],
+  }, null, 2));
+  run(process.execPath, [
+    "scripts/post-natural-finish-visible-text-review.mjs",
+    "--run-dir", runDir,
+    "--evidence", path.join(qaDir, "post-finish-review-evidence.json"),
+  ]);
+  const hashesBeforeRepeat = Object.fromEntries(files.map((file) => [file, sha256Path(path.join(imageDir, file))]));
+  const repeated = JSON.parse(run(process.execPath, ["scripts/natural-image-finish-batch.mjs", "--run-dir", runDir]));
+  if (repeated.status !== "already_applied") throw new Error("Adaptive batch should be idempotent for unchanged current finals.");
+  for (const file of files) {
+    if (hashesBeforeRepeat[file] !== sha256Path(path.join(imageDir, file))) throw new Error(`Idempotent rerun changed ${file}.`);
+  }
+  if (readJson(path.join(qaDir, "post-natural-finish-visible-text-review.json")).status !== "pass") {
+    throw new Error("Idempotent batch rerun should preserve a hash-current passing text review.");
+  }
+
+  fs.mkdirSync(path.join(runDir, "mode"), { recursive: true });
+  fs.writeFileSync(path.join(runDir, "mode", "production-mode-router-report.json"), JSON.stringify({
+    execution_policy: { required_quality_path: ["adaptive-natural-image-finish-batch-all-generated-images"] },
+  }, null, 2));
+  fs.writeFileSync(path.join(qaDir, "image-set-export-gate-report.json"), JSON.stringify({
+    status: "pass",
+    image_manifest: path.join(exportDir, "final-images-manifest.json"),
+    findings: [],
+  }, null, 2));
+  spawnSync(process.execPath, ["scripts/final-delivery-gate.mjs", "--run-dir", runDir, "--allow-missing-gates"], { cwd: skillRoot });
+  let finalReport = readJson(path.join(qaDir, "final-delivery-gate-report.json"));
+  if (finalReport.findings.some((item) => /natural-image-finish|post-natural-finish/.test(item.type))) {
+    throw new Error("Hash-current adaptive batch and post-finish text review should satisfy natural finish final-gate checks.");
+  }
+  const staleReview = readJson(path.join(qaDir, "post-natural-finish-visible-text-review.json"));
+  staleReview.images[0].reviewed_sha256 = "0".repeat(64);
+  fs.writeFileSync(path.join(qaDir, "post-natural-finish-visible-text-review.json"), JSON.stringify(staleReview, null, 2));
+  spawnSync(process.execPath, ["scripts/final-delivery-gate.mjs", "--run-dir", runDir, "--allow-missing-gates"], { cwd: skillRoot });
+  finalReport = readJson(path.join(qaDir, "final-delivery-gate-report.json"));
+  if (!finalReport.findings.some((item) => item.type === "post-natural-finish-visible-text-review-hash-mismatch")) {
+    throw new Error("Final delivery gate should reject stale post-finish visible-text review hashes.");
+  }
+
+  const failedRun = path.join(tmpDir("sp-verify-natural-batch-failure-"), "run");
+  const failedImages = path.join(failedRun, "final-images");
+  const failedExport = path.join(failedRun, "export");
+  fs.mkdirSync(failedImages, { recursive: true });
+  fs.mkdirSync(failedExport, { recursive: true });
+  createAdaptiveBatchFixtures(failedImages, true);
+  const failureFiles = ["IMG-01-lifestyle-scene.png", "IMG-02-too-small.png"];
+  fs.writeFileSync(path.join(failedExport, "final-images-manifest.json"), JSON.stringify({
+    run_dir: failedRun,
+    image_dir: failedImages,
+    image_count: failureFiles.length,
+    images: failureFiles.map((file, index) => ({ id: `IMG-0${index + 1}`, file, path: path.join(failedImages, file) })),
+  }, null, 2));
+  const failureHashes = Object.fromEntries(failureFiles.map((file) => [file, sha256Path(path.join(failedImages, file))]));
+  const failed = spawnSync(process.execPath, ["scripts/natural-image-finish-batch.mjs", "--run-dir", failedRun], { cwd: skillRoot });
+  if (failed.status === 0) throw new Error("Batch should fail when one image cannot pass processing validation.");
+  for (const file of failureFiles) {
+    if (failureHashes[file] !== sha256Path(path.join(failedImages, file))) throw new Error(`Failed transaction changed ${file}.`);
   }
 });
 
@@ -261,6 +454,7 @@ record("natural image finish lineage proof gate", () => {
       file: path.basename(output),
       approved_source: true,
       contains_visible_text: false,
+      selected_profile: "photographic_scene",
       input_sha256: inputHash,
       output_sha256: outputHash,
     }],
@@ -364,7 +558,8 @@ record("workflow loop guard ordering", () => {
       "anchor-batch-qa-decision-record",
       "surface-material-transfer-proof-before-final-generation-if-triggered",
       "surface-material-transfer-gate-if-triggered",
-      "natural-image-finish-if-approved-text-free-photographic-asset",
+      "adaptive-natural-image-finish-batch-all-generated-images",
+      "post-natural-finish-visible-text-regression-review-if-copy",
       "localized-final-visible-text-qa-if-locale-needs-review",
       "text-layout-proof-gate-before-final-export-if-visible-copy",
       "product-background-card-consistency-gate",
@@ -409,11 +604,12 @@ record("workflow loop guard ordering", () => {
     assertStepBefore(file, steps, "identity-consistency-gate", "surface-material-transfer-proof-before-final-generation-if-triggered");
     assertStepBefore(file, steps, "surface-material-transfer-proof-before-final-generation-if-triggered", "surface-material-transfer-gate-if-triggered");
     assertStepBefore(file, steps, "surface-material-transfer-gate-if-triggered", "marketing-quality-gate");
-    assertStepBefore(file, steps, "product-physics-fact-gate-if-function-use-or-scale-sensitive", "natural-image-finish-if-approved-text-free-photographic-asset");
-    assertStepBefore(file, steps, "natural-image-finish-if-approved-text-free-photographic-asset", "marketing-quality-gate");
+    assertStepBefore(file, steps, "product-physics-fact-gate-if-function-use-or-scale-sensitive", "adaptive-natural-image-finish-batch-all-generated-images");
     assertStepBefore(file, steps, "text-layout-proof-gate-before-final-export-if-visible-copy", "localized-final-visible-text-qa-if-locale-needs-review");
     assertStepBefore(file, steps, "localized-final-visible-text-qa-if-locale-needs-review", "marketing-quality-gate");
-    assertStepBefore(file, steps, "product-background-card-consistency-gate", "marketing-quality-gate");
+    assertStepBefore(file, steps, "product-background-card-consistency-gate", "adaptive-natural-image-finish-batch-all-generated-images");
+    assertStepBefore(file, steps, "adaptive-natural-image-finish-batch-all-generated-images", "post-natural-finish-visible-text-regression-review-if-copy");
+    assertStepBefore(file, steps, "post-natural-finish-visible-text-regression-review-if-copy", "marketing-quality-gate");
     assertStepBefore(file, steps, "image-set-export-gate", "qa-loop-router");
     assertStepBefore(file, steps, "image-set-export-gate", "generation-progress-reconcile-before-final-delivery");
     assertStepBefore(file, steps, "generation-progress-reconcile-before-final-delivery", "qa-loop-router");

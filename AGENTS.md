@@ -78,7 +78,7 @@ Intent -> Normalize -> Mode Router -> Efficiency Plan -> Brief Intake Gate -> So
 46. 共享 tldraw 服务的模板和依赖必须在 skill 安装或更新时预热到 `${CODEX_HOME:-$HOME/.codex}/sellerpilot-product-image-industrial/canvas-service`。若更新发现依赖缺失或 lockfile 已变化，必须先完成 `npm ci` 再结束更新；生图结束后的画布启动不得执行依赖安装，只能复用已准备依赖并做就绪检查。
 47. 对穿戴甲、美甲贴、纹身贴、贴纸、印花织物等 `surface_material_transfer` 商品，源商品图的可见图案必须作为 canonical material，不是可由模型自由重绘的身份参考。必须先剔除背景、网页 UI、文案和水印，再记录每种材质的色彩、色温、亮度层级、渐变方向、纹理和形状；只允许为目标表面进行透视、曲率、遮挡、尺寸和有限环境光适配。最终交付前必须通过 `surface-material-transfer-gate`，失败只重做受影响材质/区域，不得泛化整套重生图。
 48. 对用户只展示并安装 `$sellerpilot-product-image-industrial`。`sellerpilot-product-image-industrial-thinkai` 和 `sellerpilot-product-image-industrial-proxy` 仅保留为仓库内迁移模板，默认不得安装，以免 Codex skill picker 出现重复条目；只有明确为历史用户恢复旧调用名时才按需安装，且必须加载主 skill 的同一套 workflow/QA/画布逻辑。
-49. 自然质感收尾只能用于已经批准、无可见文字、无透明通道的摄影底图或真实/generated 场景资产，默认 `light` preset；不得用于参数卡、对比卡、信息图、包装/标签、logo、透明商品母版或 localized/personalized visible text。必须在本地文字合成前执行，写 `natural-image-finish-gate-report.json` 和 `natural_image_finish` lineage，之后重新运行身份一致性、最终可见文字（如适用）、lineage、导出和 Final Delivery Gate。它用于减少过度平滑和统一塑料感，不得宣称能规避 AI 检测。Python/OpenCV/NumPy/Pillow/FFmpeg 依赖只能在 skill 安装或更新阶段自动检测和预热；正式生产阶段只做就绪检查，缺失时 blocked，不得临时改全局 Python 环境。
+49. 所有正式生成并进入当前 run `final-images` manifest 的图片，都必须在最终营销/导出/交付 gate 前执行 `adaptive-natural-image-finish-batch-all-generated-images`，不得只处理摄影图子集。批处理必须结合 panel/role 元数据与像素特征，把每张图识别为 `photographic_scene`、`studio_product`、`macro_detail`、`graphic_text`、`transparent_asset` 或 `hybrid_commerce` 后使用对应克制参数；带可见文字的图必须保护/恢复文字区域并在处理后通过逐图哈希绑定的 `post-natural-finish-visible-text-review`，透明图必须保留原 alpha。原图必须备份到当前 run 的 `generated-assets/natural-finish-originals/`，整批 staging 全部成功后才可替换 final images，失败时不得留下部分处理结果。必须写 batch/gate/per-asset proof 与 `natural_image_finish` lineage，之后重新运行身份一致性、lineage、营销、导出、artifact integrity 和 Final Delivery Gate。该能力只用于降低过度平滑、统一塑料感和不自然数字纹理，不得宣称或优化为规避 AI 检测。Python/OpenCV/NumPy/Pillow/FFmpeg 依赖只能在 skill 安装或更新阶段自动检测和预热；正式生产阶段只做就绪检查，缺失时 blocked，不得临时改全局 Python 环境。
 
 ## Default Workflow
 
@@ -111,7 +111,8 @@ Fast generation mode uses this compact workflow unless the user requests a full 
 - Codex-native imagegen/image_gen anchor batch execution
 - anchor-batch-qa-decision and generation-progress updates
 - focused identity/physical-function/marketing/export QA
-- natural-image-finish-if-approved-text-free-photographic-asset
+- adaptive-natural-image-finish-batch-all-generated-images
+- post-natural-finish-visible-text-regression-review-if-copy
 - text-layout-proof-gate-before-final-export-if-visible-copy
 - final localized visible-text review when locale needs review
 - product-background-card-consistency-gate
@@ -156,7 +157,8 @@ Industrial audit mode uses the full workflow:
 - surface-material-transfer-gate-if-triggered
 - identity-geometry-gate
 - product-physics-fact-gate
-- natural-image-finish-if-approved-text-free-photographic-asset
+- adaptive-natural-image-finish-batch-all-generated-images
+- post-natural-finish-visible-text-regression-review-if-copy
 - marketing-quality-gate
 - image-set-export-gate
 - delivery-overview
