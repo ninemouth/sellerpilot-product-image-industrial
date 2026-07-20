@@ -481,6 +481,7 @@ function validateFinalImageLineageReports({ manifest, runDir, findings }) {
       || normalizeText(lineage.render_method) === "local_overlay"
       || Array.isArray(lineage.personalized_text_items);
   });
+  const hasNaturalImageFinish = images.some((item) => normalizeText(item.lineage?.transformation_type) === "natural_image_finish");
   if (hasDerived && !fs.existsSync(path.join(runDir, "qa", "final-image-lineage-gate-report.json"))) {
     findings.push({
       severity: "fail",
@@ -497,6 +498,15 @@ function validateFinalImageLineageReports({ manifest, runDir, findings }) {
       gate_id: "final-delivery-gate",
       source_report: "qa/personalized-text-compositor-contract-report.json",
       message: "Final manifest contains local/personalized text overlay lineage; run personalized-text-compositor-contract before final delivery.",
+    });
+  }
+  if (hasNaturalImageFinish && !fs.existsSync(path.join(runDir, "qa", "natural-image-finish-gate-report.json"))) {
+    findings.push({
+      severity: "fail",
+      type: "missing-natural-image-finish-gate",
+      gate_id: "final-delivery-gate",
+      source_report: "qa/natural-image-finish-gate-report.json",
+      message: "Final manifest contains natural_image_finish lineage; run the natural image finish gate before final delivery.",
     });
   }
 }

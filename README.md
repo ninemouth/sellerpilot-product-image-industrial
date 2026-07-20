@@ -11,6 +11,13 @@
 
 ## 最新更新
 
+2026-07-20 新增可审计的自然质感收尾与依赖自准备：
+
+- **安装/更新自动准备依赖**：同步主 skill 时自动检测 Python、FFmpeg、NumPy、Pillow 和 OpenCV；缺少 FFmpeg 时按 macOS/Linux/Windows 可用的包管理器尝试安装，并把 Python 库放进独立虚拟环境，不污染全局 Python。
+- **正式生图不临时装包**：生产任务只检查运行环境是否 ready；缺失或版本过期时保留已批准图片并阻断该可选阶段，回到安装/更新流程准备。
+- **自然质感收尾有严格边界**：只处理已批准、无可见文字、无透明通道的摄影底图/场景，默认使用克制的 `light` preset；参数卡、信息图、logo、包装标签、本地化/个性化文字和透明商品母版不会进入该处理。
+- **派生资产可追溯**：处理器写入输入/输出哈希、依赖版本、参数、随机种子、QA proof 和 `natural_image_finish` lineage；后续仍需身份一致性、文字、导出和 Final Delivery Gate。
+
 2026-07-15 版本收敛为一个用户入口和自动 provider 路由：
 
 - **只安装和调用一个主 skill**：用户只需使用 `sellerpilot-product-image-industrial`。它会自动识别当前 Codex 是否使用原生 provider 或第三方 OpenAI-compatible `model_provider`，并路由到正确的图片执行层。
@@ -46,6 +53,7 @@
 - 对最终图片文案做策略 gate，避免无证据的夸张卖点、内部 QA 语言、平台水印或系统标记。
 - 强制保留商品套图总览图，但在日常高质量成品中收敛规划和报告产物，避免把完整工业审计包误跑成普通出图流程。
 - 用身份一致性、几何比例、物理功能、导出规范、总览图和 QA loop guard 降低“生造功能”“商品变形”“多任务图片串流”等风险。
+- 对已批准的无字摄影场景做可选的细颗粒、微对比和轻压缩收尾，降低过度平滑和统一塑料感，同时保留来源与参数证据。
 - 多图成品在生图导出和总览图完成后自动启动 tldraw 画布，让用户直接批注，然后把批注转换成修订任务。
 
 ## 它不能做什么
@@ -64,6 +72,8 @@
 - Codex Desktop 或支持本地 skills 的 Codex 环境。
 - Node.js 20 或更新版本。
 - npm。
+- Python 3.10+ 与 FFmpeg；安装/更新流程会自动检测，FFmpeg 缺失时会尝试通过当前系统可用的包管理器安装。
+- NumPy、Pillow、OpenCV：无需手工装到全局 Python，skill 会在独立虚拟环境中自动准备。
 - 可选：`tesseract`，用于 AI 视觉识别不确定时本地 OCR 兜底读取源图文字。
 - 可选：Google Chrome、Microsoft Edge 或 Playwright 浏览器，用于 HTML/画布渲染。
 - 可选：第三方 OpenAI-compatible 图片 API key。当前 Codex 使用第三方 provider 时才需要；默认 profile 是 ThinkAI `gpt-image-2`。
@@ -170,6 +180,15 @@ Windows 默认路径是：
 ```text
 %USERPROFILE%\.codex\skills\sellerpilot-product-image-industrial
 ```
+
+`npm run sync:codex` 在复制并校验主 skill 后，会自动准备共享 tldraw 依赖和自然质感收尾运行环境。也可以单独检查或准备：
+
+```bash
+npm run check:natural-image-runtime
+npm run prepare:natural-image-runtime
+```
+
+正式商品图任务只运行 check，不会边生图边安装第三方库。
 
 ### 方式 1：在 Codex / ChatGPT 的 Codex agent 对话里安装
 
@@ -415,6 +434,21 @@ npm run qa:personalized-text -- \
   --font-family "Snell Roundhand" \
   --visible-text-status pass
 ```
+
+已批准的无字摄影底图或真实/generated 场景如果有过度平滑、纹理过于均一的问题，可以在本地文字合成前运行可选收尾：
+
+```bash
+npm run finish:natural-image -- \
+  --run-dir runs/demo-amazon-bag \
+  --input runs/demo-amazon-bag/generated-assets/approved-scene.png \
+  --output runs/demo-amazon-bag/final-images/IMG-01-lifestyle-scene.png \
+  --role lifestyle_scene \
+  --approved-source true \
+  --contains-visible-text false \
+  --preset light
+```
+
+这不是“去 AI 检测”工具，也不能保证图片被判断为人类制作。它只做克制的颗粒、微对比、细节恢复和 FFmpeg 输出编码。带文字、logo、包装标签、透明通道、信息图/参数卡会被默认阻断；处理后必须重新跑需要的身份一致性、文字、lineage、导出和最终交付 gate。
 
 最终导出后，manifest 需要能说明每张图的来源。若包含裁切、衍生、失败角色修复或本地文字合成，运行：
 

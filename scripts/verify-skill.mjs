@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -187,6 +188,116 @@ record("node syntax", () => {
   }
 });
 
+record("python syntax", () => {
+  const python = process.env.SELLERPILOT_PYTHON || (process.platform === "win32" ? "python" : "python3");
+  run(python, ["-c", "import pathlib,sys; p=pathlib.Path(sys.argv[1]); compile(p.read_text(encoding='utf-8'), str(p), 'exec')", path.join(skillRoot, "scripts", "natural-image-finish.py")]);
+});
+
+record("natural image runtime preparation contract", () => {
+  const dir = tmpDir("sp-verify-natural-runtime-");
+  const output = run(process.execPath, [
+    "scripts/prepare-natural-image-runtime.mjs",
+    "--prepare",
+    "--dry-run",
+    "--runtime-root", dir,
+  ]);
+  const report = JSON.parse(output);
+  if (!["would_prepare", "would_install_dependencies"].includes(report.status)) {
+    throw new Error(`natural image runtime dry-run should plan preparation, got ${report.status}.`);
+  }
+  if (output.includes(dir) || output.includes(skillRoot) || output.includes("runtime_root")) {
+    throw new Error("natural image runtime default output must not expose local diagnostic paths.");
+  }
+  const diagnostics = JSON.parse(run(process.execPath, [
+    "scripts/prepare-natural-image-runtime.mjs",
+    "--prepare",
+    "--dry-run",
+    "--runtime-root", dir,
+    "--include-diagnostics",
+  ]));
+  if (diagnostics.diagnostics?.runtime_root !== dir) {
+    throw new Error("natural image runtime diagnostics should expose the runtime path only when requested.");
+  }
+  const pkg = readJson(path.join(skillRoot, "package.json"));
+  for (const name of ["prepare:natural-image-runtime", "check:natural-image-runtime", "finish:natural-image"]) {
+    if (!pkg.scripts?.[name]) throw new Error(`package.json is missing ${name}.`);
+  }
+  const runner = fs.readFileSync(path.join(skillRoot, "scripts", "natural-image-finish.mjs"), "utf8");
+  for (const guard of ["approved_source_required", "visible_text_must_be_explicitly_false", "input_not_run_local", "natural_image_finish"]) {
+    if (!runner.includes(guard)) throw new Error(`natural image finish runner is missing ${guard}.`);
+  }
+});
+
+record("natural image finish lineage proof gate", () => {
+  const runDir = path.join(tmpDir("sp-verify-natural-lineage-"), "run");
+  const imageDir = path.join(runDir, "final-images");
+  const sourceDir = path.join(runDir, "generated-assets");
+  const qaDir = path.join(runDir, "qa");
+  const exportDir = path.join(runDir, "export");
+  fs.mkdirSync(imageDir, { recursive: true });
+  fs.mkdirSync(sourceDir, { recursive: true });
+  fs.mkdirSync(qaDir, { recursive: true });
+  fs.mkdirSync(exportDir, { recursive: true });
+  const fixture = path.join(skillRoot, "docs", "images", "readme-delivery-example.png");
+  const source = path.join(sourceDir, "approved-scene.png");
+  const output = path.join(imageDir, "IMG-01-lifestyle-scene.png");
+  fs.copyFileSync(fixture, source);
+  fs.copyFileSync(fixture, output);
+  const outputHash = crypto.createHash("sha256").update(fs.readFileSync(output)).digest("hex");
+  const inputHash = crypto.createHash("sha256").update(fs.readFileSync(source)).digest("hex");
+  const proofPath = path.join(qaDir, "natural-image-finish-IMG-01-lifestyle-scene.json");
+  fs.writeFileSync(proofPath, JSON.stringify({
+    schema_version: "sellerpilot.natural_image_finish_asset.v1",
+    status: "pass",
+    input_sha256: inputHash,
+    output_sha256: outputHash,
+    operations: ["ffmpeg_temporal_uniform_grain_and_output_encode"],
+  }, null, 2));
+  fs.writeFileSync(path.join(qaDir, "natural-image-finish-gate-report.json"), JSON.stringify({
+    schema_version: "sellerpilot.natural_image_finish_gate.v1",
+    gate_id: "natural-image-finish-gate",
+    status: "pass",
+    assets: [{
+      file: path.basename(output),
+      approved_source: true,
+      contains_visible_text: false,
+      input_sha256: inputHash,
+      output_sha256: outputHash,
+    }],
+    findings: [],
+  }, null, 2));
+  const manifestPath = path.join(exportDir, "final-images-manifest.json");
+  fs.writeFileSync(manifestPath, JSON.stringify({
+    schema_version: "sellerpilot.final_images_manifest.v1",
+    run_dir: runDir,
+    image_dir: imageDir,
+    image_count: 1,
+    images: [{
+      id: "IMG-01",
+      file: path.basename(output),
+      path: output,
+      lineage: {
+        source_type: "derived_from_approved_generated_asset",
+        derived_from: path.relative(runDir, source),
+        transformation_type: "natural_image_finish",
+        natural_finish_proof: path.relative(runDir, proofPath),
+      },
+    }],
+  }, null, 2));
+  run(process.execPath, ["scripts/final-image-lineage-gate.mjs", "--run-dir", runDir, "--manifest", manifestPath]);
+  const passing = readJson(path.join(qaDir, "final-image-lineage-gate-report.json"));
+  if (passing.status !== "pass") throw new Error("natural image finish lineage proof should pass with matching output hash.");
+  const invalidProof = readJson(proofPath);
+  invalidProof.output_sha256 = "0".repeat(64);
+  fs.writeFileSync(proofPath, JSON.stringify(invalidProof, null, 2));
+  const failed = spawnSync(process.execPath, ["scripts/final-image-lineage-gate.mjs", "--run-dir", runDir, "--manifest", manifestPath], { cwd: skillRoot });
+  if (failed.status === 0) throw new Error("natural image finish lineage proof should fail when the output hash drifts.");
+  const blocked = readJson(path.join(qaDir, "final-image-lineage-gate-report.json"));
+  if (!blocked.findings.some((item) => item.type === "natural-image-finish-output-hash-mismatch")) {
+    throw new Error("natural image finish lineage gate should report output hash mismatch.");
+  }
+});
+
 record("json parse", () => {
   for (const file of listFiles(skillRoot, (item) => item.endsWith(".json"))) {
     readJson(file);
@@ -253,6 +364,7 @@ record("workflow loop guard ordering", () => {
       "anchor-batch-qa-decision-record",
       "surface-material-transfer-proof-before-final-generation-if-triggered",
       "surface-material-transfer-gate-if-triggered",
+      "natural-image-finish-if-approved-text-free-photographic-asset",
       "localized-final-visible-text-qa-if-locale-needs-review",
       "text-layout-proof-gate-before-final-export-if-visible-copy",
       "product-background-card-consistency-gate",
@@ -297,6 +409,8 @@ record("workflow loop guard ordering", () => {
     assertStepBefore(file, steps, "identity-consistency-gate", "surface-material-transfer-proof-before-final-generation-if-triggered");
     assertStepBefore(file, steps, "surface-material-transfer-proof-before-final-generation-if-triggered", "surface-material-transfer-gate-if-triggered");
     assertStepBefore(file, steps, "surface-material-transfer-gate-if-triggered", "marketing-quality-gate");
+    assertStepBefore(file, steps, "product-physics-fact-gate-if-function-use-or-scale-sensitive", "natural-image-finish-if-approved-text-free-photographic-asset");
+    assertStepBefore(file, steps, "natural-image-finish-if-approved-text-free-photographic-asset", "marketing-quality-gate");
     assertStepBefore(file, steps, "text-layout-proof-gate-before-final-export-if-visible-copy", "localized-final-visible-text-qa-if-locale-needs-review");
     assertStepBefore(file, steps, "localized-final-visible-text-qa-if-locale-needs-review", "marketing-quality-gate");
     assertStepBefore(file, steps, "product-background-card-consistency-gate", "marketing-quality-gate");
@@ -1079,6 +1193,7 @@ record("skill sync release metadata branch smoke", () => {
     "--remote-branch", "codex/test-branch",
     "--skip-verify",
     "--no-backup",
+    "--skip-runtime-prepare",
   ]);
   if (syncOut.includes(dir) || syncOut.includes(dest) || syncOut.includes(skillRoot) || syncOut.includes("source_path") || syncOut.includes("dest_path")) {
     throw new Error("sync script default output must not expose local source, destination, or release paths.");
@@ -1106,6 +1221,7 @@ record("skill sync release metadata branch smoke", () => {
     "--skill-name", "sellerpilot-product-image-industrial",
     "--skip-verify",
     "--no-backup",
+    "--skip-runtime-prepare",
   ]);
   const resyncedRelease = readJson(path.join(installedDest, ".sellerpilot-skill-release.json"));
   if (!resyncedRelease.local_commit || !resyncedRelease.remote_url) {
@@ -1149,6 +1265,7 @@ record("skill sync release metadata branch smoke", () => {
     "--remote-branch", "codex/test-branch",
     "--skip-verify",
     "--no-backup",
+    "--skip-runtime-prepare",
   ]);
   const distLikeRelease = readJson(path.join(distLikeDest, ".sellerpilot-skill-release.json"));
   if (!distLikeRelease.local_commit || distLikeRelease.remote_branch !== "codex/test-branch") {
@@ -1162,6 +1279,7 @@ record("skill sync release metadata branch smoke", () => {
     "--skill-name", "sellerpilot-product-image-industrial-thinkai",
     "--skip-verify",
     "--no-backup",
+    "--skip-runtime-prepare",
   ]);
   const fallbackRelease = readJson(path.join(distLikeFallbackDest, ".sellerpilot-skill-release.json"));
   const currentBranch = run("git", ["rev-parse", "--abbrev-ref", "HEAD"]).trim();

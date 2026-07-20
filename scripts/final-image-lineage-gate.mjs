@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -53,6 +54,58 @@ for (const image of images) {
         type: "derived-asset-claims-new-scene",
         file: image.file,
         message: `${image.file} is derived from an approved asset and must not be claimed as a fresh provider scene generation.`,
+      });
+    }
+  }
+  if (normalize(lineage.transformation_type) === "natural_image_finish") {
+    const proof = lineage.natural_finish_proof;
+    const proofPath = proof ? (path.isAbsolute(proof) ? proof : path.join(runDir, proof)) : "";
+    const imagePath = path.resolve(image.path || path.join(manifest.image_dir || path.join(runDir, "final-images"), image.file || ""));
+    const proofReport = proofPath && fs.existsSync(proofPath) ? readJson(proofPath) : null;
+    const source = lineage.derived_from || lineage.approved_source_path || lineage.generated_asset_path;
+    const sourcePath = source ? (path.isAbsolute(source) ? source : path.join(runDir, source)) : "";
+    const finishGatePath = path.join(runDir, "qa", "natural-image-finish-gate-report.json");
+    const finishGate = fs.existsSync(finishGatePath) ? readJson(finishGatePath) : null;
+    const gateAsset = Array.isArray(finishGate?.assets)
+      ? finishGate.assets.find((item) => path.basename(item.file || item.output || "") === path.basename(image.file || ""))
+      : null;
+    if (!proofReport || proofReport.status !== "pass") {
+      findings.push({
+        severity: "fail",
+        type: "natural-image-finish-missing-proof",
+        file: image.file,
+        message: `${image.file} declares natural_image_finish but has no passing asset proof.`,
+      });
+    } else if (!fs.existsSync(imagePath) || proofReport.output_sha256 !== sha256File(imagePath)) {
+      findings.push({
+        severity: "fail",
+        type: "natural-image-finish-output-hash-mismatch",
+        file: image.file,
+        message: `${image.file} does not match the output hash in its natural image finish proof.`,
+      });
+    }
+    if (proofReport && (!sourcePath || !fs.existsSync(sourcePath) || proofReport.input_sha256 !== sha256File(sourcePath))) {
+      findings.push({
+        severity: "fail",
+        type: "natural-image-finish-input-hash-mismatch",
+        file: image.file,
+        message: `${image.file} does not match the approved input hash in its natural image finish proof.`,
+      });
+    }
+    if (!Array.isArray(proofReport?.operations) || !proofReport.operations.includes("ffmpeg_temporal_uniform_grain_and_output_encode")) {
+      findings.push({
+        severity: "fail",
+        type: "natural-image-finish-incomplete-operation-chain",
+        file: image.file,
+        message: `${image.file} natural image finish proof is missing the FFmpeg finish operation.`,
+      });
+    }
+    if (finishGate?.status !== "pass" || !gateAsset || gateAsset.approved_source !== true || gateAsset.contains_visible_text !== false) {
+      findings.push({
+        severity: "fail",
+        type: "natural-image-finish-eligibility-gate-missing",
+        file: image.file,
+        message: `${image.file} is missing a passing natural image finish eligibility record for approved source and no visible text.`,
       });
     }
   }
@@ -114,6 +167,10 @@ function toMarkdown(report) {
 
 function readJson(file) {
   return JSON.parse(fs.readFileSync(file, "utf8"));
+}
+
+function sha256File(file) {
+  return crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
 }
 
 function normalize(value) {

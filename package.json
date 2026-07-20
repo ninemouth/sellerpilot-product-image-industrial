@@ -45,6 +45,9 @@
     "watchdog:runtime": "node scripts/runtime-watchdog.mjs",
     "watchdog:close-ready": "node scripts/runtime-watchdog.mjs --auto-close-ready",
     "trace:phases": "node scripts/production-phase-tracer.mjs",
+    "prepare:natural-image-runtime": "node scripts/prepare-natural-image-runtime.mjs --prepare",
+    "check:natural-image-runtime": "node scripts/prepare-natural-image-runtime.mjs --check",
+    "finish:natural-image": "node scripts/natural-image-finish.mjs",
     "progress:reconcile": "node scripts/reconcile-generation-progress.mjs",
     "launch:canvas": "node scripts/post-generation-tldraw-launcher.mjs",
     "wait:review": "node scripts/wait-for-review-completion.mjs"

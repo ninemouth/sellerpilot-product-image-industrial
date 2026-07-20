@@ -20,6 +20,7 @@ source-normalized/product-normalization-report.json
 planning/production-efficiency-plan.json  # triggered/skipped work and stage budgets
 blueprint/quality-production-blueprint.json  # compact image-set planning for quality production multi-image finals
 qa/qa-loop-state.json                     # persisted retry signatures and loop guard state
+qa/natural-image-finish-gate-report.json   # conditional for approved text-free photographic finishing
 review-workspace/  # required after generated multi-image final sets; otherwise only when review/revision is requested or needed
 ```
 
@@ -103,6 +104,7 @@ qa/product-background-card-consistency-gate-report.json
 qa/qa-loop-routing-decision.json
 qa/qa-loop-state.json
 qa/final-delivery-gate-report.json
+qa/natural-image-finish-gate-report.json  # conditional when final lineage uses natural_image_finish
 failed-output-review.yaml
 ```
 
