@@ -549,6 +549,16 @@ function validateAdaptiveNaturalFinishBatch({ manifest, runDir, findings }) {
     });
     return;
   }
+  const naturalnessAbStatus = normalizeStatus(batch?.camera_photoshop_naturalness_ab?.status);
+  if (!["pass", "warn"].includes(naturalnessAbStatus)) {
+    findings.push({
+      severity: "fail",
+      type: "adaptive-natural-image-finish-naturalness-ab-review-missing-or-blocked",
+      gate_id: "final-delivery-gate",
+      source_report: "qa/natural-image-finish-batch-report.json",
+      message: "Adaptive natural finish batch must include a passing camera/Photoshop A/B naturalness review summary.",
+    });
+  }
   for (const image of images) {
     const file = path.basename(image.file || image.path || "");
     const asset = assets.find((item) => path.basename(item.file || item.output || "") === file);
@@ -556,6 +566,7 @@ function validateAdaptiveNaturalFinishBatch({ manifest, runDir, findings }) {
       normalizeText(image.lineage?.transformation_type) !== "natural_image_finish"
       || !asset?.selected_profile
       || !asset?.proof
+      || !["pass", "warn"].includes(normalizeStatus(asset?.naturalness_ab_review?.status))
     ) {
       findings.push({
         severity: "fail",
@@ -563,7 +574,7 @@ function validateAdaptiveNaturalFinishBatch({ manifest, runDir, findings }) {
         gate_id: "final-delivery-gate",
         source_report: "qa/natural-image-finish-batch-report.json",
         file,
-        message: `${file} is missing adaptive profile, proof, or natural_image_finish lineage.`,
+        message: `${file} is missing adaptive profile, proof, naturalness A/B review, or natural_image_finish lineage.`,
       });
     }
   }

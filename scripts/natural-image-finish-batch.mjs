@@ -124,6 +124,10 @@ try {
     if (proof.width !== job.width || proof.height !== job.height) {
       throw new Error(`Adaptive natural finish changed dimensions for ${job.file}.`);
     }
+    const abReview = proof.protection?.camera_photoshop_realism?.naturalness_ab_review;
+    if (!abReview || !["pass", "warn"].includes(String(abReview.status || "").toLowerCase())) {
+      throw new Error(`Adaptive natural finish A/B naturalness review blocked ${job.file}.`);
+    }
     processed.push({
       ...job,
       source,
@@ -184,6 +188,7 @@ const assets = processed.map((item) => {
     output_sha256: proof.output_sha256,
     selected_profile: proof.selected_profile,
     recognition: proof.recognition,
+    naturalness_ab_review: proof.protection?.camera_photoshop_realism?.naturalness_ab_review || null,
     contains_visible_text: proof.recognition?.contains_visible_text === true,
     text_protection_applied: proof.protection?.text_protection_applied === true,
     alpha_preserved: proof.protection?.alpha_preserved === true,
@@ -191,6 +196,7 @@ const assets = processed.map((item) => {
     proof: relativeRunPath(item.proofPath),
   };
 });
+const naturalnessAb = summarizeNaturalnessAbReviews(assets);
 
 writeJson(gateReportPath, {
   schema_version: "sellerpilot.natural_image_finish_gate.v2",
@@ -207,6 +213,7 @@ writeJson(gateReportPath, {
   image_count: images.length,
   processed_count: assets.length,
   all_final_images_processed: assets.length === images.length,
+  camera_photoshop_naturalness_ab: naturalnessAb,
   assets,
   findings: [],
 });
@@ -222,6 +229,7 @@ writeJson(batchReportPath, {
   processed_count: assets.length,
   all_final_images_processed: assets.length === images.length,
   profile_counts: profileCounts,
+  camera_photoshop_naturalness_ab: naturalnessAb,
   original_backup_manifest: relativeRunPath(path.join(backupDir, "backup-manifest.json")),
   final_image_hashes: Object.fromEntries(assets.map((item) => [item.file, item.output_sha256])),
   assets,
@@ -249,6 +257,7 @@ console.log(JSON.stringify({
   processed_count: assets.length,
   all_final_images_processed: true,
   profile_counts: profileCounts,
+  camera_photoshop_naturalness_ab: naturalnessAb,
   batch_report: batchReportPath,
   gate_report: gateReportPath,
   visible_text_review: visibleTextReviewPath,
@@ -534,6 +543,46 @@ function countBy(items, selector) {
     result[key] = (result[key] || 0) + 1;
   }
   return result;
+}
+
+function summarizeNaturalnessAbReviews(items) {
+  const assetReviews = items.map((item) => {
+    const review = item.naturalness_ab_review || {};
+    return {
+      file: item.file,
+      status: String(review.status || "missing"),
+      score: Number.isFinite(Number(review.score)) ? Number(review.score) : null,
+      selected_profile: item.selected_profile || null,
+      visual_state: item.recognition?.visual_state?.primary || null,
+      warnings: Array.isArray(review.warnings) ? review.warnings : [],
+      blockers: Array.isArray(review.blockers) ? review.blockers : [],
+      policy: review.policy || null,
+    };
+  });
+  const scores = assetReviews
+    .map((item) => item.score)
+    .filter((score) => Number.isFinite(score));
+  const blockedCount = assetReviews.filter((item) => item.status === "blocked" || item.blockers.length).length;
+  const warnCount = assetReviews.filter((item) => item.status === "warn" || item.warnings.length).length;
+  const missingCount = assetReviews.filter((item) => item.status === "missing").length;
+  const status = blockedCount || missingCount
+    ? "blocked"
+    : (warnCount ? "pass_with_warnings" : "pass");
+  return {
+    schema_version: "sellerpilot.camera_photoshop_naturalness_ab.v1",
+    status,
+    average_score: scores.length ? round2(scores.reduce((sum, score) => sum + score, 0) / scores.length) : null,
+    min_score: scores.length ? round2(Math.min(...scores)) : null,
+    warn_count: warnCount,
+    blocked_count: blockedCount,
+    missing_count: missingCount,
+    asset_reviews: assetReviews,
+    policy: "perceptual_camera_photoshop_quality_not_detector_targeting",
+  };
+}
+
+function round2(value) {
+  return Math.round(Number(value) * 100) / 100;
 }
 
 function relativeRunPath(file) {

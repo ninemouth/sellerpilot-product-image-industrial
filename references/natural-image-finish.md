@@ -63,6 +63,8 @@ After profile selection, the processor runs a visual-state camera/Photoshop real
 
 When the naturalism score is high, the processor raises only bounded camera/post-production parameters: camera white balance and color-temperature correction, filmic highlight shoulder and shadow toe, Photoshop-style local contrast/clarity, material microtexture, surface mottle and chroma drift, signal-dependent sensor grain, subtle lens edge softness, and highlight bloom. It is skipped or heavily reduced for visible-text and transparent assets. The goal is to make the image resemble a real camera capture plus restrained human post-production, not to optimize against any detector.
 
+Each asset proof also writes a camera/Photoshop A/B naturalness review. It compares before/after luminance variation, local contrast, saturation shift, white-balance drift, and mean pixel movement against the selected profile. Normal warnings mean the finish stayed conservative or came close to an upper bound; a blocked review stops the transactional batch before promotion, preserving the original final images. The batch and gate reports aggregate average score, minimum score, warning count, blocked count, and one review row per final image.
+
 The spectral layer is diagnostic-first. It records radial power samples, high-frequency roll-off, directional anisotropy, and periodic peak scores. FFT notch attenuation is allowed only for visible periodic artifacts such as banding, grid-like repetition, or ringing that exceed the current profile threshold. It must not be tuned or described as suppressing generic AI fingerprints, and the skill must not add CLIP-based adversarial perturbations or other detector-targeted changes.
 
 `--profile auto` is the production default. Manual `--noise` and `--blur` overrides are diagnostic tools and should not replace adaptive classification across a normal set.
@@ -76,6 +78,8 @@ generated-assets/natural-finish-originals/
 ```
 
 Every output is first written under `generated-assets/natural-finish-staging/`. The batch promotes results only after every manifest image has a passing proof and unchanged dimensions. If processing or promotion fails, the final set remains/restores to its original hashes; do not accept partial finishing and do not regenerate the provider assets merely to recover this local stage.
+
+The A/B naturalness review is part of that proof contract. If a profile-specific review is `blocked`, the staged image is not promoted. Warning-only reviews may proceed because they are useful human-review signals rather than retry triggers.
 
 Re-running an unchanged completed batch returns `already_applied` and does not encode the images again. `--force` is reserved for a deliberate profile/classifier update and still reads from the preserved originals.
 

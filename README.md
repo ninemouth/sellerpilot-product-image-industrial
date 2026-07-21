@@ -56,7 +56,7 @@
 - 对最终图片文案做策略 gate，避免无证据的夸张卖点、内部 QA 语言、平台水印或系统标记。
 - 强制保留商品套图总览图，但在日常高质量成品中收敛规划和报告产物，避免把完整工业审计包误跑成普通出图流程。
 - 用身份一致性、几何比例、物理功能、导出规范、总览图和 QA loop guard 降低“生造功能”“商品变形”“多任务图片串流”等风险。
-- 对当前任务所有正式生成图片做全量自适应自然质感收尾，按场景/棚拍/微距/文字/透明/混合类型调整参数，同时保留文字、alpha、来源和处理证据。
+- 对当前任务所有正式生成图片做全量自适应自然质感收尾，按场景/棚拍/微距/文字/透明/混合类型调整参数，同时保留文字、alpha、来源和处理证据；处理后会自动生成相机/Photoshop A/B 自然度复核，防止修图过度。
 - 多图成品在生图导出和总览图完成后自动启动 tldraw 画布，让用户直接批注，然后把批注转换成修订任务。
 
 ## 它不能做什么
@@ -445,7 +445,7 @@ npm run finish:natural-image-batch -- \
   --run-dir runs/demo-amazon-bag
 ```
 
-它会根据 panel/role 和图片像素自动选择 `photographic_scene`、`studio_product`、`macro_detail`、`graphic_text`、`transparent_asset` 或 `hybrid_commerce`，不会给所有图片套同一组参数。随后它会按视觉状态而不是商品类别做 camera / Photoshop realism 判断，例如 high-key、low-key、flat render、glossy、matte/smooth、macro、graphic、transparent、lifestyle camera scene、studio clean product。处理器会在内部触发有上限的相机/后期调参：白平衡与色温校正、filmic 高光肩部和阴影 toe、Photoshop 式局部对比/clarity、平滑材质区域微纹理、低频明暗/色温微漂移、信号相关颗粒、轻微镜头边缘柔化和高光 bloom。原图保存在当前 run 的 `generated-assets/natural-finish-originals/`。带文字图片处理后会进入 `post-natural-finish-visible-text-review`，透明图会保留 alpha。它不是“去 AI 检测”工具，也不能保证图片被判断为人类制作；目标只是以克制、可审计的摄影成像与人工后期视觉统计降低不自然的数字塑料感。不会加入 CLIP-based adversarial perturbation 或其他检测器对抗扰动。
+它会根据 panel/role 和图片像素自动选择 `photographic_scene`、`studio_product`、`macro_detail`、`graphic_text`、`transparent_asset` 或 `hybrid_commerce`，不会给所有图片套同一组参数。随后它会按视觉状态而不是商品类别做 camera / Photoshop realism 判断，例如 high-key、low-key、flat render、glossy、matte/smooth、macro、graphic、transparent、lifestyle camera scene、studio clean product。处理器会在内部触发有上限的相机/后期调参：白平衡与色温校正、filmic 高光肩部和阴影 toe、Photoshop 式局部对比/clarity、平滑材质区域微纹理、低频明暗/色温微漂移、信号相关颗粒、轻微镜头边缘柔化和高光 bloom。每张图都会写处理前/处理后的 A/B 自然度复核，比较局部对比、亮度分布、饱和度漂移、白平衡偏移和平均像素改动；普通 warning 作为人工复核信号，明显过度处理会阻断整批替换。原图保存在当前 run 的 `generated-assets/natural-finish-originals/`。带文字图片处理后会进入 `post-natural-finish-visible-text-review`，透明图会保留 alpha。它不是“去 AI 检测”工具，也不能保证图片被判断为人类制作；目标只是以克制、可审计的摄影成像与人工后期视觉统计降低不自然的数字塑料感。不会加入 CLIP-based adversarial perturbation 或其他检测器对抗扰动。
 
 当批次包含可见文字时，完成视觉复核后用结构化证据收口：
 

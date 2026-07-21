@@ -100,6 +100,15 @@ for (const image of images) {
         message: `${image.file} natural image finish proof is missing the FFmpeg finish operation.`,
       });
     }
+    const naturalnessReviewStatus = normalize(proofReport?.protection?.camera_photoshop_realism?.naturalness_ab_review?.status);
+    if (!["pass", "warn"].includes(naturalnessReviewStatus)) {
+      findings.push({
+        severity: "fail",
+        type: "natural-image-finish-naturalness-ab-review-missing-or-blocked",
+        file: image.file,
+        message: `${image.file} natural image finish proof is missing a passing camera/Photoshop A/B naturalness review.`,
+      });
+    }
     const visibleTextProtected = gateAsset?.contains_visible_text !== true || gateAsset?.text_protection_applied === true;
     const alphaProtected = gateAsset?.recognition?.alpha_non_opaque !== true || (
       gateAsset?.alpha_preserved === true

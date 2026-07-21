@@ -858,6 +858,158 @@ def apply_subtle_lens_vignette(rgb: np.ndarray, params: dict[str, float]) -> tup
     return output, {"applied": True, "amount": round(amount, 5)}
 
 
+def evaluate_camera_photoshop_naturalness_ab_review(
+    before_metrics: dict[str, float],
+    after_metrics: dict[str, float],
+    delta: dict[str, float],
+    selected_profile: str,
+    visual_state: dict[str, Any],
+    params: dict[str, float],
+    preserve_text: bool,
+    preserve_alpha: bool,
+) -> dict[str, Any]:
+    """Score whether the camera/Photoshop finish improved naturalness without over-processing.
+
+    This is a perceptual A/B quality check, not detector targeting. It keeps the
+    processor honest: enough real-camera texture and tone movement to soften a
+    plastic render, but bounded changes for product identity, copy, and alpha.
+    """
+    primary_state = str(visual_state.get("primary") or "")
+    secondary_states = [str(item) for item in visual_state.get("secondary", [])]
+    state_names = {primary_state, *secondary_states}
+    protected_asset = preserve_text or preserve_alpha or selected_profile in {"graphic_text", "transparent_asset"}
+
+    profile_limits = {
+        "photographic_scene": {"target_min_mae": 0.45, "warn_mae": 11.0, "block_mae": 18.0, "sat_warn": 8.5, "sat_block": 14.0, "luma_warn": 15.0, "luma_block": 25.0},
+        "hybrid_commerce": {"target_min_mae": 0.35, "warn_mae": 9.0, "block_mae": 15.0, "sat_warn": 7.0, "sat_block": 12.0, "luma_warn": 13.0, "luma_block": 22.0},
+        "studio_product": {"target_min_mae": 0.20, "warn_mae": 7.0, "block_mae": 12.0, "sat_warn": 6.0, "sat_block": 10.0, "luma_warn": 11.0, "luma_block": 18.0},
+        "macro_detail": {"target_min_mae": 0.12, "warn_mae": 5.0, "block_mae": 9.0, "sat_warn": 5.0, "sat_block": 8.0, "luma_warn": 9.0, "luma_block": 14.0},
+        "graphic_text": {"target_min_mae": 0.0, "warn_mae": 2.0, "block_mae": 4.0, "sat_warn": 2.0, "sat_block": 4.0, "luma_warn": 4.0, "luma_block": 7.0},
+        "transparent_asset": {"target_min_mae": 0.0, "warn_mae": 3.0, "block_mae": 6.0, "sat_warn": 3.0, "sat_block": 6.0, "luma_warn": 5.0, "luma_block": 9.0},
+    }
+    limits = profile_limits.get(selected_profile, profile_limits["photographic_scene"])
+    mae = float(delta.get("mean_absolute_rgb", 0.0))
+    luma_delta = float(delta.get("luminance_std", 0.0))
+    saturation_delta = float(delta.get("mean_saturation", 0.0))
+    local_contrast_delta = float(delta.get("local_contrast_laplacian", 0.0))
+    wb_delta = float(delta.get("white_balance_deviation", 0.0))
+    before_wb = float(before_metrics.get("white_balance_deviation", 0.0))
+    after_wb = float(after_metrics.get("white_balance_deviation", 0.0))
+    before_local = float(before_metrics.get("local_contrast_laplacian", 0.0))
+
+    score = 84.0
+    improvements: list[str] = []
+    warnings: list[str] = []
+    blockers: list[str] = []
+
+    if protected_asset:
+        score += 6.0
+        improvements.append("protected_asset_finish_kept_changes_bounded")
+    elif mae >= limits["target_min_mae"]:
+        score += 4.0
+        improvements.append("visible_but_bounded_pixel_movement")
+    else:
+        warnings.append("natural_finish_may_be_too_subtle_for_visible_ab_difference")
+        score -= 4.0
+
+    needs_clarity = before_local < 0.022 or "flat_ai_render" in state_names or "high_key_soft_product" in state_names
+    if local_contrast_delta > 0.00035 and needs_clarity:
+        score += 6.0
+        improvements.append("local_contrast_clarity_improved_for_flat_or_high_key_render")
+    elif local_contrast_delta > 0.00012:
+        score += 3.0
+        improvements.append("local_contrast_clarity_slightly_improved")
+    elif needs_clarity and not protected_asset:
+        warnings.append("flat_or_high_key_image_received_little_local_contrast_lift")
+        score -= 4.0
+    if local_contrast_delta > 0.018:
+        warnings.append("local_contrast_clarity_near_overprocessed_limit")
+        score -= 5.0
+    if local_contrast_delta > 0.032:
+        blockers.append("local_contrast_clarity_overprocessed")
+        score -= 18.0
+
+    if before_wb > 2.5 and after_wb <= before_wb + 0.25:
+        score += 4.0
+        improvements.append("white_balance_or_color_temperature_not_worsened")
+    elif wb_delta > 1.75 and not protected_asset:
+        warnings.append("white_balance_deviation_worsened")
+        score -= 6.0
+    if wb_delta > 4.5:
+        blockers.append("white_balance_color_temperature_shift_too_large")
+        score -= 20.0
+
+    saturation_metric_is_reliable = not protected_asset or mae > limits["warn_mae"]
+    if not saturation_metric_is_reliable:
+        score += 2.0
+        improvements.append("protected_asset_saturation_delta_ignored_when_mean_pixel_change_is_low")
+    elif abs(saturation_delta) <= limits["sat_warn"]:
+        score += 3.0
+        improvements.append("saturation_shift_within_camera_postproduction_bounds")
+    else:
+        warnings.append("saturation_shift_near_overprocessed_limit")
+        score -= 7.0
+    if saturation_metric_is_reliable and abs(saturation_delta) > limits["sat_block"]:
+        blockers.append("saturation_shift_too_large_for_profile")
+        score -= 18.0
+
+    luma_metric_is_reliable = not protected_asset or mae > limits["warn_mae"]
+    if not luma_metric_is_reliable:
+        score += 2.0
+        improvements.append("protected_asset_luminance_delta_ignored_when_mean_pixel_change_is_low")
+    elif abs(luma_delta) <= limits["luma_warn"]:
+        score += 3.0
+        improvements.append("luminance_distribution_change_within_safe_bounds")
+    else:
+        warnings.append("luminance_distribution_shift_near_overprocessed_limit")
+        score -= 7.0
+    if luma_metric_is_reliable and abs(luma_delta) > limits["luma_block"]:
+        blockers.append("luminance_distribution_shift_too_large_for_profile")
+        score -= 18.0
+
+    if mae > limits["warn_mae"]:
+        warnings.append("mean_pixel_change_near_overprocessed_limit")
+        score -= 8.0
+    if mae > limits["block_mae"]:
+        blockers.append("mean_pixel_change_too_large_for_profile")
+        score -= 24.0
+
+    if "flat_ai_render" in state_names or "matte_or_smooth_surface" in state_names:
+        if float(params.get("material_texture_strength", 0.0)) > 0 and not protected_asset:
+            score += 4.0
+            improvements.append("smooth_material_texture_path_enabled")
+        else:
+            warnings.append("smooth_or_flat_render_did_not_receive_material_texture_path")
+            score -= 3.0
+
+    status = "pass"
+    if blockers:
+        status = "blocked"
+    elif warnings:
+        status = "warn"
+    return {
+        "status": status,
+        "score": round(float(np.clip(score, 0.0, 100.0)), 2),
+        "improvements": improvements,
+        "warnings": warnings,
+        "blockers": blockers,
+        "limits": {
+            "profile": selected_profile,
+            "protected_asset": protected_asset,
+            "target_min_mean_absolute_rgb": limits["target_min_mae"],
+            "warn_mean_absolute_rgb": limits["warn_mae"],
+            "block_mean_absolute_rgb": limits["block_mae"],
+            "warn_abs_saturation_delta": limits["sat_warn"],
+            "block_abs_saturation_delta": limits["sat_block"],
+            "warn_abs_luminance_std_delta": limits["luma_warn"],
+            "block_abs_luminance_std_delta": limits["luma_block"],
+            "block_white_balance_deviation_delta": 4.5,
+            "block_local_contrast_delta": 0.032,
+        },
+        "policy": "perceptual_camera_photoshop_quality_not_detector_targeting",
+    }
+
+
 def inspect_image(image: Image.Image, role_hint: str = "", visible_text_hint: bool | None = None) -> dict[str, Any]:
     oriented = ImageOps.exif_transpose(image)
     alpha_present = "A" in oriented.getbands()
@@ -1084,6 +1236,8 @@ def process_pixels(
     params: dict[str, float],
     seed: int,
     preserve_text: bool,
+    selected_profile: str,
+    recognition: dict[str, Any],
 ) -> tuple[Image.Image, dict[str, Any]]:
     oriented = ImageOps.exif_transpose(image)
     alpha = oriented.getchannel("A") if "A" in oriented.getbands() else None
@@ -1155,6 +1309,16 @@ def process_pixels(
         },
         "policy": "camera_photoshop_realism_finish_without_detector_targeting",
     }
+    realism_report["naturalness_ab_review"] = evaluate_camera_photoshop_naturalness_ab_review(
+        before_metrics,
+        after_metrics,
+        realism_report["delta"],
+        selected_profile,
+        recognition.get("visual_state", {}),
+        params,
+        preserve_text=preserve_text,
+        preserve_alpha=alpha_requires_preservation,
+    )
     result = Image.fromarray(processed, mode="RGB")
     if alpha is not None:
         result.putalpha(alpha)
@@ -1235,6 +1399,8 @@ def run_self_check(ffmpeg_path: str) -> dict[str, Any]:
                 dict(PROFILES[profile]),
                 seed=7,
                 preserve_text=profile == "graphic_text",
+                selected_profile=profile,
+                recognition=inspect_image(source, "", profile == "graphic_text"),
             )
             result.save(intermediate, format="PNG")
             ffmpeg_finish(
@@ -1321,7 +1487,14 @@ def main() -> int:
         preserve_alpha=preserve_alpha,
     )
     seed = args.seed if args.seed is not None else stable_seed(input_path)
-    finished, protection = process_pixels(image, params, seed, preserve_text=preserve_text)
+    finished, protection = process_pixels(
+        image,
+        params,
+        seed,
+        preserve_text=preserve_text,
+        selected_profile=selected_profile,
+        recognition=recognition,
+    )
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="sellerpilot-natural-finish-") as temp_dir:

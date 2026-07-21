@@ -267,7 +267,7 @@ record("natural image runtime preparation contract", () => {
     if (!runner.includes(guard)) throw new Error(`natural image finish runner is missing ${guard}.`);
   }
   const batch = fs.readFileSync(path.join(skillRoot, "scripts", "natural-image-finish-batch.mjs"), "utf8");
-  for (const guard of ["all_final_images_processed", "natural-finish-originals", "selected_profile", "initializeVisibleTextReview"]) {
+  for (const guard of ["all_final_images_processed", "natural-finish-originals", "selected_profile", "initializeVisibleTextReview", "summarizeNaturalnessAbReviews"]) {
     if (!batch.includes(guard)) throw new Error(`natural image finish batch is missing ${guard}.`);
   }
   const processor = fs.readFileSync(path.join(skillRoot, "scripts", "natural-image-finish.py"), "utf8");
@@ -282,6 +282,8 @@ record("natural image runtime preparation contract", () => {
     "photoshop_style_local_contrast_clarity",
     "camera_lens_edge_softness_and_highlight_bloom",
     "camera_photoshop_realism_finish_without_detector_targeting",
+    "evaluate_camera_photoshop_naturalness_ab_review",
+    "perceptual_camera_photoshop_quality_not_detector_targeting",
   ]) {
     if (!processor.includes(guard)) throw new Error(`natural image finish processor is missing ${guard}.`);
   }
@@ -358,6 +360,12 @@ record("adaptive natural image finish mixed batch smoke", () => {
   if (report.status !== "pass" || report.processed_count !== 5 || report.all_final_images_processed !== true) {
     throw new Error("Adaptive natural finish batch should process all five mixed fixtures.");
   }
+  if (!["pass", "pass_with_warnings"].includes(report.camera_photoshop_naturalness_ab?.status)) {
+    throw new Error("Adaptive natural finish batch should summarize camera/Photoshop A/B naturalness reviews.");
+  }
+  if (report.camera_photoshop_naturalness_ab.asset_reviews?.length !== files.length) {
+    throw new Error("Adaptive natural finish batch should include one A/B naturalness review per final image.");
+  }
   const expectedProfiles = {
     "IMG-01-lifestyle-scene.png": "photographic_scene",
     "IMG-02-studio-hero.png": "studio_product",
@@ -377,6 +385,13 @@ record("adaptive natural image finish mixed batch smoke", () => {
     }
     if (!proof.protection?.camera_photoshop_realism?.before || !proof.protection?.camera_photoshop_realism?.after) {
       throw new Error(`${file} should include camera/Photoshop realism before-after metrics.`);
+    }
+    const abReview = proof.protection?.camera_photoshop_realism?.naturalness_ab_review;
+    if (!["pass", "warn"].includes(abReview?.status) || typeof abReview.score !== "number") {
+      throw new Error(`${file} should include a passing camera/Photoshop A/B naturalness review.`);
+    }
+    if (asset.naturalness_ab_review?.status !== abReview.status) {
+      throw new Error(`${file} batch asset should mirror its A/B naturalness review.`);
     }
   }
   const graphic = report.assets.find((item) => item.file === "IMG-04-parameter-card.png");
@@ -579,6 +594,13 @@ record("adaptive natural image finish smooth white commerce fixture", () => {
   if (proof.protection?.camera_photoshop_realism?.policy !== "camera_photoshop_realism_finish_without_detector_targeting") {
     throw new Error("Smooth white commerce fixture should report a non-detector camera/Photoshop realism policy.");
   }
+  const abReview = proof.protection?.camera_photoshop_realism?.naturalness_ab_review;
+  if (!["pass", "warn"].includes(abReview?.status) || typeof abReview.score !== "number") {
+    throw new Error("Smooth white commerce fixture should report a camera/Photoshop A/B naturalness review.");
+  }
+  if (abReview.policy !== "perceptual_camera_photoshop_quality_not_detector_targeting") {
+    throw new Error("Smooth white commerce fixture should keep the A/B naturalness policy perceptual, not detector-targeted.");
+  }
   if (proof.parameters.material_texture_strength <= 0.34 || proof.parameters.surface_mottle_strength <= 0.22) {
     throw new Error("Smooth white commerce fixture should raise material texture and mottle strength above the base scene profile.");
   }
@@ -611,6 +633,15 @@ record("natural image finish lineage proof gate", () => {
     input_sha256: inputHash,
     output_sha256: outputHash,
     operations: ["ffmpeg_temporal_uniform_grain_and_output_encode"],
+    protection: {
+      camera_photoshop_realism: {
+        naturalness_ab_review: {
+          status: "pass",
+          score: 92,
+          policy: "perceptual_camera_photoshop_quality_not_detector_targeting",
+        },
+      },
+    },
   }, null, 2));
   fs.writeFileSync(path.join(qaDir, "natural-image-finish-gate-report.json"), JSON.stringify({
     schema_version: "sellerpilot.natural_image_finish_gate.v1",
