@@ -271,7 +271,18 @@ record("natural image runtime preparation contract", () => {
     if (!batch.includes(guard)) throw new Error(`natural image finish batch is missing ${guard}.`);
   }
   const processor = fs.readFileSync(path.join(skillRoot, "scripts", "natural-image-finish.py"), "utf8");
-  for (const guard of ["spectral_artifact_diagnostics", "conditional_fft_periodic_artifact_suppression", "signal_dependent_luminance_chroma_sensor_grain", "smooth_material_region_microtexture", "highlight_shoulder_rolloff"]) {
+  for (const guard of [
+    "spectral_artifact_diagnostics",
+    "conditional_fft_periodic_artifact_suppression",
+    "signal_dependent_luminance_chroma_sensor_grain",
+    "smooth_material_region_microtexture",
+    "highlight_shoulder_rolloff",
+    "visual_state_camera_photoshop_realism_classification",
+    "camera_white_balance_and_color_temperature",
+    "photoshop_style_local_contrast_clarity",
+    "camera_lens_edge_softness_and_highlight_bloom",
+    "camera_photoshop_realism_finish_without_detector_targeting",
+  ]) {
     if (!processor.includes(guard)) throw new Error(`natural image finish processor is missing ${guard}.`);
   }
   for (const forbidden of ["import torch", "clip-based", "adversarial"]) {
@@ -363,6 +374,9 @@ record("adaptive natural image finish mixed batch smoke", () => {
     }
     if (!proof.operations.includes("signal_dependent_luminance_chroma_sensor_grain")) {
       throw new Error(`${file} should record signal-dependent sensor grain operation.`);
+    }
+    if (!proof.protection?.camera_photoshop_realism?.before || !proof.protection?.camera_photoshop_realism?.after) {
+      throw new Error(`${file} should include camera/Photoshop realism before-after metrics.`);
     }
   }
   const graphic = report.assets.find((item) => item.file === "IMG-04-parameter-card.png");
@@ -544,11 +558,26 @@ record("adaptive natural image finish smooth white commerce fixture", () => {
   if (!proof.parameter_adaptation.risk_factors.includes("large_smooth_material_regions")) {
     throw new Error("Smooth white commerce fixture should report large smooth material regions.");
   }
+  if (proof.recognition?.visual_state?.primary !== "flat_ai_render" && proof.recognition?.visual_state?.primary !== "high_key_soft_product") {
+    throw new Error("Smooth white commerce fixture should classify a camera/Photoshop visual state.");
+  }
   if (!proof.protection?.material_microtexture?.applied) {
     throw new Error("Smooth white commerce fixture should apply material microtexture.");
   }
   if (!proof.protection?.highlight_shoulder?.applied) {
     throw new Error("Smooth white commerce fixture should apply highlight shoulder rolloff.");
+  }
+  if (!proof.protection?.camera_white_balance?.applied) {
+    throw new Error("Smooth white commerce fixture should apply camera white balance.");
+  }
+  if (!proof.protection?.photoshop_local_contrast?.applied) {
+    throw new Error("Smooth white commerce fixture should apply Photoshop-style local contrast.");
+  }
+  if (!proof.protection?.camera_lens_post?.applied) {
+    throw new Error("Smooth white commerce fixture should apply camera lens post processing.");
+  }
+  if (proof.protection?.camera_photoshop_realism?.policy !== "camera_photoshop_realism_finish_without_detector_targeting") {
+    throw new Error("Smooth white commerce fixture should report a non-detector camera/Photoshop realism policy.");
   }
   if (proof.parameters.material_texture_strength <= 0.34 || proof.parameters.surface_mottle_strength <= 0.22) {
     throw new Error("Smooth white commerce fixture should raise material texture and mottle strength above the base scene profile.");

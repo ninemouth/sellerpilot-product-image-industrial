@@ -39,6 +39,12 @@ PRESETS = {
         "material_texture_strength": 0.16,
         "surface_mottle_strength": 0.10,
         "highlight_rolloff": 0.06,
+        "white_balance_strength": 0.035,
+        "local_contrast_strength": 0.045,
+        "midtone_contrast": 0.018,
+        "shadow_toe": 0.010,
+        "lens_edge_softness": 0.010,
+        "lens_highlight_bloom": 0.006,
     },
     "medium": {
         "noise_sigma": 1.35,
@@ -56,6 +62,12 @@ PRESETS = {
         "material_texture_strength": 0.28,
         "surface_mottle_strength": 0.18,
         "highlight_rolloff": 0.10,
+        "white_balance_strength": 0.050,
+        "local_contrast_strength": 0.065,
+        "midtone_contrast": 0.026,
+        "shadow_toe": 0.014,
+        "lens_edge_softness": 0.014,
+        "lens_highlight_bloom": 0.010,
     },
     "strong": {
         "noise_sigma": 2.1,
@@ -73,6 +85,12 @@ PRESETS = {
         "material_texture_strength": 0.42,
         "surface_mottle_strength": 0.28,
         "highlight_rolloff": 0.15,
+        "white_balance_strength": 0.070,
+        "local_contrast_strength": 0.090,
+        "midtone_contrast": 0.036,
+        "shadow_toe": 0.020,
+        "lens_edge_softness": 0.020,
+        "lens_highlight_bloom": 0.014,
     },
 }
 
@@ -93,6 +111,12 @@ PROFILES = {
         "material_texture_strength": 0.34,
         "surface_mottle_strength": 0.22,
         "highlight_rolloff": 0.12,
+        "white_balance_strength": 0.052,
+        "local_contrast_strength": 0.074,
+        "midtone_contrast": 0.030,
+        "shadow_toe": 0.016,
+        "lens_edge_softness": 0.018,
+        "lens_highlight_bloom": 0.012,
     },
     "studio_product": {
         "noise_sigma": 0.55,
@@ -110,6 +134,12 @@ PROFILES = {
         "material_texture_strength": 0.24,
         "surface_mottle_strength": 0.12,
         "highlight_rolloff": 0.08,
+        "white_balance_strength": 0.034,
+        "local_contrast_strength": 0.044,
+        "midtone_contrast": 0.018,
+        "shadow_toe": 0.008,
+        "lens_edge_softness": 0.008,
+        "lens_highlight_bloom": 0.006,
     },
     "macro_detail": {
         "noise_sigma": 0.38,
@@ -127,6 +157,12 @@ PROFILES = {
         "material_texture_strength": 0.18,
         "surface_mottle_strength": 0.06,
         "highlight_rolloff": 0.03,
+        "white_balance_strength": 0.020,
+        "local_contrast_strength": 0.055,
+        "midtone_contrast": 0.012,
+        "shadow_toe": 0.004,
+        "lens_edge_softness": 0.0,
+        "lens_highlight_bloom": 0.0,
     },
     "graphic_text": {
         "noise_sigma": 0.10,
@@ -144,6 +180,12 @@ PROFILES = {
         "material_texture_strength": 0.0,
         "surface_mottle_strength": 0.0,
         "highlight_rolloff": 0.0,
+        "white_balance_strength": 0.0,
+        "local_contrast_strength": 0.0,
+        "midtone_contrast": 0.0,
+        "shadow_toe": 0.0,
+        "lens_edge_softness": 0.0,
+        "lens_highlight_bloom": 0.0,
     },
     "transparent_asset": {
         "noise_sigma": 0.28,
@@ -161,6 +203,12 @@ PROFILES = {
         "material_texture_strength": 0.08,
         "surface_mottle_strength": 0.02,
         "highlight_rolloff": 0.0,
+        "white_balance_strength": 0.0,
+        "local_contrast_strength": 0.010,
+        "midtone_contrast": 0.0,
+        "shadow_toe": 0.0,
+        "lens_edge_softness": 0.0,
+        "lens_highlight_bloom": 0.0,
     },
     "hybrid_commerce": {
         "noise_sigma": 0.48,
@@ -178,6 +226,12 @@ PROFILES = {
         "material_texture_strength": 0.22,
         "surface_mottle_strength": 0.12,
         "highlight_rolloff": 0.06,
+        "white_balance_strength": 0.030,
+        "local_contrast_strength": 0.040,
+        "midtone_contrast": 0.014,
+        "shadow_toe": 0.006,
+        "lens_edge_softness": 0.006,
+        "lens_highlight_bloom": 0.004,
     },
 }
 
@@ -488,6 +542,195 @@ def smooth_material_mask(rgb: np.ndarray) -> tuple[np.ndarray, dict[str, float]]
     }
 
 
+def image_visual_metrics(rgb: np.ndarray) -> dict[str, float]:
+    gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
+    hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
+    edges = cv2.Canny(gray, 80, 180)
+    lab = cv2.cvtColor(rgb, cv2.COLOR_RGB2LAB).astype(np.float32)
+    neutral = (hsv[:, :, 1] < 86) & (gray > 28) & (gray < 246)
+    if np.any(neutral):
+        a_cast = float(np.mean(lab[:, :, 1][neutral] - 128.0))
+        b_cast = float(np.mean(lab[:, :, 2][neutral] - 128.0))
+    else:
+        a_cast = float(np.mean(lab[:, :, 1] - 128.0))
+        b_cast = float(np.mean(lab[:, :, 2] - 128.0))
+    laplacian = cv2.Laplacian(gray, cv2.CV_32F)
+    return {
+        "edge_density": round(float(np.count_nonzero(edges)) / max(1, gray.size), 6),
+        "dark_ratio": round(float(np.count_nonzero(gray <= 48)) / max(1, gray.size), 6),
+        "highlight_ratio": round(float(np.count_nonzero(gray >= 218)) / max(1, gray.size), 6),
+        "warm_highlight_ratio": round(float(np.count_nonzero((gray >= 188) & (hsv[:, :, 1] <= 82))) / max(1, gray.size), 6),
+        "luminance_std": round(float(np.std(gray)), 4),
+        "mean_saturation": round(float(np.mean(hsv[:, :, 1])), 4),
+        "local_contrast_laplacian": round(float(np.mean(np.abs(laplacian))) / 255.0, 6),
+        "lab_neutral_a_cast": round(a_cast, 4),
+        "lab_neutral_b_cast": round(b_cast, 4),
+        "white_balance_deviation": round(float(np.sqrt(a_cast * a_cast + b_cast * b_cast)), 4),
+    }
+
+
+def classify_visual_state(
+    selected_profile: str,
+    contains_visible_text: bool,
+    alpha_non_opaque: bool,
+    metrics: dict[str, float],
+    smooth_surface: dict[str, float],
+    role_signals: dict[str, bool],
+    spectral_metrics: dict[str, Any],
+) -> dict[str, Any]:
+    if alpha_non_opaque or selected_profile == "transparent_asset":
+        return {"primary": "transparent_cutout_asset", "secondary": [], "confidence": 1.0}
+    if contains_visible_text or selected_profile == "graphic_text":
+        return {"primary": "graphic_text_layout", "secondary": [], "confidence": 1.0}
+
+    secondary: list[str] = []
+    smooth_coverage = float(smooth_surface.get("coverage", 0.0))
+    if metrics["highlight_ratio"] > 0.34 or metrics["warm_highlight_ratio"] > 0.26:
+        secondary.append("high_key_soft_product")
+    if metrics["dark_ratio"] > 0.32:
+        secondary.append("low_key_moody_scene")
+    if (
+        metrics["edge_density"] < 0.030
+        and metrics["local_contrast_laplacian"] < 0.018
+        and float(spectral_metrics.get("high_frequency_rolloff", 1.0)) < 0.90
+    ):
+        secondary.append("flat_ai_render")
+    if metrics["highlight_ratio"] > 0.08 and metrics["local_contrast_laplacian"] > 0.020:
+        secondary.append("glossy_reflective_surface")
+    if selected_profile == "macro_detail" or role_signals.get("detail"):
+        secondary.append("macro_texture_detail")
+    if role_signals.get("scene"):
+        secondary.append("lifestyle_camera_scene")
+    if selected_profile == "studio_product" or role_signals.get("studio"):
+        secondary.append("studio_clean_product")
+    if smooth_coverage > 0.34:
+        secondary.append("matte_or_smooth_surface")
+
+    if "flat_ai_render" in secondary:
+        primary = "flat_ai_render"
+    elif "high_key_soft_product" in secondary:
+        primary = "high_key_soft_product"
+    elif "low_key_moody_scene" in secondary:
+        primary = "low_key_moody_scene"
+    elif "glossy_reflective_surface" in secondary:
+        primary = "glossy_reflective_surface"
+    elif "macro_texture_detail" in secondary:
+        primary = "macro_texture_detail"
+    elif "lifestyle_camera_scene" in secondary:
+        primary = "lifestyle_camera_scene"
+    else:
+        primary = "studio_clean_product" if selected_profile == "studio_product" else "balanced_camera_finish"
+
+    unique_secondary = []
+    for item in secondary:
+        if item not in unique_secondary:
+            unique_secondary.append(item)
+    confidence = min(0.98, 0.42 + 0.08 * len(unique_secondary))
+    return {
+        "primary": primary,
+        "secondary": unique_secondary,
+        "confidence": round(confidence, 3),
+    }
+
+
+def apply_camera_white_balance(
+    rgb: np.ndarray,
+    params: dict[str, float],
+    preserve_text: bool,
+) -> tuple[np.ndarray, dict[str, Any]]:
+    strength = float(params.get("white_balance_strength", 0.0))
+    if preserve_text or strength <= 0:
+        return rgb.copy(), {
+            "applied": False,
+            "strength": round(strength, 4),
+            "reason": "protected_text_or_zero_strength" if preserve_text else "zero_strength",
+        }
+    hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
+    gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
+    neutral = (hsv[:, :, 1] < 82) & (gray > 42) & (gray < 242)
+    sample = rgb[neutral] if np.any(neutral) else rgb.reshape(-1, 3)
+    means = np.maximum(1.0, np.mean(sample.astype(np.float32), axis=0))
+    target = float(np.mean(means))
+    correction = 1.0 + np.clip((target / means) - 1.0, -0.12, 0.12) * strength
+    corrected = np.clip(rgb.astype(np.float32) * correction[None, None, :], 0, 255).astype(np.uint8)
+    return corrected, {
+        "applied": True,
+        "strength": round(strength, 4),
+        "neutral_sample_coverage": round(float(np.count_nonzero(neutral)) / max(1, gray.size), 6),
+        "channel_means": [round(float(value), 4) for value in means],
+        "correction": [round(float(value), 5) for value in correction],
+    }
+
+
+def apply_photoshop_local_contrast(
+    rgb: np.ndarray,
+    params: dict[str, float],
+    preserve_text: bool,
+) -> tuple[np.ndarray, dict[str, Any]]:
+    strength = float(params.get("local_contrast_strength", 0.0))
+    if preserve_text or strength <= 0:
+        return rgb.copy(), {
+            "applied": False,
+            "strength": round(strength, 4),
+            "reason": "protected_text_or_zero_strength" if preserve_text else "zero_strength",
+        }
+    lab = cv2.cvtColor(rgb, cv2.COLOR_RGB2LAB).astype(np.float32)
+    luminance = lab[:, :, 0]
+    sigma = max(2.0, min(luminance.shape) / 185.0)
+    base = ndimage.gaussian_filter(luminance, sigma=sigma, mode="reflect")
+    detail = luminance - base
+    edge_guard = 1.0 - smoothstep(18.0, 70.0, np.abs(detail))
+    local = luminance + detail * strength * (0.35 + 0.65 * edge_guard)
+    lab[:, :, 0] = np.clip(local, 0, 255)
+    output = cv2.cvtColor(lab.astype(np.uint8), cv2.COLOR_LAB2RGB)
+    return output, {
+        "applied": True,
+        "strength": round(strength, 4),
+        "sigma": round(float(sigma), 4),
+        "detail_abs_mean": round(float(np.mean(np.abs(detail))) / 255.0, 6),
+    }
+
+
+def apply_camera_lens_post(
+    rgb: np.ndarray,
+    params: dict[str, float],
+    preserve_text: bool,
+) -> tuple[np.ndarray, dict[str, Any]]:
+    edge_softness = float(params.get("lens_edge_softness", 0.0))
+    bloom_strength = float(params.get("lens_highlight_bloom", 0.0))
+    if preserve_text or (edge_softness <= 0 and bloom_strength <= 0):
+        return rgb.copy(), {
+            "applied": False,
+            "edge_softness": round(edge_softness, 4),
+            "highlight_bloom": round(bloom_strength, 4),
+            "reason": "protected_text_or_zero_strength" if preserve_text else "zero_strength",
+        }
+
+    output = rgb.astype(np.float32)
+    height, width = rgb.shape[:2]
+    y, x = np.indices((height, width))
+    center_y = (height - 1) / 2.0
+    center_x = (width - 1) / 2.0
+    radius = np.sqrt(((x - center_x) / max(1.0, center_x)) ** 2 + ((y - center_y) / max(1.0, center_y)) ** 2)
+    edge_mask = smoothstep(0.58, 1.25, radius).astype(np.float32)
+    if edge_softness > 0:
+        blurred = cv2.GaussianBlur(rgb, (0, 0), sigmaX=0.55, sigmaY=0.55).astype(np.float32)
+        mix = np.clip(edge_mask * edge_softness, 0.0, 0.12)
+        output = output * (1.0 - mix[:, :, None]) + blurred * mix[:, :, None]
+    if bloom_strength > 0:
+        gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY).astype(np.float32)
+        highlight = smoothstep(214.0, 255.0, gray).astype(np.float32)
+        glow = cv2.GaussianBlur(rgb, (0, 0), sigmaX=max(1.2, min(height, width) / 360.0)).astype(np.float32)
+        mix = np.clip(highlight * bloom_strength, 0.0, 0.08)
+        output = output * (1.0 - mix[:, :, None]) + glow * mix[:, :, None]
+    return np.clip(output, 0, 255).astype(np.uint8), {
+        "applied": True,
+        "edge_softness": round(edge_softness, 4),
+        "highlight_bloom": round(bloom_strength, 4),
+        "edge_mask_mean": round(float(np.mean(edge_mask)), 6),
+    }
+
+
 def apply_material_microtexture(
     rgb: np.ndarray,
     params: dict[str, float],
@@ -576,13 +819,29 @@ def apply_highlight_shoulder(rgb: np.ndarray, params: dict[str, float], preserve
 
 def apply_filmic_tone_curve(rgb: np.ndarray, params: dict[str, float]) -> tuple[np.ndarray, dict[str, float]]:
     amount = float(params.get("tone_curve", 0.0))
-    if amount <= 0:
-        return rgb, {"tone_curve_amount": 0.0}
+    midtone = float(params.get("midtone_contrast", 0.0))
+    shadow_toe = float(params.get("shadow_toe", 0.0))
+    if amount <= 0 and midtone <= 0 and shadow_toe <= 0:
+        return rgb, {
+            "tone_curve_amount": 0.0,
+            "midtone_contrast": 0.0,
+            "shadow_toe": 0.0,
+        }
     normalized = rgb.astype(np.float32) / 255.0
     centered = normalized - 0.5
     curve = normalized + amount * centered * (1.0 - 4.0 * centered * centered)
+    if midtone > 0:
+        mid_weight = np.clip(1.0 - 4.0 * centered * centered, 0.0, 1.0)
+        curve = 0.5 + (curve - 0.5) * (1.0 + midtone * mid_weight)
+    if shadow_toe > 0:
+        shadow_weight = 1.0 - smoothstep(0.05, 0.42, curve)
+        curve = curve - shadow_toe * shadow_weight * curve * (1.0 - curve)
     curve = np.clip(curve, 0.0, 1.0)
-    return (curve * 255.0).astype(np.uint8), {"tone_curve_amount": round(amount, 5)}
+    return (curve * 255.0).astype(np.uint8), {
+        "tone_curve_amount": round(amount, 5),
+        "midtone_contrast": round(midtone, 5),
+        "shadow_toe": round(shadow_toe, 5),
+    }
 
 
 def apply_subtle_lens_vignette(rgb: np.ndarray, params: dict[str, float]) -> tuple[np.ndarray, dict[str, float | bool]]:
@@ -611,10 +870,7 @@ def inspect_image(image: Image.Image, role_hint: str = "", visible_text_hint: bo
     edges = cv2.Canny(gray, 80, 180)
     edge_density = float(np.count_nonzero(edges)) / max(1, gray.size)
     white_ratio = float(np.count_nonzero(np.all(rgb >= 242, axis=2))) / max(1, gray.size)
-    luminance_std = float(np.std(gray))
-    saturation = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)[:, :, 1]
-    mean_saturation = float(np.mean(saturation))
-    warm_highlight_ratio = float(np.count_nonzero((gray >= 188) & (saturation <= 82))) / max(1, gray.size)
+    visual_metrics = image_visual_metrics(rgb)
     _, text_metrics = text_protection_mask(rgb)
     _, smooth_surface_metrics = smooth_material_mask(rgb)
     spectral_metrics = spectral_artifact_diagnostics(rgb)
@@ -650,10 +906,24 @@ def inspect_image(image: Image.Image, role_hint: str = "", visible_text_hint: bo
         visual_class = "studio_product"
     elif contains_visible_text:
         visual_class = "graphic_text"
-    elif edge_density >= 0.14 and luminance_std >= 50:
+    elif edge_density >= 0.14 and visual_metrics["luminance_std"] >= 50:
         visual_class = "hybrid_commerce"
     else:
         visual_class = "photographic_scene"
+    visual_state = classify_visual_state(
+        visual_class,
+        bool(contains_visible_text),
+        alpha_non_opaque,
+        visual_metrics,
+        smooth_surface_metrics,
+        {
+            "graphic": graphic_role,
+            "scene": scene_role,
+            "detail": detail_role,
+            "studio": studio_role,
+        },
+        spectral_metrics,
+    )
 
     return {
         "width": oriented.width,
@@ -666,14 +936,21 @@ def inspect_image(image: Image.Image, role_hint: str = "", visible_text_hint: bo
         "pixel_metrics": {
             "edge_density": round(edge_density, 6),
             "white_ratio": round(white_ratio, 6),
-            "luminance_std": round(luminance_std, 4),
-            "mean_saturation": round(mean_saturation, 4),
-            "warm_highlight_ratio": round(warm_highlight_ratio, 6),
+            "luminance_std": visual_metrics["luminance_std"],
+            "mean_saturation": visual_metrics["mean_saturation"],
+            "warm_highlight_ratio": visual_metrics["warm_highlight_ratio"],
+            "dark_ratio": visual_metrics["dark_ratio"],
+            "highlight_ratio": visual_metrics["highlight_ratio"],
+            "local_contrast_laplacian": visual_metrics["local_contrast_laplacian"],
+            "white_balance_deviation": visual_metrics["white_balance_deviation"],
+            "lab_neutral_a_cast": visual_metrics["lab_neutral_a_cast"],
+            "lab_neutral_b_cast": visual_metrics["lab_neutral_b_cast"],
             "periodic_peak_score": spectral_metrics["periodic_peak_score"],
             "directional_anisotropy": spectral_metrics["directional_anisotropy"],
             "high_frequency_rolloff": spectral_metrics["high_frequency_rolloff"],
         },
         "smooth_surface": smooth_surface_metrics,
+        "visual_state": visual_state,
         "spectral_artifacts": spectral_metrics,
         "role_hint": role_hint,
         "role_signals": {
@@ -698,6 +975,7 @@ def adaptive_parameter_tuning(
     metrics = recognition.get("pixel_metrics", {})
     smooth = recognition.get("smooth_surface", {})
     role_signals = recognition.get("role_signals", {})
+    visual_state = recognition.get("visual_state", {})
     if preserve_text or preserve_alpha or selected_profile in {"graphic_text", "transparent_asset"}:
         return tuned, {
             "applied": False,
@@ -727,6 +1005,13 @@ def adaptive_parameter_tuning(
         risk_factors.append("large_smooth_material_regions")
     if role_signals.get("scene") and role_signals.get("studio"):
         risk_factors.append("scene_studio_hybrid_product_render")
+    state_names = [visual_state.get("primary"), *visual_state.get("secondary", [])]
+    if "flat_ai_render" in state_names:
+        risk_factors.append("visual_state_flat_ai_render")
+    if "high_key_soft_product" in state_names:
+        risk_factors.append("visual_state_high_key_soft_product")
+    if "low_key_moody_scene" in state_names:
+        risk_factors.append("visual_state_low_key_moody_scene")
 
     risk_score = len(risk_factors)
     if risk_score < 3:
@@ -755,6 +1040,21 @@ def adaptive_parameter_tuning(
     tuned["tone_curve"] = min(0.012, tuned.get("tone_curve", 0.0) + 0.0015 * factor)
     tuned["sharpen_amount"] = min(0.24, tuned.get("sharpen_amount", 0.0) + 0.018 * factor)
     tuned["ffmpeg_noise"] = min(1.0, tuned.get("ffmpeg_noise", 0.0) + 0.12 * factor)
+    tuned["white_balance_strength"] = min(0.11, tuned.get("white_balance_strength", 0.0) + 0.018 * factor)
+    tuned["local_contrast_strength"] = min(0.14, tuned.get("local_contrast_strength", 0.0) + 0.022 * factor)
+    tuned["midtone_contrast"] = min(0.055, tuned.get("midtone_contrast", 0.0) + 0.010 * factor)
+    tuned["shadow_toe"] = min(0.035, tuned.get("shadow_toe", 0.0) + 0.005 * factor)
+    tuned["lens_edge_softness"] = min(0.045, tuned.get("lens_edge_softness", 0.0) + 0.006 * factor)
+    tuned["lens_highlight_bloom"] = min(0.030, tuned.get("lens_highlight_bloom", 0.0) + 0.004 * factor)
+    if "flat_ai_render" in state_names:
+        tuned["local_contrast_strength"] = min(0.16, tuned["local_contrast_strength"] + 0.018)
+        tuned["midtone_contrast"] = min(0.065, tuned["midtone_contrast"] + 0.010)
+    if "high_key_soft_product" in state_names:
+        tuned["highlight_rolloff"] = min(0.25, tuned["highlight_rolloff"] + 0.020)
+        tuned["lens_highlight_bloom"] = min(0.032, tuned["lens_highlight_bloom"] + 0.004)
+    if "low_key_moody_scene" in state_names:
+        tuned["shadow_toe"] = min(0.040, tuned["shadow_toe"] + 0.008)
+        tuned["noise_sigma"] = min(2.25, tuned["noise_sigma"] + 0.10)
     if selected_profile == "studio_product":
         tuned["blur_sigma"] = min(0.34, max(tuned.get("blur_sigma", 0.0), 0.24))
 
@@ -763,6 +1063,7 @@ def adaptive_parameter_tuning(
         "level": level,
         "risk_score": risk_score,
         "risk_factors": risk_factors,
+        "visual_state": visual_state,
         "profile_weight": round(profile_weight, 4),
         "level_weight": round(level_weight, 4),
         "policy": "raise natural material texture only for smooth low-frequency product renders; keep text and alpha protected",
@@ -798,16 +1099,27 @@ def process_pixels(
         preserve_text=preserve_text,
         preserve_alpha=alpha_requires_preservation,
     )
-    material_textured, material_texture_metrics = apply_material_microtexture(
+    white_balanced, white_balance_metrics = apply_camera_white_balance(
         deperiodized,
+        params,
+        preserve_text=preserve_text,
+    )
+    material_textured, material_texture_metrics = apply_material_microtexture(
+        white_balanced,
         params,
         rng,
         preserve_text=preserve_text,
     )
     noisy, grain_metrics = apply_signal_dependent_sensor_grain(material_textured, params, rng)
     highlight_shaped, highlight_metrics = apply_highlight_shoulder(noisy, params, preserve_text=preserve_text)
-    toned, tone_metrics = apply_filmic_tone_curve(highlight_shaped, params)
-    vignetted, vignette_metrics = apply_subtle_lens_vignette(toned, params)
+    local_contrast, local_contrast_metrics = apply_photoshop_local_contrast(
+        highlight_shaped,
+        params,
+        preserve_text=preserve_text,
+    )
+    toned, tone_metrics = apply_filmic_tone_curve(local_contrast, params)
+    lens_finished, lens_metrics = apply_camera_lens_post(toned, params, preserve_text=preserve_text)
+    vignetted, vignette_metrics = apply_subtle_lens_vignette(lens_finished, params)
 
     if params["blur_sigma"] > 0:
         blurred = cv2.GaussianBlur(vignetted, (3, 3), params["blur_sigma"])
@@ -829,6 +1141,20 @@ def process_pixels(
     elif preserve_text:
         processed = original.copy()
         protection_mode = "conservative_full_frame_restored"
+    before_metrics = image_visual_metrics(original)
+    after_metrics = image_visual_metrics(processed)
+    realism_report = {
+        "before": before_metrics,
+        "after": after_metrics,
+        "delta": {
+            "mean_absolute_rgb": round(float(np.mean(np.abs(processed.astype(np.float32) - original.astype(np.float32)))), 5),
+            "luminance_std": round(after_metrics["luminance_std"] - before_metrics["luminance_std"], 5),
+            "mean_saturation": round(after_metrics["mean_saturation"] - before_metrics["mean_saturation"], 5),
+            "local_contrast_laplacian": round(after_metrics["local_contrast_laplacian"] - before_metrics["local_contrast_laplacian"], 6),
+            "white_balance_deviation": round(after_metrics["white_balance_deviation"] - before_metrics["white_balance_deviation"], 5),
+        },
+        "policy": "camera_photoshop_realism_finish_without_detector_targeting",
+    }
     result = Image.fromarray(processed, mode="RGB")
     if alpha is not None:
         result.putalpha(alpha)
@@ -837,11 +1163,15 @@ def process_pixels(
         "text_protection_mode": protection_mode,
         "text_protection": text_metrics,
         "alpha_preserved": alpha_requires_preservation,
+        "camera_white_balance": white_balance_metrics,
         "sensor_grain": grain_metrics,
         "material_microtexture": material_texture_metrics,
         "highlight_shoulder": highlight_metrics,
+        "photoshop_local_contrast": local_contrast_metrics,
         "tone_curve": tone_metrics,
+        "camera_lens_post": lens_metrics,
         "vignette": vignette_metrics,
+        "camera_photoshop_realism": realism_report,
         "spectral_policy": spectral_policy,
     }
 
@@ -1035,11 +1365,15 @@ def main() -> int:
         "adaptive_image_classification",
         "spectral_periodic_artifact_diagnostics",
         "conditional_fft_periodic_artifact_suppression",
+        "visual_state_camera_photoshop_realism_classification",
+        "camera_white_balance_and_color_temperature",
         "signal_dependent_luminance_chroma_sensor_grain",
         "smooth_material_region_microtexture",
         "surface_mottle_and_chroma_drift",
         "highlight_shoulder_rolloff",
+        "photoshop_style_local_contrast_clarity",
         "subtle_filmic_tone_curve",
+        "camera_lens_edge_softness_and_highlight_bloom",
         "profile_subtle_lens_vignette",
         "profile_bounded_micro_blur_and_detail_recovery",
         "profile_micro_contrast_and_brightness",

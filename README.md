@@ -445,7 +445,7 @@ npm run finish:natural-image-batch -- \
   --run-dir runs/demo-amazon-bag
 ```
 
-它会根据 panel/role 和图片像素自动选择 `photographic_scene`、`studio_product`、`macro_detail`、`graphic_text`、`transparent_asset` 或 `hybrid_commerce`，不会给所有图片套同一组参数。对“白色/奶油色高光商品、低饱和美妆/家居场景、皮革/缎面/塑料/陶瓷/珍珠等过度平滑材质”，处理器会在内部触发更积极但有上限的自然主义风险调参：平滑材质区域微纹理、低频明暗/色温微漂移、高光肩部压缩、信号相关颗粒和受控细节恢复。原图保存在当前 run 的 `generated-assets/natural-finish-originals/`。带文字图片处理后会进入 `post-natural-finish-visible-text-review`，透明图会保留 alpha。它不是“去 AI 检测”工具，也不能保证图片被判断为人类制作；目标只是以克制、可审计的亮度/色度颗粒、微对比、细节恢复、条件性周期伪影修复和编码处理降低不自然的数字塑料感。不会加入 CLIP-based adversarial perturbation 或其他检测器对抗扰动。
+它会根据 panel/role 和图片像素自动选择 `photographic_scene`、`studio_product`、`macro_detail`、`graphic_text`、`transparent_asset` 或 `hybrid_commerce`，不会给所有图片套同一组参数。随后它会按视觉状态而不是商品类别做 camera / Photoshop realism 判断，例如 high-key、low-key、flat render、glossy、matte/smooth、macro、graphic、transparent、lifestyle camera scene、studio clean product。处理器会在内部触发有上限的相机/后期调参：白平衡与色温校正、filmic 高光肩部和阴影 toe、Photoshop 式局部对比/clarity、平滑材质区域微纹理、低频明暗/色温微漂移、信号相关颗粒、轻微镜头边缘柔化和高光 bloom。原图保存在当前 run 的 `generated-assets/natural-finish-originals/`。带文字图片处理后会进入 `post-natural-finish-visible-text-review`，透明图会保留 alpha。它不是“去 AI 检测”工具，也不能保证图片被判断为人类制作；目标只是以克制、可审计的摄影成像与人工后期视觉统计降低不自然的数字塑料感。不会加入 CLIP-based adversarial perturbation 或其他检测器对抗扰动。
 
 当批次包含可见文字时，完成视觉复核后用结构化证据收口：
 
