@@ -271,7 +271,7 @@ record("natural image runtime preparation contract", () => {
     if (!batch.includes(guard)) throw new Error(`natural image finish batch is missing ${guard}.`);
   }
   const processor = fs.readFileSync(path.join(skillRoot, "scripts", "natural-image-finish.py"), "utf8");
-  for (const guard of ["spectral_artifact_diagnostics", "conditional_fft_periodic_artifact_suppression", "signal_dependent_luminance_chroma_sensor_grain"]) {
+  for (const guard of ["spectral_artifact_diagnostics", "conditional_fft_periodic_artifact_suppression", "signal_dependent_luminance_chroma_sensor_grain", "smooth_material_region_microtexture", "highlight_shoulder_rolloff"]) {
     if (!processor.includes(guard)) throw new Error(`natural image finish processor is missing ${guard}.`);
   }
   for (const forbidden of ["import torch", "clip-based", "adversarial"]) {
@@ -495,6 +495,66 @@ record("adaptive natural image finish spectral artifact fixture", () => {
   }
   if (!(spectral.post_periodic_peak_score < spectral.periodic_peak_score)) {
     throw new Error("Conditional FFT suppression should reduce the periodic peak score.");
+  }
+});
+
+record("adaptive natural image finish smooth white commerce fixture", () => {
+  const runtimeCheck = spawnSync(process.execPath, [
+    "scripts/prepare-natural-image-runtime.mjs",
+    "--check",
+    "--include-diagnostics",
+  ], { cwd: skillRoot, encoding: "utf8" });
+  if (runtimeCheck.status !== 0) return;
+  const runtime = JSON.parse(runtimeCheck.stdout);
+  const runtimePython = runtime.diagnostics?.runtime_python;
+  const ffmpeg = runtime.diagnostics?.ffmpeg;
+  if (!runtimePython || !ffmpeg) return;
+
+  const root = tmpDir("sp-verify-natural-smooth-white-");
+  const input = path.join(root, "smooth-white-commerce.png");
+  const output = path.join(root, "smooth-white-commerce-finished.png");
+  const proofPath = path.join(root, "smooth-white-commerce-proof.json");
+  const sharpPath = (() => {
+    try { return require.resolve("sharp"); }
+    catch { return path.join(os.homedir(), ".cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/sharp"); }
+  })();
+  execFileSync(process.execPath, ["-e", `
+    const sharp = require(${JSON.stringify(sharpPath)});
+    const out = process.argv[1];
+    const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d8d1bd"/><stop offset="0.55" stop-color="#f4ead4"/><stop offset="1" stop-color="#b7aa91"/></linearGradient><linearGradient id="pouch" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fffbed"/><stop offset="0.45" stop-color="#eee1c6"/><stop offset="0.6" stop-color="#fff9e8"/><stop offset="1" stop-color="#d8cbb4"/></linearGradient><filter id="soft"><feGaussianBlur stdDeviation="10"/></filter></defs><rect width="1024" height="1024" fill="url(#bg)"/><ellipse cx="600" cy="700" rx="330" ry="70" fill="#7d705d" opacity="0.18" filter="url(#soft)"/><path d="M265 380 C380 320 720 300 810 380 L760 660 C630 700 370 715 250 645 Z" fill="url(#pouch)"/><path d="M320 410 C460 375 655 365 780 410" fill="none" stroke="#fff8e4" stroke-width="12" opacity="0.85"/><path d="M328 431 C470 398 650 390 768 432" fill="none" stroke="#b8ab96" stroke-width="4" opacity="0.7"/><path d="M455 500 C545 470 665 470 755 510" fill="none" stroke="#fff9e8" stroke-width="34" opacity="0.55"/><circle cx="280" cy="660" r="24" fill="#ead7ac"/><circle cx="285" cy="650" r="10" fill="#fff8db" opacity="0.75"/></svg>');
+    sharp(svg).png().toFile(out).catch((error) => { console.error(error); process.exit(1); });
+  `, input], { cwd: skillRoot, stdio: "inherit" });
+  run(runtimePython, [
+    "scripts/natural-image-finish.py",
+    input,
+    "--output", output,
+    "--profile", "auto",
+    "--role-hint", "cosmetic pouch lifestyle scene studio hero product white leather premium",
+    "--contains-visible-text", "false",
+    "--ffmpeg", ffmpeg,
+    "--report", proofPath,
+  ], { maxBuffer: 50 * 1024 * 1024 });
+  const proof = readJson(proofPath);
+  if (proof.selected_profile !== "photographic_scene") {
+    throw new Error("Smooth white commerce fixture should remain a photographic scene, not a text or transparent profile.");
+  }
+  if (!proof.parameter_adaptation?.applied || proof.parameter_adaptation.risk_score < 5) {
+    throw new Error("Smooth white commerce fixture should trigger assertive naturalism-risk adaptation.");
+  }
+  if (!proof.parameter_adaptation.risk_factors.includes("large_smooth_material_regions")) {
+    throw new Error("Smooth white commerce fixture should report large smooth material regions.");
+  }
+  if (!proof.protection?.material_microtexture?.applied) {
+    throw new Error("Smooth white commerce fixture should apply material microtexture.");
+  }
+  if (!proof.protection?.highlight_shoulder?.applied) {
+    throw new Error("Smooth white commerce fixture should apply highlight shoulder rolloff.");
+  }
+  if (proof.parameters.material_texture_strength <= 0.34 || proof.parameters.surface_mottle_strength <= 0.22) {
+    throw new Error("Smooth white commerce fixture should raise material texture and mottle strength above the base scene profile.");
+  }
+  if (proof.protection?.spectral_policy?.suppression_applied) {
+    throw new Error("Smooth white commerce fixture should not apply FFT suppression without a concrete above-threshold periodic artifact.");
   }
 });
 

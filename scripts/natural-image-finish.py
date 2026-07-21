@@ -36,6 +36,9 @@ PRESETS = {
         "spectral_peak_threshold": 12.0,
         "spectral_notch_strength": 0.08,
         "vignette": 0.006,
+        "material_texture_strength": 0.16,
+        "surface_mottle_strength": 0.10,
+        "highlight_rolloff": 0.06,
     },
     "medium": {
         "noise_sigma": 1.35,
@@ -50,6 +53,9 @@ PRESETS = {
         "spectral_peak_threshold": 10.0,
         "spectral_notch_strength": 0.10,
         "vignette": 0.010,
+        "material_texture_strength": 0.28,
+        "surface_mottle_strength": 0.18,
+        "highlight_rolloff": 0.10,
     },
     "strong": {
         "noise_sigma": 2.1,
@@ -64,6 +70,9 @@ PRESETS = {
         "spectral_peak_threshold": 8.0,
         "spectral_notch_strength": 0.12,
         "vignette": 0.014,
+        "material_texture_strength": 0.42,
+        "surface_mottle_strength": 0.28,
+        "highlight_rolloff": 0.15,
     },
 }
 
@@ -81,6 +90,9 @@ PROFILES = {
         "spectral_peak_threshold": 10.0,
         "spectral_notch_strength": 0.10,
         "vignette": 0.010,
+        "material_texture_strength": 0.34,
+        "surface_mottle_strength": 0.22,
+        "highlight_rolloff": 0.12,
     },
     "studio_product": {
         "noise_sigma": 0.55,
@@ -95,6 +107,9 @@ PROFILES = {
         "spectral_peak_threshold": 13.0,
         "spectral_notch_strength": 0.06,
         "vignette": 0.004,
+        "material_texture_strength": 0.24,
+        "surface_mottle_strength": 0.12,
+        "highlight_rolloff": 0.08,
     },
     "macro_detail": {
         "noise_sigma": 0.38,
@@ -109,6 +124,9 @@ PROFILES = {
         "spectral_peak_threshold": 18.0,
         "spectral_notch_strength": 0.04,
         "vignette": 0.0,
+        "material_texture_strength": 0.18,
+        "surface_mottle_strength": 0.06,
+        "highlight_rolloff": 0.03,
     },
     "graphic_text": {
         "noise_sigma": 0.10,
@@ -123,6 +141,9 @@ PROFILES = {
         "spectral_peak_threshold": 999.0,
         "spectral_notch_strength": 0.0,
         "vignette": 0.0,
+        "material_texture_strength": 0.0,
+        "surface_mottle_strength": 0.0,
+        "highlight_rolloff": 0.0,
     },
     "transparent_asset": {
         "noise_sigma": 0.28,
@@ -137,6 +158,9 @@ PROFILES = {
         "spectral_peak_threshold": 999.0,
         "spectral_notch_strength": 0.0,
         "vignette": 0.0,
+        "material_texture_strength": 0.08,
+        "surface_mottle_strength": 0.02,
+        "highlight_rolloff": 0.0,
     },
     "hybrid_commerce": {
         "noise_sigma": 0.48,
@@ -151,6 +175,9 @@ PROFILES = {
         "spectral_peak_threshold": 15.0,
         "spectral_notch_strength": 0.04,
         "vignette": 0.002,
+        "material_texture_strength": 0.22,
+        "surface_mottle_strength": 0.12,
+        "highlight_rolloff": 0.06,
     },
 }
 
@@ -437,6 +464,116 @@ def apply_signal_dependent_sensor_grain(
     }
 
 
+def smoothstep(edge0: float, edge1: float, value: np.ndarray | float) -> np.ndarray:
+    x = np.clip((value - edge0) / max(1e-6, edge1 - edge0), 0.0, 1.0)
+    return x * x * (3.0 - 2.0 * x)
+
+
+def smooth_material_mask(rgb: np.ndarray) -> tuple[np.ndarray, dict[str, float]]:
+    gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY).astype(np.float32)
+    hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV).astype(np.float32)
+    grad_x = cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=3)
+    grad_y = cv2.Sobel(gray, cv2.CV_32F, 0, 1, ksize=3)
+    gradient = cv2.magnitude(grad_x, grad_y)
+    low_gradient = 1.0 - smoothstep(5.0, 30.0, gradient)
+    mid_to_high_luma = smoothstep(52.0, 118.0, gray) * (1.0 - smoothstep(248.0, 255.0, gray))
+    low_to_mid_saturation = 1.0 - smoothstep(96.0, 190.0, hsv[:, :, 1])
+    mask = np.clip(low_gradient * mid_to_high_luma * (0.42 + 0.58 * low_to_mid_saturation), 0.0, 1.0)
+    mask = ndimage.gaussian_filter(mask, sigma=1.2, mode="reflect")
+    coverage = float(np.mean(mask > 0.28))
+    return mask.astype(np.float32), {
+        "coverage": round(coverage, 6),
+        "mean_strength": round(float(np.mean(mask)), 6),
+        "max_strength": round(float(np.max(mask)), 6),
+    }
+
+
+def apply_material_microtexture(
+    rgb: np.ndarray,
+    params: dict[str, float],
+    rng: np.random.Generator,
+    preserve_text: bool,
+) -> tuple[np.ndarray, dict[str, Any]]:
+    strength = float(params.get("material_texture_strength", 0.0))
+    mottle_strength = float(params.get("surface_mottle_strength", 0.0))
+    if preserve_text or (strength <= 0 and mottle_strength <= 0):
+        return rgb.copy(), {
+            "applied": False,
+            "reason": "protected_text_or_zero_strength" if preserve_text else "zero_strength",
+            "material_texture_strength": round(strength, 4),
+            "surface_mottle_strength": round(mottle_strength, 4),
+        }
+
+    mask, mask_metrics = smooth_material_mask(rgb)
+    ycrcb = cv2.cvtColor(rgb, cv2.COLOR_RGB2YCrCb).astype(np.float32)
+    y = ycrcb[:, :, 0]
+    height, width = y.shape
+    fine = rng.normal(0.0, 1.0, y.shape).astype(np.float32)
+    fine = fine - ndimage.gaussian_filter(fine, sigma=1.05, mode="reflect")
+    fine_std = float(np.std(fine)) or 1.0
+    fine /= fine_std
+
+    medium = rng.normal(0.0, 1.0, y.shape).astype(np.float32)
+    medium = ndimage.gaussian_filter(medium, sigma=max(0.9, min(height, width) / 720.0), mode="reflect")
+    medium -= ndimage.gaussian_filter(medium, sigma=max(2.2, min(height, width) / 210.0), mode="reflect")
+    medium_std = float(np.std(medium)) or 1.0
+    medium /= medium_std
+
+    luma_boost = 0.55 + 0.45 * np.sqrt(np.clip(y, 0, 255) / 255.0)
+    texture_delta = (0.58 * fine + 0.42 * medium) * mask * luma_boost * strength * 2.35
+
+    mottle = rng.normal(0.0, 1.0, y.shape).astype(np.float32)
+    mottle = ndimage.gaussian_filter(mottle, sigma=max(12.0, min(height, width) / 34.0), mode="reflect")
+    mottle -= float(np.mean(mottle))
+    mottle_std = float(np.std(mottle)) or 1.0
+    mottle /= mottle_std
+    mottle_delta = mottle * mask * mottle_strength * 2.4
+
+    ycrcb[:, :, 0] = np.clip(y + texture_delta + mottle_delta, 0, 255)
+    chroma_drift = ndimage.gaussian_filter(
+        rng.normal(0.0, 1.0, y.shape).astype(np.float32),
+        sigma=max(10.0, min(height, width) / 42.0),
+        mode="reflect",
+    )
+    chroma_drift -= float(np.mean(chroma_drift))
+    chroma_std = float(np.std(chroma_drift)) or 1.0
+    chroma_drift /= chroma_std
+    ycrcb[:, :, 1] = np.clip(ycrcb[:, :, 1] + chroma_drift * mask * mottle_strength * 0.42, 0, 255)
+    ycrcb[:, :, 2] = np.clip(ycrcb[:, :, 2] - chroma_drift * mask * mottle_strength * 0.34, 0, 255)
+
+    return cv2.cvtColor(ycrcb.astype(np.uint8), cv2.COLOR_YCrCb2RGB), {
+        "applied": True,
+        "material_texture_strength": round(strength, 4),
+        "surface_mottle_strength": round(mottle_strength, 4),
+        "mask": mask_metrics,
+        "texture_delta_abs_mean": round(float(np.mean(np.abs(texture_delta))), 5),
+        "mottle_delta_abs_mean": round(float(np.mean(np.abs(mottle_delta))), 5),
+    }
+
+
+def apply_highlight_shoulder(rgb: np.ndarray, params: dict[str, float], preserve_text: bool) -> tuple[np.ndarray, dict[str, Any]]:
+    amount = float(params.get("highlight_rolloff", 0.0))
+    if preserve_text or amount <= 0:
+        return rgb, {
+            "applied": False,
+            "amount": round(amount, 4),
+            "reason": "protected_text_or_zero_strength" if preserve_text else "zero_strength",
+        }
+    ycrcb = cv2.cvtColor(rgb, cv2.COLOR_RGB2YCrCb).astype(np.float32)
+    y = ycrcb[:, :, 0]
+    highlight = smoothstep(176.0, 252.0, y)
+    shoulder = highlight * highlight * amount * 24.0
+    ycrcb[:, :, 0] = np.clip(y - shoulder, 0, 255)
+    ycrcb[:, :, 1] = np.clip(ycrcb[:, :, 1] - highlight * amount * 0.85, 0, 255)
+    ycrcb[:, :, 2] = np.clip(ycrcb[:, :, 2] + highlight * amount * 0.65, 0, 255)
+    return cv2.cvtColor(ycrcb.astype(np.uint8), cv2.COLOR_YCrCb2RGB), {
+        "applied": True,
+        "amount": round(amount, 4),
+        "highlight_coverage": round(float(np.mean(highlight > 0.08)), 6),
+        "mean_luma_reduction": round(float(np.mean(shoulder)), 5),
+    }
+
+
 def apply_filmic_tone_curve(rgb: np.ndarray, params: dict[str, float]) -> tuple[np.ndarray, dict[str, float]]:
     amount = float(params.get("tone_curve", 0.0))
     if amount <= 0:
@@ -477,7 +614,9 @@ def inspect_image(image: Image.Image, role_hint: str = "", visible_text_hint: bo
     luminance_std = float(np.std(gray))
     saturation = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)[:, :, 1]
     mean_saturation = float(np.mean(saturation))
+    warm_highlight_ratio = float(np.count_nonzero((gray >= 188) & (saturation <= 82))) / max(1, gray.size)
     _, text_metrics = text_protection_mask(rgb)
+    _, smooth_surface_metrics = smooth_material_mask(rgb)
     spectral_metrics = spectral_artifact_diagnostics(rgb)
 
     role = str(role_hint or "").strip().lower()
@@ -529,10 +668,12 @@ def inspect_image(image: Image.Image, role_hint: str = "", visible_text_hint: bo
             "white_ratio": round(white_ratio, 6),
             "luminance_std": round(luminance_std, 4),
             "mean_saturation": round(mean_saturation, 4),
+            "warm_highlight_ratio": round(warm_highlight_ratio, 6),
             "periodic_peak_score": spectral_metrics["periodic_peak_score"],
             "directional_anisotropy": spectral_metrics["directional_anisotropy"],
             "high_frequency_rolloff": spectral_metrics["high_frequency_rolloff"],
         },
+        "smooth_surface": smooth_surface_metrics,
         "spectral_artifacts": spectral_metrics,
         "role_hint": role_hint,
         "role_signals": {
@@ -543,6 +684,88 @@ def inspect_image(image: Image.Image, role_hint: str = "", visible_text_hint: bo
         },
         "visual_class": visual_class,
         "recommended_profile": visual_class,
+    }
+
+
+def adaptive_parameter_tuning(
+    params: dict[str, float],
+    selected_profile: str,
+    recognition: dict[str, Any],
+    preserve_text: bool,
+    preserve_alpha: bool,
+) -> tuple[dict[str, float], dict[str, Any]]:
+    tuned = dict(params)
+    metrics = recognition.get("pixel_metrics", {})
+    smooth = recognition.get("smooth_surface", {})
+    role_signals = recognition.get("role_signals", {})
+    if preserve_text or preserve_alpha or selected_profile in {"graphic_text", "transparent_asset"}:
+        return tuned, {
+            "applied": False,
+            "reason": "protected_text_or_alpha_profile",
+            "risk_score": 0,
+            "risk_factors": [],
+        }
+
+    edge_density = float(metrics.get("edge_density", 1.0))
+    luminance_std = float(metrics.get("luminance_std", 999.0))
+    mean_saturation = float(metrics.get("mean_saturation", 999.0))
+    warm_highlight_ratio = float(metrics.get("warm_highlight_ratio", 0.0))
+    high_frequency_rolloff = float(metrics.get("high_frequency_rolloff", 1.0))
+    smooth_coverage = float(smooth.get("coverage", 0.0))
+    risk_factors: list[str] = []
+    if edge_density < 0.026:
+        risk_factors.append("low_edge_density_over_smooth")
+    if luminance_std < 58:
+        risk_factors.append("compressed_luminance_variation")
+    if mean_saturation < 68:
+        risk_factors.append("low_saturation_beauty_product_palette")
+    if warm_highlight_ratio > 0.18:
+        risk_factors.append("large_warm_highlight_surface")
+    if high_frequency_rolloff < 0.88:
+        risk_factors.append("weak_high_frequency_texture")
+    if smooth_coverage > 0.26:
+        risk_factors.append("large_smooth_material_regions")
+    if role_signals.get("scene") and role_signals.get("studio"):
+        risk_factors.append("scene_studio_hybrid_product_render")
+
+    risk_score = len(risk_factors)
+    if risk_score < 3:
+        return tuned, {
+            "applied": False,
+            "reason": "naturalism_risk_below_threshold",
+            "risk_score": risk_score,
+            "risk_factors": risk_factors,
+        }
+
+    level = "moderate" if risk_score < 5 else "assertive"
+    profile_weight = {
+        "photographic_scene": 1.0,
+        "hybrid_commerce": 0.85,
+        "studio_product": 0.72,
+        "macro_detail": 0.45,
+    }.get(selected_profile, 0.5)
+    level_weight = 1.0 if level == "moderate" else 1.34
+    factor = profile_weight * level_weight
+
+    tuned["noise_sigma"] = min(2.15, tuned.get("noise_sigma", 0.0) + 0.26 * factor)
+    tuned["chroma_noise_ratio"] = min(0.24, tuned.get("chroma_noise_ratio", 0.0) + 0.018 * factor)
+    tuned["material_texture_strength"] = min(0.68, tuned.get("material_texture_strength", 0.0) + 0.16 * factor)
+    tuned["surface_mottle_strength"] = min(0.42, tuned.get("surface_mottle_strength", 0.0) + 0.09 * factor)
+    tuned["highlight_rolloff"] = min(0.22, tuned.get("highlight_rolloff", 0.0) + 0.055 * factor)
+    tuned["tone_curve"] = min(0.012, tuned.get("tone_curve", 0.0) + 0.0015 * factor)
+    tuned["sharpen_amount"] = min(0.24, tuned.get("sharpen_amount", 0.0) + 0.018 * factor)
+    tuned["ffmpeg_noise"] = min(1.0, tuned.get("ffmpeg_noise", 0.0) + 0.12 * factor)
+    if selected_profile == "studio_product":
+        tuned["blur_sigma"] = min(0.34, max(tuned.get("blur_sigma", 0.0), 0.24))
+
+    return tuned, {
+        "applied": True,
+        "level": level,
+        "risk_score": risk_score,
+        "risk_factors": risk_factors,
+        "profile_weight": round(profile_weight, 4),
+        "level_weight": round(level_weight, 4),
+        "policy": "raise natural material texture only for smooth low-frequency product renders; keep text and alpha protected",
     }
 
 
@@ -575,8 +798,15 @@ def process_pixels(
         preserve_text=preserve_text,
         preserve_alpha=alpha_requires_preservation,
     )
-    noisy, grain_metrics = apply_signal_dependent_sensor_grain(deperiodized, params, rng)
-    toned, tone_metrics = apply_filmic_tone_curve(noisy, params)
+    material_textured, material_texture_metrics = apply_material_microtexture(
+        deperiodized,
+        params,
+        rng,
+        preserve_text=preserve_text,
+    )
+    noisy, grain_metrics = apply_signal_dependent_sensor_grain(material_textured, params, rng)
+    highlight_shaped, highlight_metrics = apply_highlight_shoulder(noisy, params, preserve_text=preserve_text)
+    toned, tone_metrics = apply_filmic_tone_curve(highlight_shaped, params)
     vignetted, vignette_metrics = apply_subtle_lens_vignette(toned, params)
 
     if params["blur_sigma"] > 0:
@@ -608,6 +838,8 @@ def process_pixels(
         "text_protection": text_metrics,
         "alpha_preserved": alpha_requires_preservation,
         "sensor_grain": grain_metrics,
+        "material_microtexture": material_texture_metrics,
+        "highlight_shoulder": highlight_metrics,
         "tone_curve": tone_metrics,
         "vignette": vignette_metrics,
         "spectral_policy": spectral_policy,
@@ -751,6 +983,13 @@ def main() -> int:
 
     preserve_text = args.preserve_text or recognition["contains_visible_text"] or selected_profile == "graphic_text"
     preserve_alpha = recognition["alpha_non_opaque"]
+    params, parameter_adaptation = adaptive_parameter_tuning(
+        params,
+        selected_profile,
+        recognition,
+        preserve_text=preserve_text,
+        preserve_alpha=preserve_alpha,
+    )
     seed = args.seed if args.seed is not None else stable_seed(input_path)
     finished, protection = process_pixels(image, params, seed, preserve_text=preserve_text)
 
@@ -797,6 +1036,9 @@ def main() -> int:
         "spectral_periodic_artifact_diagnostics",
         "conditional_fft_periodic_artifact_suppression",
         "signal_dependent_luminance_chroma_sensor_grain",
+        "smooth_material_region_microtexture",
+        "surface_mottle_and_chroma_drift",
+        "highlight_shoulder_rolloff",
         "subtle_filmic_tone_curve",
         "profile_subtle_lens_vignette",
         "profile_bounded_micro_blur_and_detail_recovery",
@@ -821,6 +1063,7 @@ def main() -> int:
         "selected_profile": selected_profile,
         "seed": seed,
         "parameters": params,
+        "parameter_adaptation": parameter_adaptation,
         "recognition": recognition,
         "protection": protection,
         "alpha_verification": alpha_verification,

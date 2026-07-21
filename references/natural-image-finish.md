@@ -52,12 +52,14 @@ The processor combines structured role, title, scene, usage, and visible-copy me
 
 | Profile | Typical input | Processing policy |
 | --- | --- | --- |
-| `photographic_scene` | lifestyle, use-case, outdoor/interior scene | signal-dependent luminance/chroma grain, restrained tone curve, bounded detail recovery, conditional periodic artifact repair |
-| `studio_product` | hero, main product, clean studio or white background | lighter material-aware grain, product-edge restraint, high-threshold periodic artifact repair only |
+| `photographic_scene` | lifestyle, use-case, outdoor/interior scene | signal-dependent luminance/chroma grain, restrained tone curve, bounded detail recovery, conditional periodic artifact repair; when pixel metrics show over-smooth low-saturation highlight-heavy commerce photography, add smooth-material microtexture, surface mottle, and highlight shoulder rolloff |
+| `studio_product` | hero, main product, clean studio or white background | lighter material-aware grain, product-edge restraint, high-threshold periodic artifact repair only; high-key white/cream products can receive bounded material texture and highlight rolloff when smoothness risk is detected |
 | `macro_detail` | material, stitch, hardware, texture close-up | minimal blur, stronger detail retention, fine grain, very high-threshold artifact repair |
 | `graphic_text` | parameter, comparison, instruction, infographic, text card | very conservative frame processing, detected text pixels restored, no FFmpeg grain or FFT repair over exact text |
 | `transparent_asset` | transparent or partially transparent PNG | alpha retained exactly, conservative RGB processing, alpha-safe encoding, no FFT repair |
-| `hybrid_commerce` | mixed product photography and graphic composition | balanced low-strength finish with role-aware protection and conservative artifact diagnostics |
+| `hybrid_commerce` | mixed product photography and graphic composition | balanced finish with role-aware protection, smooth-material microtexture for photographic regions, conservative artifact diagnostics, and text/graphic restraint |
+
+After profile selection, the processor runs a second naturalism-risk check. It looks for combinations such as very low edge density, compressed luminance variation, low-saturation beauty/product palette, large warm highlight surfaces, weak high-frequency texture, large smooth material regions, and scene/studio hybrid role metadata. When the score is high, it raises only the bounded material-texture, surface-mottle, highlight-rolloff, grain, and detail-recovery parameters. This is intended for images like white leather, satin, plastic, ceramic, pearl, cream packaging, and softly lit vanity/tabletop scenes that otherwise look too perfect. It is skipped for visible-text and transparent assets.
 
 The spectral layer is diagnostic-first. It records radial power samples, high-frequency roll-off, directional anisotropy, and periodic peak scores. FFT notch attenuation is allowed only for visible periodic artifacts such as banding, grid-like repetition, or ringing that exceed the current profile threshold. It must not be tuned or described as suppressing generic AI fingerprints, and the skill must not add CLIP-based adversarial perturbations or other detector-targeted changes.
 
