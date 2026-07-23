@@ -83,6 +83,8 @@ if (!review) {
 }
 
 const reviewByFile = review ? indexReview(review) : new Map();
+const identityContext = buildIdentityContext({ runDir, manifest, identityLockPath, sourcePath });
+const printedFabricBagReviewRequired = requiresPrintedFabricBagReview(identityContext);
 for (const image of images) {
   const lineage = image.lineage || {};
   const sourceType = normalize(lineage.source_type);
@@ -112,8 +114,21 @@ for (const image of images) {
     continue;
   }
 
+  if (printedFabricBagReviewRequired) {
+    const missingChecks = missingPrintedFabricBagChecks(reviewItem);
+    if (missingChecks.length) {
+      findings.push({
+        severity: "fail",
+        type: "incomplete-printed-fabric-bag-identity-review",
+        file: image.file,
+        return_node: "identity-consistency-gate",
+        message: `${image.file} is a printed/woven bag identity review but lacks explicit pass evidence for: ${missingChecks.join(", ")}.`,
+      });
+    }
+  }
+
   const details = normalize(textify([reviewItem.failed_items, reviewItem.drift, reviewItem.identity_drift, reviewItem.notes]));
-  if (/(fail|drift|mismatch|different product|wrong product|not same|不一致|漂移|不符合|不是同一)/.test(details)) {
+  if (/(fail|drift|mismatch|different product|wrong product|not same|不一致|漂移|不符合|不是同一|纹样.*变|图案.*变|双喜.*不|涤棉.*不|塑料感|亮面|皮革感|普通托特|托特包|硬挺包)/.test(details)) {
     findings.push({
       severity: "fail",
       type: "identity-drift",
@@ -149,6 +164,7 @@ const report = {
   manifest: fs.existsSync(manifestPath) ? manifestPath : null,
   review: reviewPath || null,
   image_count: images.length,
+  printed_fabric_bag_review_required: printedFabricBagReviewRequired,
   findings,
 };
 
@@ -194,6 +210,73 @@ function requiresStrictIdentityReview(image) {
     image.file,
   ]));
   return /(legacy|fallback|repaired|repair|derived|local_overlay|text_overlay|needs_identity_review|identity_review)/.test(text);
+}
+
+function buildIdentityContext({ runDir, manifest, identityLockPath, sourcePath }) {
+  const files = [
+    identityLockPath,
+    path.join(runDir, "source-understanding", "source-product-understanding.json"),
+    path.join(runDir, "geometry", "source-geometry.json"),
+    path.join(runDir, "blueprint", "quality-production-blueprint.json"),
+    path.join(runDir, "00-task-context.yaml"),
+    sourcePath,
+  ].filter(Boolean);
+  return normalize(textify([
+    manifest,
+    ...files.map((file) => {
+      try {
+        if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) return "";
+        if (/\.(png|jpe?g|webp)$/i.test(file)) return path.basename(file);
+        return fs.readFileSync(file, "utf8");
+      } catch {
+        return "";
+      }
+    }),
+  ]));
+}
+
+function requiresPrintedFabricBagReview(context) {
+  const bag = /(bag|handbag|tote|bucket bag|shoulder bag|purse|包|桶包|女包|单肩包|布包|帆布包|手提包)/i.test(context);
+  const printedFabric = /(printed fabric|woven fabric|jacquard|textile print|patterned fabric|motif|印花|织物|涤棉|棉布|提花|双喜|图案|纹样|格纹|布料)/i.test(context);
+  return bag && printedFabric;
+}
+
+function missingPrintedFabricBagChecks(reviewItem) {
+  const checks = [
+    {
+      label: "bucket/body silhouette and proportions",
+      fields: ["bucket_body_status", "bag_body_status", "silhouette_status", "proportion_status", "shape_status"],
+      patterns: ["bucket body pass", "bag body pass", "silhouette pass", "proportion pass", "桶身通过", "轮廓通过", "比例通过"],
+    },
+    {
+      label: "opening/interior lining",
+      fields: ["opening_status", "interior_lining_status", "lining_status", "inside_status"],
+      patterns: ["opening pass", "lining pass", "interior pass", "包口通过", "内里通过", "咖色内里通过"],
+    },
+    {
+      label: "strap/handle route",
+      fields: ["strap_or_handle_status", "strap_status", "handle_status"],
+      patterns: ["strap pass", "handle pass", "shoulder strap pass", "肩带通过", "提手通过"],
+    },
+    {
+      label: "canonical motif/pattern",
+      fields: ["motif_status", "pattern_status", "surface_material_status", "printed_fabric_status"],
+      patterns: ["motif pass", "pattern pass", "surface material pass", "双喜通过", "纹样通过", "图案通过"],
+    },
+    {
+      label: "woven/cotton-poly texture",
+      fields: ["texture_status", "material_texture_status", "woven_texture_status", "fabric_status"],
+      patterns: ["texture pass", "woven pass", "fabric pass", "涤棉通过", "织物通过", "质感通过"],
+    },
+  ];
+  const notes = normalize(textify([reviewItem.notes, reviewItem.message, reviewItem.reason, reviewItem.checks, reviewItem.detail_checklist]));
+  const missing = [];
+  for (const check of checks) {
+    const fieldPass = check.fields.some((field) => ["pass", "passed", "approved"].includes(normalize(reviewItem[field])));
+    const notePass = check.patterns.some((pattern) => notes.includes(normalize(pattern)));
+    if (!fieldPass && !notePass) missing.push(check.label);
+  }
+  return missing;
 }
 
 function findSourceImage(root) {

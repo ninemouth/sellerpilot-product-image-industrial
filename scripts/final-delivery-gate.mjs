@@ -157,6 +157,15 @@ if (fs.existsSync(surfaceMaterialLockPath) && !reports.some((item) => item.name 
     message: "surface-material-transfer-gate-report.json is required when a canonical surface material lock exists.",
   });
 }
+if (!fs.existsSync(surfaceMaterialLockPath) && requiresCanonicalSurfaceMaterial(runDir)) {
+  findings.push({
+    severity: "fail",
+    type: "missing-canonical-surface-material-lock",
+    gate_id: "final-delivery-gate",
+    source_report: "surface-material/canonical-material-lock.json",
+    message: "Source facts indicate printed/woven product material where the visible motif is product identity. Create a canonical surface material lock and run surface-material-transfer-gate before final delivery.",
+  });
+}
 
 if (fs.existsSync(sourceUnderstandingPath) && requiresSourceUnderstandingGate(sourceUnderstandingPath)) {
   if (!reports.some((item) => item.name === "source-product-understanding-gate-report.json")) {
@@ -974,6 +983,24 @@ function requiresSourceUnderstandingGate(filePath) {
     const text = fs.readFileSync(filePath, "utf8");
     return /(source_image|ocr|visible_text|dimension|length|width|height|diameter|label|warning|model|install|function|material|weight|尺寸|文字|标签|型号|安装|功能|材质|重量)/i.test(text);
   }
+}
+
+function requiresCanonicalSurfaceMaterial(currentRunDir) {
+  const evidenceFiles = [
+    "00-task-context.yaml",
+    "source-understanding/source-product-understanding.json",
+    "blueprint/02-identity-lock.yaml",
+    "blueprint/02-identity-lock.json",
+    "blueprint/product-identity-lock.json",
+    "blueprint/quality-production-blueprint.json",
+    "geometry/source-geometry.json",
+  ];
+  const text = normalizeText(evidenceFiles.map((rel) => readTextSafe(path.join(currentRunDir, rel))).join("\n"));
+  if (!text) return false;
+  const productSurface = /(bag|handbag|tote|bucket bag|shoulder bag|purse|包|桶包|女包|单肩包|布包|帆布包|手提包)/i.test(text);
+  const canonicalMotif = /(printed fabric|print fabric|woven fabric|jacquard|textile print|motif|patterned fabric|embroidered fabric|印花|织物|涤棉|棉布|提花|双喜|图案|纹样|格纹|布料)/i.test(text);
+  const materialAsIdentity = /(canonical material|surface_material|material lock|不可重绘|不能自由重画|source material is authoritative|源.*图案|图案.*商品身份)/i.test(text);
+  return canonicalMotif && (productSurface || materialAsIdentity);
 }
 
 function hasVisiblePanelCopy(currentRunDir) {

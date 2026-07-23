@@ -14,8 +14,11 @@ Color and logos are not enough. Preserve source product geometry:
 - neckline shape
 - silhouette class
 - pocket, panel, handle, strap, hardware, and opening positions
+- for bags: body class, top opening shape, bottom/side curvature, strap or handle route, panel proportions, lining visibility, and source-supported scale
 
 For apparel, never shorten a normal jersey/shirt into a crop top unless the source is already cropped or the user explicitly asks for that change.
+
+For bags, never change the source body class. A bucket bag must not become a generic tote, clutch, hard-shell purse, leather-like luxury bag, or any other bag silhouette unless the source or user explicitly supports that change. Printed or woven fabric bags also require a surface material lock for the canonical motif and texture.
 
 ## Annotation
 

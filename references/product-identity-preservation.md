@@ -95,6 +95,7 @@ identity_lock:
 - If source-image text reveals dimensions, installation actions, compatibility, material, package contents, weight, warnings, or certifications, propagate those facts into Product Physical Truth Lock, geometry lock, copy, and prompt layers. Generated images must preserve the factual meaning and scale; do not silently change a visible 1.08 in product into a much larger object.
 - Never turn an unclear mark into a readable brand word, new monogram, new animal face, or new decorative pattern.
 - For closeups, prefer crop/enhance/composite from the source image when possible. Use generation only to clean or contextualize, not to redesign the detail.
+- For printed or woven fabric bags, apparel, accessories, and home goods, treat the visible fabric motif as product identity. Preserve motif scale, grid spacing, orientation, palette, woven texture, seam/panel relationship, and any known lining or strap/handle relationship. Do not turn a source bucket bag into a generic tote, structured leather bag, glossy synthetic bag, or similar product with a newly invented pattern.
 - Do not use competitor references as identity references. Competitors may inform differentiation only.
 
 ## Prompt Requirements
@@ -123,6 +124,7 @@ Fail an image if:
 - unclear micro-detail becomes invented readable text, a new logo, or a changed engraving/pattern.
 - a generated product appears as a similar generic product rather than the submitted product.
 - apparel length, hem position, neckline shape, sleeve length, or silhouette changes from the source geometry.
+- printed/woven fabric motif, motif scale, motif grid, fabric texture, lining, strap/handle path, bag opening, bottom/side curvature, or bag body class changes from the source.
 
 When identity fails:
 
