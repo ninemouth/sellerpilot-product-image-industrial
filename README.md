@@ -126,21 +126,21 @@ ${SELLERPILOT_IMAGE_SKILL_MEMORY:-$HOME/.codex/sellerpilot-product-image-industr
 当前 Codex 选用第三方 provider 时，主 skill 使用本仓库的 `scripts/thinkai-image-runtime.mjs`。默认 ThinkAI profile 的最简单配置方式是设置环境变量：
 
 ```bash
-export THINKAI_API_KEY="<YOUR_THINKAI_API_KEY>"
+export THINKAI_IMAGE_API_KEY="<YOUR_THINKAI_IMAGE_API_KEY>"
 ```
 
 也可以让 Codex 写入统一的本地 provider 配置；该文件位于 Codex home 下，权限为 600，不会被同步或提交：
 
 ```bash
 cd ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial
-npm run configure:image-provider -- --api-key "<YOUR_THINKAI_API_KEY>"
+npm run configure:image-provider -- --api-key "<YOUR_THINKAI_IMAGE_API_KEY>"
 ```
 
 Windows PowerShell 默认路径示例：
 
 ```powershell
 cd "$env:USERPROFILE\.codex\skills\sellerpilot-product-image-industrial"
-npm run configure:image-provider -- --api-key "<YOUR_THINKAI_API_KEY>"
+npm run configure:image-provider -- --api-key "<YOUR_THINKAI_IMAGE_API_KEY>"
 ```
 
 运行时默认 base URL 是 `https://www.thinkai.tv/v1`，默认模型固定为 `gpt-image-2`。可用 dry-run 检查请求快照，不会真实调用网络：

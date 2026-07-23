@@ -227,7 +227,7 @@ The old ThinkAI/Proxy names are repository migration templates only and are not 
 For resolved third-party provider runs:
 
 ```bash
-THINKAI_API_KEY="<key>" \
+THINKAI_IMAGE_API_KEY="<key>" \
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/thinkai-image-runtime.mjs \
   --prompt "<final personalized prompt>" \
   --image /abs/source-product.png \

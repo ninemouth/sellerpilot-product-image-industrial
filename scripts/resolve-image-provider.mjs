@@ -5,6 +5,8 @@ import path from "node:path";
 
 const THINKAI_BASE_URL = "https://www.thinkai.tv/v1";
 const THINKAI_MODEL = "gpt-image-2";
+const THINKAI_IMAGE_API_KEY_ENV = "THINKAI_IMAGE_API_KEY";
+const LEGACY_THINKAI_API_KEY_ENV = "THINKAI_API_KEY";
 const MODES = new Set(["auto", "native_codex", "third_party_proxy"]);
 
 function parseArgs(argv) {
@@ -37,7 +39,7 @@ if (!MODES.has(requestedMode)) fail(`Unsupported provider mode: ${requestedMode}
 const detected = detectThirdParty(codex);
 const thirdParty = normalizeThirdParty(local.third_party || {}, detected);
 const selectedMode = selectMode(requestedMode, local, detected);
-const hasKey = Boolean(process.env[thirdParty.api_key_env] || process.env.THINKAI_API_KEY || local.third_party?.api_key);
+const hasKey = Boolean(process.env[thirdParty.api_key_env] || process.env[THINKAI_IMAGE_API_KEY_ENV] || process.env[LEGACY_THINKAI_API_KEY_ENV] || local.third_party?.api_key);
 const status = selectedMode === "third_party_proxy" && !hasKey ? "configuration_required" : "ready";
 const resolution = {
   schema_version: "sellerpilot.image_provider_resolution.v1",
@@ -89,8 +91,13 @@ function normalizeThirdParty(value, detectedProvider) {
     name: String(value.name || detectedProvider.name || legacy.provider_name || "ThinkAI"),
     base_url: stripSlash(value.base_url || detectedProvider.base_url || legacy.base_url || THINKAI_BASE_URL),
     model: String(value.model || detectedProvider.model || legacy.model || THINKAI_MODEL),
-    api_key_env: String(value.api_key_env || detectedProvider.api_key_env || legacy.api_key_env || "THINKAI_API_KEY"),
+    api_key_env: String(value.api_key_env || legacy.api_key_env || defaultImageApiKeyEnv(detectedProvider) || THINKAI_IMAGE_API_KEY_ENV),
   };
+}
+
+function defaultImageApiKeyEnv(detectedProvider) {
+  const provider = String(detectedProvider.name || detectedProvider.id || "ThinkAI").trim().toUpperCase().replace(/[^A-Z0-9]+/g, "_");
+  return provider ? `${provider}_IMAGE_API_KEY` : THINKAI_IMAGE_API_KEY_ENV;
 }
 
 function detectThirdParty(config) {

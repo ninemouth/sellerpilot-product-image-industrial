@@ -5,6 +5,8 @@ import path from "node:path";
 
 const DEFAULT_BASE_URL = "https://www.thinkai.tv/v1";
 const DEFAULT_MODEL = "gpt-image-2";
+const DEFAULT_API_KEY_ENV = "THINKAI_IMAGE_API_KEY";
+const LEGACY_API_KEY_ENV = "THINKAI_API_KEY";
 
 function parseArgs(argv) {
   const args = {};
@@ -27,7 +29,7 @@ function usage() {
 node scripts/configure-thinkai-runtime.mjs [options]
 
 Options:
-  --api-key KEY        ThinkAI API key. If omitted, reads THINKAI_API_KEY.
+  --api-key KEY        ThinkAI image API key. If omitted, reads THINKAI_IMAGE_API_KEY.
   --skill-dir DIR      Skill directory to configure. Default: this package root.
   --config PATH        Explicit config path. Default: <skill-dir>/.thinkai-image-runtime.json.
   --base-url URL       Default: ${DEFAULT_BASE_URL}
@@ -43,12 +45,12 @@ if (args.help) usage();
 const packageRoot = path.resolve(new URL("..", import.meta.url).pathname);
 const skillDir = path.resolve(args["skill-dir"] || packageRoot);
 const configPath = path.resolve(args.config || path.join(skillDir, ".thinkai-image-runtime.json"));
-const apiKey = String(args["api-key"] || process.env.THINKAI_API_KEY || "").trim();
+const apiKey = String(args["api-key"] || process.env[DEFAULT_API_KEY_ENV] || process.env[LEGACY_API_KEY_ENV] || "").trim();
 const baseUrl = String(args["base-url"] || DEFAULT_BASE_URL).trim();
 const model = String(args.model || DEFAULT_MODEL).trim();
 
 if (!apiKey) {
-  console.error("Missing ThinkAI API key. Provide --api-key or set THINKAI_API_KEY.");
+  console.error(`Missing ThinkAI image API key. Provide --api-key or set ${DEFAULT_API_KEY_ENV}.`);
   process.exit(2);
 }
 
@@ -56,6 +58,7 @@ fs.mkdirSync(path.dirname(configPath), { recursive: true });
 const config = {
   base_url: baseUrl,
   model,
+  api_key_env: DEFAULT_API_KEY_ENV,
   api_key: apiKey,
 };
 fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });
@@ -70,6 +73,6 @@ console.log(JSON.stringify({
   config_path: configPath,
   base_url: baseUrl,
   model,
-  api_key_source: args["api-key"] ? "argument" : "THINKAI_API_KEY",
+  api_key_source: args["api-key"] ? "argument" : DEFAULT_API_KEY_ENV,
   chmod: "600",
 }, null, 2));

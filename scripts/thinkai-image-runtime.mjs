@@ -6,6 +6,8 @@ import { spawn } from "node:child_process";
 
 const DEFAULT_BASE_URL = "https://www.thinkai.tv/v1";
 const DEFAULT_MODEL = "gpt-image-2";
+const DEFAULT_API_KEY_ENV = "THINKAI_IMAGE_API_KEY";
+const LEGACY_API_KEY_ENV = "THINKAI_API_KEY";
 const DEFAULT_USER_AGENT = "curl/8.7.1";
 const SIZE_ALIASES = new Map([
   ["1k", "1920x1088"],
@@ -54,14 +56,14 @@ Options:
   --config /abs/config.json     Optional provider config. Default: legacy ThinkAI config.
   --base-url URL                Override OpenAI-compatible base URL.
   --model MODEL                 Override model. Default: gpt-image-2.
-  --api-key-env NAME            Key environment variable. Default: THINKAI_API_KEY.
+  --api-key-env NAME            Key environment variable. Default: THINKAI_IMAGE_API_KEY.
   --progress-file /abs/progress.json  Write run-scoped execution status and heartbeats.
   --request-timeout-seconds N   Request deadline. Default: 1800; does not lower image quality.
   --download-timeout-seconds N  Per-image download deadline. Default: 900.
   --heartbeat-seconds N         Progress heartbeat interval. Default: 30.
   --dry-run                     Write request snapshot without calling the network.
 
-API key resolution order: --api-key-env, config.api_key_env, THINKAI_API_KEY, config.api_key.`);
+API key resolution order: --api-key-env, config.api_key_env, THINKAI_IMAGE_API_KEY, legacy THINKAI_API_KEY, config.api_key.`);
   process.exit(2);
 }
 
@@ -90,8 +92,8 @@ const config = loadRuntimeConfig(args.config);
 const baseUrl = String(args["base-url"] || config.base_url || DEFAULT_BASE_URL).replace(/\/+$/, "");
 const model = String(args.model || config.model || DEFAULT_MODEL);
 const providerName = String(config.provider_name || config.name || "ThinkAI");
-const apiKeyEnv = String(args["api-key-env"] || config.api_key_env || "THINKAI_API_KEY");
-const apiKey = String(process.env[apiKeyEnv] || process.env.THINKAI_API_KEY || config.api_key || "").trim();
+const apiKeyEnv = String(args["api-key-env"] || config.api_key_env || DEFAULT_API_KEY_ENV);
+const apiKey = String(process.env[apiKeyEnv] || process.env[DEFAULT_API_KEY_ENV] || process.env[LEGACY_API_KEY_ENV] || config.api_key || "").trim();
 
 try {
   validateInputs(imagePaths, args.mask);
@@ -345,7 +347,12 @@ async function writeImagesFromResponse(response, dir, timeoutSeconds) {
     throw new Error(`Unexpected image response payload: ${JSON.stringify(response).slice(0, 1000)}`);
   }
   const assets = await mapWithConcurrency(response.data, 2, async (item, index) => {
-    const imageBytes = item.b64_json ? Buffer.from(item.b64_json, "base64") : await downloadImageBytes(item.url, timeoutSeconds);
+    const inlineUrl = typeof item.url === "string" && item.url.startsWith("data:image/");
+    const imageBytes = item.b64_json
+      ? Buffer.from(item.b64_json, "base64")
+      : inlineUrl
+        ? decodeDataImageUrl(item.url)
+        : await downloadImageBytes(item.url, timeoutSeconds);
     if (!imageBytes?.length) throw new Error(`Image response item ${index} did not include url or b64_json.`);
     const dimensions = detectImageSize(imageBytes);
     if (!dimensions) throw new RuntimeError("invalid_image_payload", `Image response item ${index} was not a decodable PNG, JPEG, or WebP image.`);
@@ -355,11 +362,18 @@ async function writeImagesFromResponse(response, dir, timeoutSeconds) {
     writeProgress("downloading", { completed_downloads: index + 1, total_downloads: response.data.length, progress_event: "download_item_verified" });
     return {
       image_path: imagePath,
-      image_url: item.url || null,
+      image_url: inlineUrl ? null : item.url || null,
+      inline_data_url: inlineUrl || undefined,
       actual_size: dimensions,
     };
   });
   return assets;
+}
+
+function decodeDataImageUrl(value) {
+  const match = String(value).match(/^data:image\/[a-z0-9.+-]+;base64,([A-Za-z0-9+/=\r\n]+)$/i);
+  if (!match) throw new RuntimeError("invalid_image_payload", "Image response data URL was not a supported base64 image payload.");
+  return Buffer.from(match[1].replace(/\s+/g, ""), "base64");
 }
 
 async function downloadImageBytes(url, timeoutSeconds) {

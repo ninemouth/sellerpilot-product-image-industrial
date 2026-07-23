@@ -846,7 +846,7 @@ record("automatic image provider contract", () => {
   for (const token of [
     'DEFAULT_BASE_URL = "https://www.thinkai.tv/v1"',
     'DEFAULT_MODEL = "gpt-image-2"',
-    "THINKAI_API_KEY",
+    "THINKAI_IMAGE_API_KEY",
     "spawn(\"curl\"",
     "progress-file",
     "withHeartbeat",
@@ -879,11 +879,11 @@ record("automatic image provider contract", () => {
   }
   const codexConfig = path.join(configDir, "config.toml");
   fs.writeFileSync(codexConfig, 'model_provider = "acme"\n[model_providers.acme]\nbase_url = "https://images.example/v1"\nenv_key = "ACME_IMAGE_KEY"\n');
-  process.env.ACME_IMAGE_KEY = "verify-provider-key";
+  process.env.ACME_IMAGE_API_KEY = "verify-provider-key";
   const resolution = JSON.parse(run(process.execPath, ["scripts/resolve-image-provider.mjs", "--config", path.join(configDir, "missing.json"), "--codex-config", codexConfig]));
-  delete process.env.ACME_IMAGE_KEY;
-  if (resolution.selected_mode !== "third_party_proxy" || resolution.provider.base_url !== "https://images.example/v1" || resolution.provider.api_key_env !== "ACME_IMAGE_KEY") {
-    throw new Error("provider resolver should use current Codex third-party provider configuration.");
+  delete process.env.ACME_IMAGE_API_KEY;
+  if (resolution.selected_mode !== "third_party_proxy" || resolution.provider.base_url !== "https://images.example/v1" || resolution.provider.api_key_env !== "ACME_IMAGE_API_KEY") {
+    throw new Error("provider resolver should use current Codex third-party provider endpoint while deriving a dedicated image API key env.");
   }
   const nativeResolution = JSON.parse(run(process.execPath, ["scripts/resolve-image-provider.mjs", "--config", path.join(configDir, "missing.json"), "--codex-config", path.join(configDir, "no-config.toml")]));
   if (nativeResolution.selected_mode !== "native_codex") throw new Error("provider resolver should default to native Codex without a third-party provider.");

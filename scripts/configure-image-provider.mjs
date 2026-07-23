@@ -7,9 +7,11 @@ function parseArgs(argv) { const args = {}; for (let i = 2; i < argv.length; i +
 const args = parseArgs(process.argv);
 const codexHome = path.resolve(process.env.CODEX_HOME || path.join(os.homedir(), ".codex"));
 const configPath = path.resolve(args.config || path.join(codexHome, "sellerpilot-product-image-industrial", "image-provider.json"));
-const apiKey = String(args["api-key"] || process.env.THINKAI_API_KEY || "").trim();
-const apiKeyEnv = String(args["api-key-env"] || "THINKAI_API_KEY").trim();
-if (!apiKey) { console.error("Missing third-party image API key. Provide --api-key or set THINKAI_API_KEY."); process.exit(2); }
+const defaultApiKeyEnv = "THINKAI_IMAGE_API_KEY";
+const legacyApiKeyEnv = "THINKAI_API_KEY";
+const apiKey = String(args["api-key"] || process.env[defaultApiKeyEnv] || process.env[legacyApiKeyEnv] || "").trim();
+const apiKeyEnv = String(args["api-key-env"] || defaultApiKeyEnv).trim();
+if (!apiKey) { console.error(`Missing third-party image API key. Provide --api-key or set ${defaultApiKeyEnv}.`); process.exit(2); }
 const config = {
   provider_mode: "third_party_proxy",
   third_party: {

@@ -44,12 +44,12 @@ function shellExamples(paths) {
     return {
       powershell_codex_home: `$env:CODEX_HOME="${paths.codexHome}"`,
       powershell_open_skills_dir: `explorer "${paths.skillsDir}"`,
-      powershell_configure_image_provider: `cd "${paths.baseSkill}"; npm run configure:image-provider -- --api-key "<YOUR_THINKAI_API_KEY>"`,
+      powershell_configure_image_provider: `cd "${paths.baseSkill}"; npm run configure:image-provider -- --api-key "<YOUR_THINKAI_IMAGE_API_KEY>"`,
     };
   }
   return {
     sh_codex_home: `export CODEX_HOME="${paths.codexHome}"`,
     sh_open_skills_dir: `open "${paths.skillsDir}" || xdg-open "${paths.skillsDir}"`,
-    sh_configure_image_provider: `cd "${paths.baseSkill}" && npm run configure:image-provider -- --api-key "<YOUR_THINKAI_API_KEY>"`,
+    sh_configure_image_provider: `cd "${paths.baseSkill}" && npm run configure:image-provider -- --api-key "<YOUR_THINKAI_IMAGE_API_KEY>"`,
   };
 }
