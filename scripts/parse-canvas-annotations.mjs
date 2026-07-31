@@ -84,6 +84,8 @@ const output = {
     copy_rewrite: grouped.copy_rewrite.length,
     keep_only: grouped.keep_only.length,
   },
+  implicitly_approved_image_ids: Array.isArray(input.implicitly_approved_image_ids) ? input.implicitly_approved_image_ids : [],
+  review_policy: input.review_policy || { unannotated_images: "review_status_unknown", annotated_images: "revise_only" },
   next_codex_step: tasks.length
     ? "Feed these tasks into qa-loop-router / failed-output-regeneration and revise only affected assets."
     : "No open annotation tasks found.",
@@ -96,7 +98,8 @@ console.log(JSON.stringify({ status: "ok", tasks: tasks.length, out: outPath }, 
 function normalizeIssue(value) {
   const text = String(value || "modify").toLowerCase().replace(/_/g, "-");
   if (/keep|ok|pass/.test(text)) return "keep";
-  if (/regen|重出|重生|scene-asset/.test(text)) return "regenerate";
+  if (/scene|场景|background.*natural|背景.*自然/.test(text)) return "scene-asset-required";
+  if (/regen|重出|重生/.test(text)) return "regenerate";
   if (/layout|排版|rerender/.test(text)) return "rerender-layout";
   if (/copy|文案|text/.test(text)) return "copy-adjust";
   if (/材质|甲片|渐变|色温|亮度|颜色|nail|material|gradient|palette|temperature/.test(text)) return "surface-material-transfer-drift";
@@ -109,6 +112,7 @@ function returnNode(issue, region) {
   if (issue === "copy-adjust" || /C-main-title|D-subtitle|E-selling-point/.test(region)) return "localized-copy-pack";
   if (issue === "rerender-layout" || /layout|title|subtitle|label/.test(region)) return "layout-wireframes";
   if (issue === "surface-material-transfer-drift") return "surface-material-transfer";
+  if (issue === "scene-asset-required") return "scene-asset-production";
   if (issue === "identity-drift" || /A-product-subject/.test(region)) return "product-identity-lock";
   if (issue === "regenerate" || /G-people-scene/.test(region)) return "scene-asset-production";
   return "failed-output-regeneration";
@@ -119,6 +123,7 @@ function actionForIssue(issue, region) {
   if (issue === "copy-adjust") return "Rewrite buyer-facing copy and rerender layout only.";
   if (issue === "rerender-layout") return "Adjust composition, spacing, hierarchy, and readable regions; do not regenerate product asset.";
   if (issue === "surface-material-transfer-drift") return "Reproject the canonical source material onto the affected target surface; preserve palette, lightness, color temperature, direction and shape.";
+  if (issue === "scene-asset-required") return "Generate a true, product-appropriate scene asset first, then rerender only this image.";
   if (issue === "identity-drift") return "Tighten identity lock and regenerate only affected image with source reference.";
   if (issue === "regenerate" && /G-people-scene/.test(region)) return "Generate true scene asset first, then rerender final layout.";
   if (issue === "regenerate") return "Regenerate only the affected asset with revised prompt layer.";
@@ -129,7 +134,7 @@ function rerunScope(issue) {
   if (issue === "keep") return "keep_only";
   if (issue === "copy-adjust") return "copy_rewrite";
   if (issue === "rerender-layout") return "rerender_layout";
-  if (issue === "identity-drift" || issue === "regenerate" || issue === "surface-material-transfer-drift") return "regenerate_asset";
+  if (issue === "identity-drift" || issue === "regenerate" || issue === "surface-material-transfer-drift" || issue === "scene-asset-required") return "regenerate_asset";
   return "rerender_layout";
 }
 
@@ -166,5 +171,6 @@ function summarizeCanvasState(value) {
     zoom_policy: board.zoom_policy || "",
     layer_order: Array.isArray(board.layer_order) ? board.layer_order : [],
     fallback_layout_count: Array.isArray(value.fallback_layout) ? value.fallback_layout.length : 0,
+    snapshot_image_ids: Object.keys(value.tldraw_snapshots_by_image || {}).sort(),
   };
 }

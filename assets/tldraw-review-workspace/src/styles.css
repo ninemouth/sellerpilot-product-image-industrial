@@ -146,9 +146,24 @@ textarea {
 
 .workspace {
   display: grid;
-  grid-template-rows: auto minmax(420px, 1fr);
+  grid-template-rows: auto auto minmax(420px, 1fr);
   min-height: 0;
 }
+
+.review-guidance { display: grid; grid-template-columns: minmax(240px, 1fr) minmax(300px, 1.8fr) minmax(260px, 1.2fr); gap: 12px; align-items: stretch; border-bottom: 1px solid #d7e1ea; background: #f8fbfd; padding: 12px 18px; }
+.review-tip, .quick-feedback { display: grid; align-content: start; gap: 7px; }
+.review-tip { border-left: 4px solid #0e7c7b; border-radius: 7px; background: #e8f6f3; padding: 10px 12px; }
+.review-tip strong, .quick-feedback strong { color: #0a6665; font-size: 13px; }
+.review-tip span, .review-count { color: #415161; font-size: 12px; line-height: 1.45; }
+.thumbnail-nav { display: flex; gap: 8px; overflow-x: auto; padding: 2px; }
+.thumbnail-item { position: relative; display: grid; min-width: 76px; min-height: 92px; padding: 4px; border-radius: 7px; background: #ffffff; text-align: center; }
+.thumbnail-item.selected { border: 2px solid #0e7c7b; background: #e8f6f3; }
+.thumbnail-item img { width: 66px; height: 66px; object-fit: contain; border-radius: 4px; background: #edf2f6; }
+.thumbnail-item span { color: #304052; font-size: 11px; font-weight: 900; }
+.thumbnail-item em { display: inline-grid; place-items: center; min-width: 16px; height: 16px; margin-left: 4px; border-radius: 999px; background: #c92a2a; color: #ffffff; font-size: 10px; font-style: normal; }
+.quick-feedback { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.quick-feedback strong { grid-column: 1 / -1; }
+.quick-feedback button { min-height: 30px; padding: 6px 8px; font-size: 11px; text-align: left; }
 
 .review-toolbar {
   z-index: 20;
@@ -502,7 +517,7 @@ g.draw-shape text {
     flex-direction: column;
   }
 
-  .top-controls {
+.top-controls {
     justify-content: stretch;
   }
 
@@ -528,6 +543,8 @@ g.draw-shape text {
   }
 }
 
+.review-count { max-width: 260px; font-weight: 800; }
+
 @media (max-width: 640px) {
   .review-toolbar {
     grid-template-columns: 1fr;
@@ -536,4 +553,8 @@ g.draw-shape text {
   .board-viewport {
     padding: 14px;
   }
+}
+
+@media (max-width: 980px) {
+  .review-guidance { grid-template-columns: 1fr; }
 }

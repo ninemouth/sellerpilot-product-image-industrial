@@ -45,6 +45,12 @@ check("automatic cross-platform provider setup boundary", () => {
   for (const token of ["third_party_proxy", "configuration_required", "--no-prompt", "secure_local_input_pending"]) if (!ensure.includes(token)) throw new Error(`automatic provider setup missing ${token}`);
   for (const token of ["darwin", "win32", "UseSystemPasswordChar", "zenity", "key_output: \"never_printed\""]) if (!dialog.includes(token)) throw new Error(`interactive provider dialog missing ${token}`);
 });
+check("decision-first canvas review boundary", () => {
+  const canvas = read("assets/tldraw-review-workspace/src/main.jsx");
+  const parser = read("scripts/parse-canvas-annotations.mjs");
+  for (const token of ["thumbnail-nav", "QUICK_FEEDBACK", "提交修改给 AI", "implicitly_approved_image_ids", "unannotated_images: \"keep_approved\"", "tldraw_snapshots_by_image"]) if (!canvas.includes(token)) throw new Error(`canvas review missing ${token}`);
+  for (const token of ["implicitly_approved_image_ids", "scene-asset-required", "scene-asset-production", "snapshot_image_ids"]) if (!parser.includes(token)) throw new Error(`canvas task parser missing ${token}`);
+});
 check("integration suite registry invariants", () => {
   const registry = JSON.parse(read("contracts/integration-suite-registry.json"));
   if (registry.schema_version !== "sellerpilot.integration_suite_registry.v1") throw new Error("integration suite registry schema version is invalid");

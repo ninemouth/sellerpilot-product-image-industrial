@@ -72,6 +72,11 @@ node scripts/start-tldraw-review-workspace.mjs \
 Capabilities:
 
 - Real browser review workspace served through the shared tldraw service session URL.
+- Default to a thumbnail navigator plus one large active image. Do not make the all-image tiled canvas the primary review surface; switch the large image when the user clicks a thumbnail.
+- Treat unannotated images as implicitly approved and preserved. Do not require a busy user to click "approve" for every satisfactory image. The completion payload must record `unannotated_images: keep_approved` and list implicit approvals.
+- Give users a short visible tip: select the image to change, choose a common problem, then circle or point at the location only when useful. Provide quick feedback for identity drift, color/material/pattern drift, unreadable copy, layout, unrealistic scene, and full regeneration.
+- Use plain buyer/operator language in the visible UI. Keep canvas-engine, JSON export, shape-lock, and file-path mechanics out of the primary review flow.
+- Make `提交修改给 AI` the visually primary completion action and show how many issues will be submitted and how many images will be preserved.
 - Generated image assets are copied into the workspace so browser rendering does not depend on unsafe local file URLs.
 - Generated product images are imported into native tldraw as locked bottom-floor image shapes. Tldraw pen, arrow, shape, note, text, A-H standards, issue markers, and revision annotations live above the images.
 - Tldraw zoom and pan are allowed because images and annotations live inside the same canvas and scale together.
