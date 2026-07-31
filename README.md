@@ -212,6 +212,12 @@ npm run prepare:natural-image-runtime
 
 正式商品图任务只运行 check，不会边生图边安装第三方库。
 
+同步默认运行快速发布基线（static、Loop Engineering unit、skill package），避免把完整 legacy 验证链变成每次安装的长耗时阻塞。需要在 CI 或发布审计中显式运行完整历史回归时使用：
+
+```bash
+npm run sync:codex -- --full-verify
+```
+
 ### 方式 1：在 Codex / ChatGPT 的 Codex agent 对话里安装
 
 把下面这段话直接发给 Codex：

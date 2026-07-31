@@ -22,7 +22,7 @@ function parseArgs(argv) {
 
 function usage() {
   console.error(`Usage:
-node scripts/sync-to-codex-skill.mjs [--source /abs/skill] [--dest /abs/codex/skill] [--remote-branch branch] [--skip-verify] [--no-backup] [--skip-runtime-prepare] [--no-provider-config-prompt] [--include-diagnostics]
+node scripts/sync-to-codex-skill.mjs [--source /abs/skill] [--dest /abs/codex/skill] [--remote-branch branch] [--skip-verify] [--full-verify] [--no-backup] [--skip-runtime-prepare] [--no-provider-config-prompt] [--include-diagnostics]
 
 Runs verification by default, backs up the installed skill, copies this project
 to the Codex skill directory, and verifies source/destination content matches.
@@ -81,8 +81,13 @@ if (!fs.existsSync(path.join(source, "SKILL.md"))) {
 }
 
 if (!args["skip-verify"]) {
-  console.log("Running skill verification...");
-  run(process.execPath, [path.join(source, "scripts", "verify-skill.mjs")], { cwd: source, stdio: "inherit" });
+  console.log("Running release baseline verification...");
+  run("npm", ["run", "verify"], { cwd: source });
+  run("npm", ["run", "verify:skill-package"], { cwd: source });
+  if (args["full-verify"]) {
+    console.log("Running explicit full legacy verification...");
+    run(process.execPath, [path.join(source, "scripts", "verify-skill.mjs")], { cwd: source });
+  }
 }
 
 let backupDir = null;

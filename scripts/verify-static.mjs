@@ -41,6 +41,7 @@ check("automatic cross-platform provider setup boundary", () => {
   const ensure = read("scripts/ensure-image-provider-configuration.mjs");
   const dialog = read("scripts/configure-image-provider-interactive.mjs");
   for (const token of ["ensure-image-provider-configuration.mjs", "no-provider-config-prompt"]) if (!installer.includes(token)) throw new Error(`sync installer missing ${token}`);
+  for (const token of ["release baseline verification", "verify:skill-package", "full-verify"]) if (!installer.includes(token)) throw new Error(`sync verification policy missing ${token}`);
   for (const token of ["third_party_proxy", "configuration_required", "--no-prompt", "secure_local_input_pending"]) if (!ensure.includes(token)) throw new Error(`automatic provider setup missing ${token}`);
   for (const token of ["darwin", "win32", "UseSystemPasswordChar", "zenity", "key_output: \"never_printed\""]) if (!dialog.includes(token)) throw new Error(`interactive provider dialog missing ${token}`);
 });

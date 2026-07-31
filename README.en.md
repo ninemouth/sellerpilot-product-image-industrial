@@ -116,7 +116,7 @@ npm run verify
 npm run sync:codex
 ```
 
-`sync:codex` verifies the source, backs up the previous installation, copies the single main skill, verifies source/destination parity, prepares the tldraw and natural-finish runtime, and then performs the automatic provider configuration check.
+`sync:codex` runs the release baseline (static contracts, Loop Engineering unit tests, and skill-package validation), backs up the previous installation, copies the single main skill, verifies source/destination parity, prepares the tldraw and natural-finish runtime, and then performs the automatic provider configuration check. The expensive legacy verifier is not a default installation tax.
 
 For headless release automation, defer only the local dialog:
 
@@ -125,6 +125,12 @@ npm run sync:codex -- --no-provider-config-prompt
 ```
 
 This does not change the selected provider route and does not overwrite any existing key.
+
+For an explicit release-audit run that also executes the full legacy verifier:
+
+```bash
+npm run sync:codex -- --full-verify
+```
 
 ### Locate platform-aware Codex paths
 
