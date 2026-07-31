@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SellerPilot Loop Engineering Run State",
+  "type": "object",
+  "required": ["schema_version", "run_id", "status", "mode", "goal", "triggers", "budget", "loop", "artifacts"],
+  "properties": {
+    "schema_version": { "const": "sellerpilot.run_state.v1" },
+    "run_id": { "type": "string", "minLength": 1 },
+    "status": { "enum": ["planned", "running", "paused_for_human_decision", "blocked", "delivery_ready", "delivered"] },
+    "mode": { "type": "string", "minLength": 1 },
+    "goal": { "type": "object" },
+    "triggers": { "type": "object" },
+    "budget": { "type": "object" },
+    "loop": { "type": "object" },
+    "artifacts": { "type": "object" }
+  }
+}

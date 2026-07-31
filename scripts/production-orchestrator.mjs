@@ -59,7 +59,20 @@ while (!failed) {
 
 if (!failed) {
   const blocked = tasks.filter((task) => !results[task.id]);
-  if (blocked.length) {
+  const paused = Object.values(results).some((item) => item.status === "paused");
+  if (paused) {
+    for (const task of blocked) {
+      results[task.id] = {
+        id: task.id,
+        phase: task.phase,
+        status: "blocked",
+        blocked_reason: "upstream external execution boundary requires agent, provider, or human decision",
+        hash: hashTask(task),
+        depends_on: task.depends_on,
+      };
+    }
+    writeState("paused", "external execution boundary reached");
+  } else if (blocked.length) {
     for (const task of blocked) {
       results[task.id] = {
         id: task.id,
@@ -99,7 +112,20 @@ async function runTask(task) {
       ms: 0,
     };
   }
-  if (!execute || !task.command.length) {
+  if (execute && task.execution_class && task.execution_class !== "deterministic_pre_gate") {
+    return {
+      id: task.id,
+      phase: task.phase,
+      status: "paused",
+      hash: currentHash,
+      depends_on: task.depends_on,
+      outputs: task.outputs,
+      execution_class: task.execution_class,
+      paused_reason: `execution class ${task.execution_class} requires an explicit dispatcher or human/agent handoff`,
+      ms: 0,
+    };
+  }
+  if (!execute) {
     return {
       id: task.id,
       phase: task.phase,
@@ -107,7 +133,20 @@ async function runTask(task) {
       hash: currentHash,
       depends_on: task.depends_on,
       outputs: task.outputs,
-      skipped_reason: execute ? "no command supplied" : "dry run; pass --execute to run commands",
+      skipped_reason: "dry run; pass --execute to run commands",
+      ms: 0,
+    };
+  }
+  if (!task.command.length) {
+    return {
+      id: task.id,
+      phase: task.phase,
+      status: "paused",
+      hash: currentHash,
+      depends_on: task.depends_on,
+      outputs: task.outputs,
+      execution_class: task.execution_class,
+      paused_reason: "compiled task requires an explicit evidence binding or agent handoff before it can execute",
       ms: 0,
     };
   }
@@ -219,6 +258,7 @@ function normalizeTask(task) {
     ...task,
     id: String(task.id),
     phase: String(task.phase || "general"),
+    execution_class: task.execution_class ? String(task.execution_class) : null,
     depends_on: Array.isArray(task.depends_on) ? task.depends_on.map(String) : [],
     inputs: Array.isArray(task.inputs) ? task.inputs.map(String) : [],
     outputs: Array.isArray(task.outputs) ? task.outputs.map(String) : [],

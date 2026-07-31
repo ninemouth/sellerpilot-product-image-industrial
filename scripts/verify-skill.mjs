@@ -9,8 +9,12 @@ import { execFileSync, spawnSync } from "node:child_process";
 const require = createRequire(import.meta.url);
 const skillRoot = path.resolve(new URL("..", import.meta.url).pathname);
 const checks = [];
+const requestedFilters = process.argv.slice(2)
+  .filter((arg, index, all) => all[index - 1] === "--filter")
+  .flatMap((value) => String(value).split(",").map((item) => item.trim().toLowerCase()).filter(Boolean));
 
 function record(name, fn) {
+  if (requestedFilters.length && !requestedFilters.some((filter) => name.toLowerCase().includes(filter))) return;
   const started = Date.now();
   try {
     fn();
@@ -720,12 +724,6 @@ record("yaml parse", () => {
 record("workflow loop guard ordering", () => {
   const workflows = [
     "workflows/ecommerce-product-image-generation.yaml",
-    "workflows/pinduoduo-image-set.yaml",
-    "workflows/amazon-image-set.yaml",
-    "workflows/competitive-redesign.yaml",
-    "workflows/multi-platform-image-pack.yaml",
-    "workflows/tiktok-shop-image-set.yaml",
-    "workflows/xiaohongshu-image-pack.yaml",
   ];
   for (const file of workflows) {
     const steps = workflowSteps(file);
@@ -819,6 +817,24 @@ record("workflow loop guard ordering", () => {
   }
 });
 
+record("legacy workflow compiler compatibility", () => {
+  const expected = {
+    "amazon-image-set.yaml": "amazon",
+    "pinduoduo-image-set.yaml": "pinduoduo",
+    "competitive-redesign.yaml": "competitive-redesign",
+    "multi-platform-image-pack.yaml": "multi-platform",
+    "tiktok-shop-image-set.yaml": "tiktok-shop",
+    "xiaohongshu-image-pack.yaml": "xiaohongshu",
+  };
+  for (const [file, platform] of Object.entries(expected)) {
+    const raw = fs.readFileSync(path.join(skillRoot, "workflows", file), "utf8");
+    for (const token of ["inherits: ecommerce-product-image-generation", "compatibility_mode: compiler_default", `platform_override: ${platform}`]) {
+      if (!raw.includes(token)) throw new Error(`${file} is missing ${token}`);
+    }
+    if (/^steps:/m.test(raw)) throw new Error(`${file} must not duplicate the master step list.`);
+  }
+});
+
 record("no legacy provider naming", () => {
   const files = listFiles(skillRoot, (item) => !/node_modules/.test(item) && /\.(md|mjs|json|ya?ml)$/i.test(item));
   const legacyPatterns = [
@@ -877,6 +893,18 @@ record("automatic image provider contract", () => {
   if (config.third_party.api_key !== "verify-key") {
     throw new Error("provider config script did not write the supplied API key.");
   }
+  const stdinConfigPath = path.join(configDir, "stdin-image-provider.json");
+  const stdinConfigResult = spawnSync(process.execPath, ["scripts/configure-image-provider.mjs", "--config", stdinConfigPath, "--api-key-stdin"], { cwd: skillRoot, input: "stdin-verify-key\n", encoding: "utf8" });
+  if (stdinConfigResult.status !== 0) throw new Error(stdinConfigResult.stderr || stdinConfigResult.stdout || "provider stdin configuration failed");
+  const stdinConfig = readJson(stdinConfigPath);
+  const stdinSummary = JSON.parse(stdinConfigResult.stdout);
+  if (stdinConfig.third_party.api_key !== "stdin-verify-key" || stdinSummary.key_source !== "stdin") {
+    throw new Error("provider config script must support secret input through stdin without a command-line key.");
+  }
+  const interactiveDryRun = JSON.parse(run(process.execPath, ["scripts/configure-image-provider-interactive.mjs", "--dry-run"]));
+  if (interactiveDryRun.status !== "ready" || interactiveDryRun.key_output !== "never_printed") {
+    throw new Error("interactive provider configuration must offer masked local key entry without key output.");
+  }
   const codexConfig = path.join(configDir, "config.toml");
   fs.writeFileSync(codexConfig, 'model_provider = "acme"\n[model_providers.acme]\nbase_url = "https://images.example/v1"\nenv_key = "ACME_IMAGE_KEY"\n');
   process.env.ACME_IMAGE_API_KEY = "verify-provider-key";
@@ -884,6 +912,10 @@ record("automatic image provider contract", () => {
   delete process.env.ACME_IMAGE_API_KEY;
   if (resolution.selected_mode !== "third_party_proxy" || resolution.provider.base_url !== "https://images.example/v1" || resolution.provider.api_key_env !== "ACME_IMAGE_API_KEY") {
     throw new Error("provider resolver should use current Codex third-party provider endpoint while deriving a dedicated image API key env.");
+  }
+  const autoConfiguration = JSON.parse(run(process.execPath, ["scripts/ensure-image-provider-configuration.mjs", "--config", path.join(configDir, "auto-missing.json"), "--codex-config", codexConfig, "--no-prompt"]));
+  if (autoConfiguration.status !== "configuration_required" || autoConfiguration.prompted !== false || autoConfiguration.action !== "secure_local_input_pending") {
+    throw new Error("automatic provider setup must detect a third-party configuration gap without prompting in headless mode.");
   }
   const nativeResolution = JSON.parse(run(process.execPath, ["scripts/resolve-image-provider.mjs", "--config", path.join(configDir, "missing.json"), "--codex-config", path.join(configDir, "no-config.toml")]));
   if (nativeResolution.selected_mode !== "native_codex") throw new Error("provider resolver should default to native Codex without a third-party provider.");
@@ -4018,6 +4050,10 @@ record("review completion wakeup smoke", () => {
 });
 
 const failed = checks.filter((item) => item.status === "fail");
+if (!checks.length) {
+  console.error(`No legacy verification checks matched filter: ${requestedFilters.join(", ") || "(none)"}`);
+  process.exit(2);
+}
 for (const item of checks) {
   const suffix = item.status === "pass" ? `${item.ms}ms` : `${item.ms}ms - ${item.message}`;
   console.log(`${item.status.toUpperCase()} ${item.name} (${suffix})`);

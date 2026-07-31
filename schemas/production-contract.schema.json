@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SellerPilot Production Contract",
+  "type": "object",
+  "required": ["schema_version", "policy_version", "default_mode", "modes", "triggers", "loop_policy"],
+  "properties": {
+    "schema_version": { "const": "sellerpilot.production_contract.v1" },
+    "policy_version": { "type": "string", "minLength": 1 },
+    "default_mode": { "type": "string" },
+    "modes": { "type": "object", "minProperties": 1 },
+    "triggers": { "type": "object" },
+    "loop_policy": { "type": "object" }
+  }
+}

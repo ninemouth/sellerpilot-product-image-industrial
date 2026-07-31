@@ -22,7 +22,7 @@ function parseArgs(argv) {
 
 function usage() {
   console.error(`Usage:
-node scripts/sync-to-codex-skill.mjs [--source /abs/skill] [--dest /abs/codex/skill] [--remote-branch branch] [--skip-verify] [--no-backup] [--skip-runtime-prepare] [--include-diagnostics]
+node scripts/sync-to-codex-skill.mjs [--source /abs/skill] [--dest /abs/codex/skill] [--remote-branch branch] [--skip-verify] [--no-backup] [--skip-runtime-prepare] [--no-provider-config-prompt] [--include-diagnostics]
 
 Runs verification by default, backs up the installed skill, copies this project
 to the Codex skill directory, and verifies source/destination content matches.
@@ -137,12 +137,21 @@ if (fs.existsSync(canvasScript)) {
   }
 }
 
+const providerConfigurationScript = path.join(dest, "scripts", "ensure-image-provider-configuration.mjs");
+let providerConfigurationReport = { status: "not_applicable" };
+if (fs.existsSync(providerConfigurationScript)) {
+  console.log("Checking local image-provider configuration...");
+  const configured = run(process.execPath, [providerConfigurationScript, ...(args["no-provider-config-prompt"] ? ["--no-prompt"] : [])], { cwd: dest });
+  providerConfigurationReport = parseLastJson(configured) || { status: "unknown" };
+}
+
 const safeSummary = {
   status: "synced",
   skill_name: skillName,
   release: publicReleaseMetadata(releaseMetadata),
   natural_image_runtime_preparation: publicNaturalRuntimePreparation(naturalRuntimePreparationReport),
   canvas_preparation: publicCanvasPreparation(canvasPreparationReport),
+  image_provider_configuration: publicProviderConfiguration(providerConfigurationReport),
   user_message: "SellerPilot product image skill was verified and synced.",
 };
 if (includeDiagnostics) {
@@ -284,6 +293,17 @@ function publicCanvasPreparation(report) {
       changed: Boolean(report?.templateSync?.changed),
       dry_run: Boolean(report?.templateSync?.dry_run),
     },
+  };
+}
+
+function publicProviderConfiguration(report) {
+  return {
+    status: report?.status || "unknown",
+    selected_mode: report?.selected_mode || null,
+    provider: report?.provider || null,
+    action: report?.action || null,
+    prompted: Boolean(report?.prompted),
+    key_output: report?.key_output || null,
   };
 }
 

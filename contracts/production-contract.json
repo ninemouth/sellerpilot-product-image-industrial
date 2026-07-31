@@ -1,0 +1,60 @@
+{
+  "$schema": "../schemas/production-contract.schema.json",
+  "schema_version": "sellerpilot.production_contract.v1",
+  "policy_version": "2026-07-30",
+  "default_mode": "quality_production",
+  "modes": {
+    "fast_generation": {
+      "max_provider_attempts_per_role": 1,
+      "max_anchor_assets": 1,
+      "requires_delivery_overview_for_multi_image": true,
+      "requires_review_workspace_for_final_delivery": true,
+      "allowed_execution_classes": ["deterministic_pre_gate", "agent_planning", "provider_generation", "delivery_closure"]
+    },
+    "single_image_quality_production": {
+      "max_provider_attempts_per_role": 2,
+      "max_anchor_assets": 0,
+      "requires_delivery_overview_for_multi_image": false,
+      "requires_review_workspace_for_final_delivery": true,
+      "allowed_execution_classes": ["deterministic_pre_gate", "agent_planning", "provider_generation", "delivery_closure", "human_decision"]
+    },
+    "quality_production": {
+      "max_provider_attempts_per_role": 2,
+      "max_anchor_assets": 3,
+      "requires_delivery_overview_for_multi_image": true,
+      "requires_review_workspace_for_final_delivery": true,
+      "allowed_execution_classes": ["deterministic_pre_gate", "agent_planning", "provider_generation", "delivery_closure", "human_decision"]
+    },
+    "industrial_audit": {
+      "max_provider_attempts_per_role": 2,
+      "max_anchor_assets": 3,
+      "requires_delivery_overview_for_multi_image": true,
+      "requires_review_workspace_for_final_delivery": true,
+      "allowed_execution_classes": ["deterministic_pre_gate", "agent_planning", "provider_generation", "delivery_closure", "human_decision", "audit_optional"]
+    },
+    "revision_repair": {
+      "max_provider_attempts_per_role": 2,
+      "max_anchor_assets": 0,
+      "requires_delivery_overview_for_multi_image": true,
+      "requires_review_workspace_for_final_delivery": "when_annotations_present",
+      "allowed_execution_classes": ["deterministic_pre_gate", "agent_planning", "provider_generation", "delivery_closure", "human_decision"]
+    }
+  },
+  "triggers": {
+    "has_source_image": { "requires": ["source_understanding", "identity_lock"] },
+    "visible_copy": { "requires": ["text_layout_proof", "final_visible_text_review"] },
+    "localized_copy": { "requires": ["localized_copy_qa", "final_visible_text_review"] },
+    "scene_requested": { "requires": ["scene_realism_review"] },
+    "physical_function_risk": { "requires": ["physical_truth_lock", "product_physics_gate"] },
+    "surface_material_canonical": { "requires": ["surface_material_lock", "surface_material_transfer_gate"] },
+    "multi_image_set": { "requires": ["anchor_batch", "delivery_overview"] }
+  },
+  "loop_policy": {
+    "retry_requires_evidence_delta": true,
+    "final_delivery_is_root_cause": false,
+    "retry_budget_exhaustion_status": "blocked_retry_budget_exhausted",
+    "provider_instability_status": "blocked_provider_circuit_open",
+    "human_pause_status": "paused_for_human_decision",
+    "delivery_closure_may_generate": false
+  }
+}

@@ -2,7 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 
 const args = parseArgs(process.argv);
 if (!args["run-dir"] || !args.jobs) usage();
@@ -59,6 +59,7 @@ function writeState(status, anchors, remaining, policy) {
   fs.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}\n`);
   const progress = readJson(progressPath) || {};
   fs.writeFileSync(progressPath, `${JSON.stringify({ ...progress, execution_controller: state, updated_at: state.updated_at, pending_images: status === "anchor_ready" ? state.anchor_job_ids : state.remaining_job_ids }, null, 2)}\n`);
+  syncRunState();
   return state;
 }
 
@@ -118,7 +119,15 @@ async function executeBatch(items, finalStatus, priorState) {
     failed_images: [...new Set(failedImages)],
     execution_controller: state,
   }, null, 2)}\n`);
+  syncRunState();
   if (failed.length) process.exitCode = 1;
+}
+
+function syncRunState() {
+  if (!fs.existsSync(path.join(runDir, "run-state.json"))) return;
+  const script = path.join(path.resolve(new URL("..", import.meta.url).pathname), "scripts", "run-state-transition.mjs");
+  const result = spawnSync(process.execPath, [script, "--run-dir", runDir, "--event", "generation", "--input", statePath], { cwd: runDir, encoding: "utf8" });
+  if (result.status !== 0) console.error(`run-state generation projection skipped: ${(result.stderr || result.stdout || "unknown error").trim()}`);
 }
 
 async function runJob(job) {

@@ -2,6 +2,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 
 function parseArgs(argv) {
   const args = {};
@@ -410,8 +411,17 @@ const report = {
 
 fs.writeFileSync(path.join(qaDir, "final-delivery-gate-report.json"), JSON.stringify(report, null, 2));
 fs.writeFileSync(path.join(qaDir, "final-delivery-gate-report.md"), toMarkdown(report));
+syncRunState();
 console.log(JSON.stringify({ status, findings: findings.length, outDir: qaDir }, null, 2));
 if (status === "fail") process.exitCode = 1;
+
+function syncRunState() {
+  const statePath = path.join(runDir, "run-state.json");
+  if (!fs.existsSync(statePath)) return;
+  const script = path.join(path.resolve(new URL("..", import.meta.url).pathname), "scripts", "run-state-transition.mjs");
+  const result = spawnSync(process.execPath, [script, "--run-dir", runDir, "--event", "delivery"], { cwd: runDir, encoding: "utf8" });
+  if (result.status !== 0) console.error(`run-state final-delivery projection skipped: ${(result.stderr || result.stdout || "unknown error").trim()}`);
+}
 
 function loadGateReports(dir) {
   if (!fs.existsSync(dir)) return [];
@@ -503,6 +513,7 @@ function validateFinalImageLineageReports({ manifest, runDir, findings, adaptive
       || Array.isArray(lineage.personalized_text_items);
   });
   const hasNaturalImageFinish = images.some((item) => normalizeText(item.lineage?.transformation_type) === "natural_image_finish");
+  const hasNativeImagegen = images.some((item) => /native[_ -]?codex|image_gen|imagegen/i.test(`${item.lineage?.provider || ""} ${item.lineage?.provider_mode || ""} ${item.lineage?.execution_provider || ""}`));
   if (hasDerived && !fs.existsSync(path.join(runDir, "qa", "final-image-lineage-gate-report.json"))) {
     findings.push({
       severity: "fail",
@@ -528,6 +539,15 @@ function validateFinalImageLineageReports({ manifest, runDir, findings, adaptive
       gate_id: "final-delivery-gate",
       source_report: "qa/natural-image-finish-gate-report.json",
       message: "Final manifest contains natural_image_finish lineage; run the natural image finish gate before final delivery.",
+    });
+  }
+  if (hasNativeImagegen && !fs.existsSync(path.join(runDir, "qa", "native-imagegen-ledger-gate-report.json"))) {
+    findings.push({
+      severity: "fail",
+      type: "missing-native-imagegen-ledger-gate",
+      gate_id: "final-delivery-gate",
+      source_report: "qa/native-imagegen-ledger-gate-report.json",
+      message: "Final manifest claims native Codex image generation; run native-imagegen-ledger-gate before final delivery.",
     });
   }
   if (adaptiveNaturalFinishBatchRequired) {

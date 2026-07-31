@@ -2,7 +2,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 
 const DEFAULT_BASE_URL = "https://www.thinkai.tv/v1";
 const DEFAULT_MODEL = "gpt-image-2";
@@ -61,6 +61,8 @@ Options:
   --request-timeout-seconds N   Request deadline. Default: 1800; does not lower image quality.
   --download-timeout-seconds N  Per-image download deadline. Default: 900.
   --heartbeat-seconds N         Progress heartbeat interval. Default: 30.
+  --run-dir /abs/run            Optional compiled Loop Engineering run for provider budget/ledger recording.
+  --role IMG-01                 Required with --run-dir; binds this call to one final-image role.
   --dry-run                     Write request snapshot without calling the network.
 
 API key resolution order: --api-key-env, config.api_key_env, THINKAI_IMAGE_API_KEY, legacy THINKAI_API_KEY, config.api_key.`);
@@ -78,6 +80,8 @@ const size = resolveSize(args.size || (isEdit ? "auto" : "2k"));
 const quality = args.quality || "hd";
 const count = Number.parseInt(args.n || "1", 10);
 const progressFile = args["progress-file"] ? path.resolve(args["progress-file"]) : "";
+const runDir = args["run-dir"] ? path.resolve(args["run-dir"]) : "";
+const runRole = args.role ? String(args.role) : "";
 const requestTimeoutSeconds = positiveNumber(args["request-timeout-seconds"], DEFAULT_REQUEST_TIMEOUT_SECONDS);
 const downloadTimeoutSeconds = positiveNumber(args["download-timeout-seconds"], DEFAULT_DOWNLOAD_TIMEOUT_SECONDS);
 const heartbeatSeconds = positiveNumber(args["heartbeat-seconds"], DEFAULT_HEARTBEAT_SECONDS);
@@ -85,6 +89,7 @@ const heartbeatSeconds = positiveNumber(args["heartbeat-seconds"], DEFAULT_HEART
 if (!Number.isInteger(count) || count < 1) {
   throwCli("n must be a positive integer.");
 }
+if (runDir && !runRole) throwCli("--role is required when --run-dir is provided.");
 
 fs.mkdirSync(outputDir, { recursive: true });
 
@@ -128,6 +133,8 @@ try {
     throw new RuntimeError("configuration_required", `${providerName} image API key is not configured in ${apiKeyEnv}.`);
   }
 
+  recordProviderAttempt("requested");
+
   writeProgress("generating", { endpoint: request.endpoint, progress_event: "request_started" });
   const generation = isEdit
     ? executeEdit({ baseUrl, apiKey, request, requestTimeoutSeconds })
@@ -155,10 +162,35 @@ try {
   };
   writeJson(path.join(outputDir, "summary.json"), summary);
   writeProgress("completed", { completed_images: assets, summary_path: path.join(outputDir, "summary.json"), progress_event: "asset_verified" });
+  recordProviderAttempt("succeeded");
   console.log(JSON.stringify(summary, null, 2));
 } catch (error) {
+  writeProviderFailureDiagnostic(error);
   writeProgress("failed", { failure: publicFailure(error) });
+  recordProviderAttempt("failed", true);
   throwCli(JSON.stringify(publicFailure(error)));
+}
+
+function recordProviderAttempt(status, suppressFailure = false) {
+  if (!runDir) return;
+  const recorder = path.join(skillRoot, "scripts", "record-provider-call.mjs");
+  const sourceHash = imagePaths.map((file) => {
+    try { return `${file}:${fs.statSync(file).size}:${fs.statSync(file).mtimeMs}`; } catch { return file; }
+  }).join("|");
+  const result = spawnSync(process.execPath, [
+    recorder,
+    "--run-dir", runDir,
+    "--role", runRole,
+    "--status", status,
+    "--prompt-hash", args.prompt,
+    "--source-hash", sourceHash,
+    "--provider", providerName,
+    "--model", model,
+    "--triggering-gate", "thinkai-image-runtime",
+  ], { cwd: skillRoot, encoding: "utf8" });
+  if (result.status !== 0 && !suppressFailure) {
+    throw new RuntimeError("provider_budget_or_evidence_delta_blocked", (result.stderr || result.stdout || "Provider call was blocked by run budget.").trim());
+  }
 }
 
 function loadRuntimeConfig(configArg) {
@@ -470,6 +502,35 @@ function publicFailure(error) {
       ? "Generation was cancelled; completed assets remain available for recovery."
       : "Image generation could not complete. The run state was preserved so only affected assets need retrying.";
   return { code, message };
+}
+
+function writeProviderFailureDiagnostic(error) {
+  if (!runDir) return;
+  const raw = String(error?.message || "");
+  const statusMatch = raw.match(/\b([45]\d\d)\b/);
+  const curlExitMatch = raw.match(/curl exited with (\d+)/i);
+  const code = String(error?.code || "generation_failed");
+  const diagnostic = {
+    schema_version: "sellerpilot.provider_failure_diagnostic.v1",
+    recorded_at: new Date().toISOString(),
+    provider: providerName,
+    model,
+    role: runRole || null,
+    stage: code === "provider_request_failed" ? "provider_request" : code === "invalid_image_payload" ? "asset_validation" : code === "configuration_required" ? "configuration" : code,
+    error_code: code,
+    http_status: statusMatch ? Number(statusMatch[1]) : null,
+    curl_exit_code: curlExitMatch ? Number(curlExitMatch[1]) : null,
+    retryable: code === "provider_request_failed" && (!statusMatch || Number(statusMatch[1]) >= 500),
+    policy: "Internal diagnostic only. It intentionally excludes API keys, base URLs, request bodies, response bodies, local paths, and raw transport errors.",
+  };
+  const diagnosticsDir = path.join(runDir, "runtime");
+  fs.mkdirSync(diagnosticsDir, { recursive: true });
+  writeJson(path.join(diagnosticsDir, `provider-failure-diagnostic-${normalizeRoleForDiagnostic(runRole) || "unbound"}.json`), diagnostic);
+}
+
+function normalizeRoleForDiagnostic(value) {
+  const match = String(value || "").match(/(?:IMG|POSTER|DETAIL)[-_ ]?(\d{1,2})/i);
+  return match ? `img-${match[1].padStart(2, "0")}` : "";
 }
 
 function writeJson(file, value) {

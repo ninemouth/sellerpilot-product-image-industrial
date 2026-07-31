@@ -41,6 +41,19 @@ L2.5 Generation Control:
 - bounded concurrency only for independent remaining roles after anchor approval
 - provider diagnostic isolation from user-facing messages
 
-## Loop
+## Loop Engineering Control Plane
 
-User Request -> Normalize -> Parse -> Identity Lock -> Profile -> Strategy -> Visual Direction -> Generation Spec -> Anchor Generation -> Anchor QA -> Bounded Remaining Generation -> QA -> Optional Canvas -> Revise -> Export
+The package is migrating from documentation-led orchestration to a bounded Loop Engineering control plane. The canonical policy is `contracts/production-contract.json`; each run receives a generated `run-state.json`, compiled production plan, and run-local DAG.
+
+```text
+User Request + Evidence
+  -> Contract-driven Plan Compiler
+  -> Deterministic Pre-gates
+  -> Bounded Anchor / Role Repair Loops
+  -> Delivery Closure (no generation)
+  -> Optional Human Review / Revision
+```
+
+Provider generation is never an open retry loop. A retry must have a role-specific evidence delta and remain within the run and role budget. Provider circuit failures, retry exhaustion, missing product facts, and consequential user decisions are terminal/pause states. The final delivery gate aggregates evidence; it cannot be used as a root-cause retry target.
+
+See `docs/loop-engineering-reconstruction.md` for the migration plan, canonical artifacts, loop definitions, and acceptance criteria.

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 
 const args = parseArgs(process.argv);
 if (!args["run-dir"]) usage();
@@ -12,23 +13,30 @@ const maxTotalFailures = Number(args["max-total-failures"] || 6);
 const repairMap = readJsonSafe(path.join(runDir, "qa", "failed-asset-repair-map.json")) || {};
 const manifest = readJsonSafe(path.join(runDir, "export", "final-images-manifest.json")) || null;
 const progressFiles = collectProgressFiles(path.join(runDir, "generated-assets"));
-const attempts = progressFiles.map((item) => attemptFromProgress(item, repairMap));
+const diagnostics = collectProviderFailureDiagnostics(path.join(runDir, "runtime"));
+const attempts = [
+  ...progressFiles.map((item) => attemptFromProgress(item, repairMap)),
+  ...diagnostics.filter((diagnostic) => !progressFiles.some((item) => roleKey(item.id) === roleKey(diagnostic.role))).map((diagnostic) => attemptFromDiagnostic(diagnostic)),
+];
 const failedAttempts = attempts.filter((item) => item.failed);
 const unresolvedFailures = failedAttempts.filter((item) => !item.repaired_by_final_asset);
+const nonRetryableFailures = unresolvedFailures.filter((item) => item.retryable === false);
 const roleCounts = countBy(failedAttempts, (item) => item.role_key);
 const repeatedRoles = Object.entries(roleCounts)
   .filter(([, count]) => count >= maxFailuresPerRole)
   .map(([role_key, failed_attempts]) => ({ role_key, failed_attempts }));
 const repairedCount = failedAttempts.length - unresolvedFailures.length;
-const trigger = unresolvedFailures.length > 0 && (repeatedRoles.length > 0 || failedAttempts.length >= maxTotalFailures);
+const trigger = nonRetryableFailures.length > 0 || (unresolvedFailures.length > 0 && (repeatedRoles.length > 0 || failedAttempts.length >= maxTotalFailures));
 const status = trigger ? "blocked" : failedAttempts.length ? "pass_with_warnings" : "pass";
 const findings = [];
 
 if (trigger) {
   findings.push({
     severity: "fail",
-    type: "provider-instability-circuit-breaker-triggered",
-    message: `Provider attempts have ${failedAttempts.length} failed job(s), ${unresolvedFailures.length} unresolved, and repeated failed roles: ${repeatedRoles.map((item) => item.role_key).join(", ") || "none"}. Stop automatic provider retries.`,
+    type: nonRetryableFailures.length ? "provider-non-retryable-refusal" : "provider-instability-circuit-breaker-triggered",
+    message: nonRetryableFailures.length
+      ? `Provider returned ${nonRetryableFailures.length} non-retryable refusal(s) for ${nonRetryableFailures.map((item) => item.role_key).join(", ")}. Stop automatic retries until account, permission, model access, or configuration is corrected.`
+      : `Provider attempts have ${failedAttempts.length} failed job(s), ${unresolvedFailures.length} unresolved, and repeated failed roles: ${repeatedRoles.map((item) => item.role_key).join(", ") || "none"}. Stop automatic provider retries.`,
   });
 } else if (failedAttempts.length) {
   findings.push({
@@ -50,9 +58,11 @@ const report = {
   attempts,
   summary: {
     progress_files: progressFiles.length,
+    failure_diagnostics: diagnostics.length,
     failed_attempts: failedAttempts.length,
     repaired_failed_attempts: repairedCount,
     unresolved_failed_attempts: unresolvedFailures.length,
+    non_retryable_failures: nonRetryableFailures.length,
     repeated_failed_roles: repeatedRoles,
     manifest_images: Array.isArray(manifest?.images) ? manifest.images.length : 0,
   },
@@ -63,7 +73,7 @@ const report = {
         "review approved generated assets",
         "derive from approved assets when policy allows",
         "downgrade unstable scene role",
-        "ask user before additional provider retries",
+        ...(nonRetryableFailures.length ? ["repair provider account, permission, model access, or configuration before retrying"] : ["ask user before additional provider retries"]),
       ]
       : ["continue workflow", "preserve provider failure evidence"],
   },
@@ -73,8 +83,16 @@ const report = {
 fs.mkdirSync(outDir, { recursive: true });
 fs.writeFileSync(path.join(outDir, "provider-instability-circuit-breaker-report.json"), `${JSON.stringify(report, null, 2)}\n`);
 fs.writeFileSync(path.join(outDir, "provider-instability-circuit-breaker-report.md"), toMarkdown(report));
+syncRunState();
 console.log(JSON.stringify({ status, failed_attempts: failedAttempts.length, unresolved_failed_attempts: unresolvedFailures.length, outDir }, null, 2));
 if (status === "blocked") process.exitCode = 1;
+
+function syncRunState() {
+  if (!fs.existsSync(path.join(runDir, "run-state.json"))) return;
+  const script = path.join(path.resolve(new URL("..", import.meta.url).pathname), "scripts", "run-state-transition.mjs");
+  const result = spawnSync(process.execPath, [script, "--run-dir", runDir, "--event", "circuit", "--input", path.join(outDir, "provider-instability-circuit-breaker-report.json")], { cwd: runDir, encoding: "utf8" });
+  if (result.status !== 0) console.error(`run-state circuit projection skipped: ${(result.stderr || result.stdout || "unknown error").trim()}`);
+}
 
 function attemptFromProgress(item, repairs) {
   const status = normalize(item.progress.status);
@@ -89,8 +107,24 @@ function attemptFromProgress(item, repairs) {
     failed,
     repaired_by_final_asset: repairedFinal || (status === "repaired_by_final_asset" ? "unknown_final_asset" : null),
     failure_code: item.progress.runtime?.failure?.code || item.progress.failure?.code || null,
+    retryable: item.progress.runtime?.failure?.retryable ?? item.progress.failure?.retryable ?? null,
     meaningful_events: (item.progress.runtime?.meaningful_progress_events || []).map((event) => event.event),
     updated_at: item.progress.updated_at || null,
+  };
+}
+
+function attemptFromDiagnostic(item) {
+  return {
+    id: item.role || "unbound",
+    progress_file: item.file,
+    role_key: roleKey(item.role),
+    status: "failed",
+    failed: true,
+    repaired_by_final_asset: null,
+    failure_code: item.error_code || null,
+    retryable: item.retryable === false ? false : item.retryable === true ? true : null,
+    meaningful_events: [],
+    updated_at: item.recorded_at || null,
   };
 }
 
@@ -106,6 +140,19 @@ function collectProgressFiles(dir) {
         file,
         progress: readJsonSafe(file) || {},
       };
+    });
+}
+
+function collectProviderFailureDiagnostics(dir) {
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir)
+    .filter((name) => /^provider-failure-diagnostic-.+\.json$/i.test(name))
+    .sort()
+    .flatMap((name) => {
+      const file = path.join(dir, name);
+      const value = readJsonSafe(file);
+      if (!value || value.schema_version !== "sellerpilot.provider_failure_diagnostic.v1") return [];
+      return [{ ...value, file: path.relative(runDir, file) }];
     });
 }
 

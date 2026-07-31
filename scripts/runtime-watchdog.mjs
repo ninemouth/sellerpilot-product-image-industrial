@@ -99,6 +99,7 @@ const report = {
 fs.mkdirSync(qaDir, { recursive: true });
 fs.writeFileSync(path.join(qaDir, "runtime-watchdog-report.json"), JSON.stringify(report, null, 2));
 fs.writeFileSync(path.join(qaDir, "runtime-watchdog-report.md"), toMarkdown(report));
+syncRunState();
 console.log(JSON.stringify({
   status: report.status,
   classification: report.classification,
@@ -107,6 +108,14 @@ console.log(JSON.stringify({
 }, null, 2));
 
 if (["blocked", "needs_attention"].includes(report.status)) process.exitCode = 1;
+
+function syncRunState() {
+  const statePath = path.join(runDir, "run-state.json");
+  if (!fs.existsSync(statePath)) return;
+  const script = path.join(path.resolve(new URL("..", import.meta.url).pathname), "scripts", "run-state-transition.mjs");
+  const result = spawnSync(process.execPath, [script, "--run-dir", runDir, "--event", "watchdog"], { cwd: runDir, encoding: "utf8" });
+  if (result.status !== 0) console.error(`run-state watchdog projection skipped: ${(result.stderr || result.stdout || "unknown error").trim()}`);
+}
 
 function classify() {
   const loopStatus = normalize(qaLoopDecision?.loop_decision?.status);

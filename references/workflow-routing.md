@@ -15,13 +15,21 @@ ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/agents/p
 
 Do not infer that `AGENTS.md` should exist in the current project or chat working directory.
 
-For complete product-image generation, always start with the platform-agnostic master workflow:
+For a **new** complete product-image generation run, compile the canonical control plane first. This is the default route and replaces manual reading of a copied platform workflow:
+
+```text
+contracts/production-contract.json
+contracts/platform-overrides.json
+scripts/compile-production-plan.mjs
+```
+
+The compiler creates the run-local DAG and applies marketplace deltas. Read the platform-agnostic master workflow only when you need compatibility context or when a legacy run explicitly records a workflow file:
 
 ```text
 workflows/ecommerce-product-image-generation.yaml
 ```
 
-Then read one platform-specific workflow file only for additional platform constraints:
+The following platform-specific workflow files are compact **legacy compatibility pointers**, not the default planning source for new runs. A historical reference resolves its `platform_override` and `route_defaults`, then compiles the master flow; it does not restore a copied step list:
 
 ```text
 workflows/amazon-image-set.yaml
@@ -32,7 +40,7 @@ workflows/tiktok-shop-image-set.yaml
 workflows/xiaohongshu-image-pack.yaml
 ```
 
-Platform-specific workflow selection:
+Legacy workflow selection when resuming an old run:
 
 - Amazon listing, Amazon US, 7 image set, main image plus A+ style support images -> `amazon-image-set.yaml`.
 - 拼多多, Pinduoduo, Chinese conversion image set, 7-9 图套图, or user-specified image count -> `pinduoduo-image-set.yaml`.

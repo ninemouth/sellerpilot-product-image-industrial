@@ -9,7 +9,9 @@ const codexHome = path.resolve(process.env.CODEX_HOME || path.join(os.homedir(),
 const configPath = path.resolve(args.config || path.join(codexHome, "sellerpilot-product-image-industrial", "image-provider.json"));
 const defaultApiKeyEnv = "THINKAI_IMAGE_API_KEY";
 const legacyApiKeyEnv = "THINKAI_API_KEY";
-const apiKey = String(args["api-key"] || process.env[defaultApiKeyEnv] || process.env[legacyApiKeyEnv] || "").trim();
+if (args["api-key"] && args["api-key-stdin"]) { console.error("Use either --api-key or --api-key-stdin, not both."); process.exit(2); }
+const stdinKey = args["api-key-stdin"] ? fs.readFileSync(0, "utf8").trim() : "";
+const apiKey = String(args["api-key"] || stdinKey || process.env[defaultApiKeyEnv] || process.env[legacyApiKeyEnv] || "").trim();
 const apiKeyEnv = String(args["api-key-env"] || defaultApiKeyEnv).trim();
 if (!apiKey) { console.error(`Missing third-party image API key. Provide --api-key or set ${defaultApiKeyEnv}.`); process.exit(2); }
 const config = {
@@ -26,4 +28,4 @@ const config = {
 fs.mkdirSync(path.dirname(configPath), { recursive: true });
 fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });
 try { fs.chmodSync(configPath, 0o600); } catch {}
-console.log(JSON.stringify({ status: "configured", config_path: configPath, provider_mode: config.provider_mode, provider: { name: config.third_party.name, base_url: config.third_party.base_url, model: config.third_party.model, api_key_env: apiKeyEnv }, chmod: "600" }, null, 2));
+console.log(JSON.stringify({ status: "configured", config_path: configPath, provider_mode: config.provider_mode, provider: { name: config.third_party.name, base_url: config.third_party.base_url, model: config.third_party.model, api_key_env: apiKeyEnv }, key_source: args["api-key-stdin"] ? "stdin" : args["api-key"] ? "argument" : "environment", chmod: "600" }, null, 2));

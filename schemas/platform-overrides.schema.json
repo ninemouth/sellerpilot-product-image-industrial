@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SellerPilot Platform Overrides",
+  "type": "object",
+  "required": ["schema_version", "default", "platforms"],
+  "properties": {
+    "schema_version": { "const": "sellerpilot.platform_overrides.v1" },
+    "default": { "type": "object" },
+    "platforms": { "type": "object" }
+  }
+}

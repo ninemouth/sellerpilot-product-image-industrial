@@ -2,6 +2,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 
 function parseArgs(argv) {
   const args = {};
@@ -48,8 +49,17 @@ const decision = applyRetryGuard(buildDecision({ runDir, reports, findings, prim
 fs.writeFileSync(path.join(qaDir, "qa-loop-routing-decision.json"), JSON.stringify(decision, null, 2));
 fs.writeFileSync(path.join(qaDir, "qa-loop-routing-decision.yaml"), toYaml(decision));
 fs.writeFileSync(path.join(qaDir, "qa-loop-routing-decision.md"), toMarkdown(decision));
+syncRunState();
 console.log(JSON.stringify({ status: decision.loop_decision.status, findings: findings.length, outDir: qaDir }, null, 2));
 if (decision.loop_decision.status.startsWith("blocked")) process.exitCode = 1;
+
+function syncRunState() {
+  const statePath = path.join(runDir, "run-state.json");
+  if (!fs.existsSync(statePath)) return;
+  const script = path.join(path.resolve(new URL("..", import.meta.url).pathname), "scripts", "run-state-transition.mjs");
+  const result = spawnSync(process.execPath, [script, "--run-dir", runDir, "--event", "qa"], { cwd: runDir, encoding: "utf8" });
+  if (result.status !== 0) console.error(`run-state QA projection skipped: ${(result.stderr || result.stdout || "unknown error").trim()}`);
+}
 
 function loadReports(dir) {
   if (!fs.existsSync(dir)) return [];

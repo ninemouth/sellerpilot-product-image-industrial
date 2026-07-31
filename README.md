@@ -1,5 +1,7 @@
 # SellerPilot Product Image Industrial
 
+[English](README.en.md) | **简体中文**
+
 面向 Codex 的工业级电商商品图套图制作 skill。它不是一个“万能出图 prompt”，而是一套把商品理解、平台规范、营销文案、图像生成、QA、总览图和 tldraw 批注修订串起来的生产流程。
 
 如果你是第一次接触 Codex skill，可以把它理解成：
@@ -10,6 +12,13 @@
 - `assets/tldraw-review-workspace/`：用于看图、批注、截图回传的本地画布工作台。
 
 ## 最新更新
+
+2026-07-31 Loop Engineering 与第三方 provider 配置体验升级：
+
+- **Contract-driven Loop Engineering**：生产计划由唯一 contract、平台覆盖和 run-local DAG 编译而来；provider、QA、交付、重试和成本账本共享同一 run state，避免复制工作流、无状态重试和重复 token/provider 消耗。
+- **自动第三方配置引导**：安装或更新后，若当前 Codex 确实解析为第三方代理但缺少可用 key，会自动启动本机密码遮蔽输入框；macOS、Windows 和可用 Zenity/KDialog 的 Linux 桌面环境均支持。原生路由、已有 key、CI/headless 或用户取消不会触发错误回退或覆盖现有 key。
+- **唯一执行路由**：用户请求正式生图即授权 resolver 选定的原生或第三方路径；`configuration_required` 仅是本机技术配置状态，绝不静默切换 provider，也不要求每轮生成重复授权。
+- **可审计失败收敛**：不可重试的 provider 拒绝会写入最小化的 run 级安全诊断并立即打开 circuit breaker；不再堆叠相同 prompt 重试。
 
 2026-07-20 自然质感能力升级为全量自适应批处理，并保留依赖自准备：
 
@@ -128,6 +137,16 @@ ${SELLERPILOT_IMAGE_SKILL_MEMORY:-$HOME/.codex/sellerpilot-product-image-industr
 ```bash
 export THINKAI_IMAGE_API_KEY="<YOUR_THINKAI_IMAGE_API_KEY>"
 ```
+
+安装或更新 skill 后，如果当前 Codex 配置已选择第三方代理、但缺少可用 key，skill 会自动弹出本机的密码遮蔽输入框；用户不需要知道或输入任何特殊口令。macOS 使用隐藏输入框，Windows 使用密码遮蔽的原生窗口，Linux 桌面环境使用 Zenity/KDialog（可用时）。已有 key 或原生 Codex 路由时不会弹窗，也不会覆盖已有配置。key 只经本地标准输入传给配置器，不会出现在命令参数、终端输出、skill 日志或 Git 中。
+
+如需手动轮换或重新配置，也可运行：
+
+```bash
+npm run configure:image-provider-interactive
+```
+
+当用户明确选择把 key 粘贴进本地 Codex 对话时，可以由当前本地任务代为配置；但对话文本可能保留在聊天记录中，因此默认优先使用上述本地隐藏输入框。
 
 也可以让 Codex 写入统一的本地 provider 配置；该文件位于 Codex home 下，权限为 600，不会被同步或提交：
 
@@ -248,11 +267,91 @@ git clone https://github.com/ninemouth/sellerpilot-product-image-industrial.git
 cd sellerpilot-product-image-industrial
 ```
 
-验证开发目录：
+验证开发目录（默认快速 static + unit，不启动 canvas/Python 长链）：
 
 ```bash
 npm run verify
 ```
+
+需要测试完整 legacy canvas、Python natural-finish 与 provider mock 集成链时，显式运行：
+
+```bash
+npm run verify:integration
+```
+
+也可以只运行有明确故障域的 legacy 子套件，避免每次都消耗完整的 canvas/Python 链：
+
+```bash
+npm run verify:integration -- --filter "generation spec"
+npm run verify:integration -- --filter "natural image"
+npm run verify:integration -- --filter "tldraw workspace"
+```
+
+推荐使用受控 suite 名称，它会选择一组兼容验证而不跑无关的长链：
+
+```bash
+npm run verify:integration -- --suite control-plane
+npm run verify:integration -- --suite natural-finish
+npm run verify:integration -- --suite canvas-review
+npm run verify:integration -- --suite delivery
+```
+
+发布或 CI 中需要保留可复核的集成结果时，传入 `--report` 写入 run/CI artifact；不要只依赖终端 heartbeat：
+
+```bash
+npm run verify:integration -- \
+  --suite natural-finish \
+  --report /abs/release-evidence/natural-finish-report.json
+```
+
+`npm run verify:skill-package` 是不依赖全局 Python/YAML 模块的 skill frontmatter 与 `agents/openai.yaml` 校验；它与 `npm run verify` 一起用于发布前基础检查。
+
+当 final manifest 声明某张图片来自 Codex native `imagegen` 时，交付前还必须验证它已进入共享成本账本：
+
+```bash
+npm run dispatch:native-imagegen -- \
+  --run-dir /abs/run \
+  --role IMG-01 \
+  --prompt "<approved final prompt>" \
+  --image /abs/source-product.png \
+  --output-path /abs/run/generated-assets/IMG-01/image.png
+
+# After the real native host imagegen call saves the output:
+npm run telemetry:record-native-imagegen -- \
+  --run-dir /abs/run \
+  --role IMG-01 \
+  --status succeeded \
+  --handoff /abs/run/generated-assets/native-imagegen-handoff-img-01.json \
+  --image-path /abs/run/generated-assets/IMG-01/image.png \
+  --execution-evidence <native-tool-call-id>
+
+npm run qa:native-imagegen-ledger -- --run-dir /abs/run
+```
+
+没有官方 Codex native `imagegen` 权限的账号，直接配置并使用 OpenAI-compatible 第三方图片 API；不要尝试伪造 native 成功状态：
+
+```bash
+# ThinkAI 是默认第三方 profile；也可以指定其他 OpenAI-compatible endpoint/model。
+npm run configure:image-provider -- \
+  --api-key "<API_KEY>" \
+  --base-url "https://www.thinkai.tv/v1" \
+  --model "gpt-image-2"
+
+# This resolves native versus third party from the current config and writes a run-local handoff.
+npm run dispatch:image-generation -- \
+  --run-dir /abs/run \
+  --role IMG-01 \
+  --prompt "<approved final prompt>" \
+  --image /abs/source-product.png
+```
+
+当 resolver 选择 `third_party_proxy` 时，dispatch 输出的 `runtime_command` 必须使用已解析 runtime 执行；它会自动写入 requested/succeeded/failed 成本账本事件。用户一旦请求正式生图，即默认授权 resolver 所选的 native 或第三方执行路径，运行中不应再次请求授权。缺少 key 时只会返回 `configuration_required` 技术暂停，不会回退到 native 或切换未授权 provider。
+
+真实 provider 请求失败时，runtime 会在当前 run 的 `runtime/provider-failure-diagnostic-img-xx.json` 写入仅供内部排错的阶段、错误类别、HTTP 状态（如果可识别）和 retryability；该诊断不会写入 key、endpoint、请求/响应正文、原始 transport 错误或本机路径。用户可见消息只说明受影响资产被保留和下一步，不展示诊断内容。
+
+当诊断标记 `retryable: false`（例如权限、账户、模型访问或配置拒绝）时，运行 `provider-instability-circuit-breaker.mjs` 会立即停止该 role 的自动 provider 重试，不等待达到普通失败次数阈值。修复账户/权限/模型访问后，必须以新的证据或用户确认重新开始受影响 role；不得堆叠相同 prompt 重试。
+
+集成验证不再作为默认发布前检查的一部分；它已经由 lifecycle wrapper 施加超时和子进程组终止保护，逐测试进度报告仍是后续重构项。
 
 同步唯一主 skill 到 Codex skills 目录：
 
@@ -388,7 +487,23 @@ npm run reuse:assets -- \
 
 它会写 `generated-assets/asset-reuse-manifest.json` 和 `progress-reused-*.json`。后续 `npm run trace:phases` 会把真实 provider job、approved asset reuse、本地 embroidery/typography compositor 分开统计。
 
-如果 `production-efficiency-plan.json` 已经列出可并行工作，不应只停留在文字计划。把独立任务写入 run-local DAG 后执行：
+Loop Engineering 迁移的第一阶段提供了 contract-driven plan compiler。它从任务事实生成唯一的 `run-state.json`、紧凑计划与 run-local DAG；标准生产不应再手写 `tasks.json`：
+
+```bash
+npm run plan:compile -- \
+  --run-dir runs/demo-amazon-bag \
+  --platform Amazon \
+  --category "leather shoulder bag" \
+  --image-count 7 \
+  --has-source-image true \
+  --scene-requested true
+```
+
+编译器不会生成图片或调用 provider。它只创建可审计的生产计划，并把每个节点标记为 `deterministic_pre_gate`、`agent_planning`、`provider_generation`、`delivery_closure` 或 `human_decision`。provider 节点在 dispatcher 接入前会保持 blocked，不能因为编译计划而误触发付费生图。
+
+显式传入的 `--image-count` 和 `--locale` 始终优先；未传入时，编译器会采用当前平台覆盖的默认数量和 locale（例如 Amazon 的 7 图套图、Ozon 的 `ru-RU`），并把取值来源写入 `run-state.json.goal.input_resolution`。每个计划都会在 provider generation 前创建 `generation-spec/generation-spec.json`；质量/工业级正式交付还会把 run-scoped tldraw review workspace 编译为 Final Delivery 的前置节点，而不是依赖执行者临场补做。
+
+已具备 command 的确定性节点可由现有 orchestrator 执行；其余节点会在状态机后续阶段接入：
 
 ```bash
 npm run orchestrate:production -- \
@@ -397,7 +512,30 @@ npm run orchestrate:production -- \
   --execute
 ```
 
-`tasks.json` 中每个 task 声明 `id`、`depends_on`、`inputs`、`outputs` 和 `command`。orchestrator 会写 `orchestration/production-orchestrator-state.json`，按依赖并行执行无关任务，按输入/命令 hash 复用未变化输出，看到 `orchestration/cancel` 时停止，并只在 identity、physical truth、prompt、anchor QA、final delivery 这类真实依赖点汇合。
+`tasks.json` 由 compiler 生成；每个 task 声明 `id`、`depends_on`、`inputs`、`outputs`、`execution_class`、触发原因和 loop policy。orchestrator 会写 `orchestration/production-orchestrator-state.json`，按依赖并行执行无关的确定性任务，按输入/命令 hash 复用未变化输出，看到 `orchestration/cancel` 时停止。完整设计、阶段边界和验收标准见 [Loop Engineering Reconstruction](docs/loop-engineering-reconstruction.md)。
+
+当 QA router 或 watchdog 在 compiled run 中运行时，会自动把结果投影回 `run-state.json`。局部修复前可记录下游失效范围而不删除已批准资产：
+
+```bash
+npm run state:invalidate -- \
+  --run-dir runs/demo-amazon-bag \
+  --from-node layout-wireframes \
+  --role IMG-03 \
+  --reason "visible text overflow"
+```
+
+provider dispatcher 每次完成尝试后必须写 cost ledger；相同 prompt/source/provider evidence 的重复尝试会被拒绝，避免无状态重试消耗：
+
+```bash
+npm run telemetry:record-provider-call -- \
+  --run-dir runs/demo-amazon-bag \
+  --role IMG-03 \
+  --status failed \
+  --prompt-hash prompt-v2 \
+  --source-hash source-v1 \
+  --provider thinkai \
+  --model gpt-image-2
+```
 
 性能优化或长耗时复盘前，先运行 phase trace：
 

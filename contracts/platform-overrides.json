@@ -1,0 +1,69 @@
+{
+  "$schema": "../schemas/platform-overrides.schema.json",
+  "schema_version": "sellerpilot.platform_overrides.v1",
+  "default": {
+    "workflow": "ecommerce-product-image-generation",
+    "gallery_role_template": "standard_commerce",
+    "required_ratio": null,
+    "locale": null,
+    "copy_density": "medium"
+  },
+  "platforms": {
+    "amazon": {
+      "gallery_role_template": "amazon_listing_7",
+      "default_image_count": 7,
+      "copy_density": "medium",
+      "require_clean_main_image": true
+    },
+    "pinduoduo": {
+      "gallery_role_template": "pinduoduo_conversion_8",
+      "default_image_count": 8,
+      "locale": "zh-CN",
+      "copy_density": "medium_to_high",
+      "require_role_specific_layout_variation": true,
+      "minimum_true_scene_roles_for_8_image_set": 2,
+      "forbid_repeated_translucent_card_layout": true,
+      "require_camera_lens_light_scene_notes": true,
+      "micro_detail_uncertainty_policy": "preserve_unreadable_shape_or_request_closeup",
+      "forbidden_visible_marks": ["拼多多女包套图", "拼多多套图", "女包套图", "PDD", "SellerPilot", "Codex", "AI生成", "样图", "示例图", "仅供参考"]
+    },
+    "ozon": {
+      "gallery_role_template": "ozon_marketplace_6",
+      "required_ratio": "3:4",
+      "locale": "ru-RU",
+      "copy_density": "medium",
+      "localized_visible_text_review": true
+    },
+    "etsy": {
+      "gallery_role_template": "etsy_personalized_5",
+      "copy_density": "low_to_medium",
+      "personalized_text_requires_local_compositor": true
+    },
+    "tiktok-shop": {
+      "gallery_role_template": "tiktok_mobile_first_5",
+      "default_image_count": 5,
+      "locale": "en-US",
+      "copy_density": "low_to_medium",
+      "require_market_specific_overlay": true,
+      "mobile_first": true
+    },
+    "xiaohongshu": {
+      "gallery_role_template": "xiaohongshu_content_native_5",
+      "default_image_count": 5,
+      "locale": "zh-CN",
+      "copy_density": "low_to_medium",
+      "content_native": true,
+      "avoid_hard_sell_layout": true
+    },
+    "multi-platform": {
+      "gallery_role_template": "adaptable_multi_platform",
+      "copy_density": "low_to_medium",
+      "requires_per_platform_overlay": true
+    },
+    "competitive-redesign": {
+      "gallery_role_template": "differentiated_commerce",
+      "copy_density": "medium",
+      "competitor_references_analysis_only": true
+    }
+  }
+}

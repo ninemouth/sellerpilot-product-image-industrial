@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 
 const args = parseArgs(process.argv);
 if (!args["run-dir"]) usage();
@@ -32,6 +33,7 @@ fs.mkdirSync(path.dirname(outPath), { recursive: true });
 fs.writeFileSync(outPath, `${JSON.stringify(report, null, 2)}\n`);
 let progressFiles = 0;
 if (writeProgress) progressFiles = writeSyntheticProgress(records);
+syncRunState();
 
 console.log(JSON.stringify({
   status: report.status,
@@ -39,6 +41,13 @@ console.log(JSON.stringify({
   reuse_count: records.length,
   progress_files: progressFiles,
 }, null, 2));
+
+function syncRunState() {
+  if (!fs.existsSync(path.join(runDir, "run-state.json"))) return;
+  const script = path.join(path.resolve(new URL("..", import.meta.url).pathname), "scripts", "run-state-transition.mjs");
+  const result = spawnSync(process.execPath, [script, "--run-dir", runDir, "--event", "reuse", "--input", outPath], { cwd: runDir, encoding: "utf8" });
+  if (result.status !== 0) console.error(`run-state reuse projection skipped: ${(result.stderr || result.stdout || "unknown error").trim()}`);
+}
 
 function collectReuseRecords() {
   const byAsset = new Map();
