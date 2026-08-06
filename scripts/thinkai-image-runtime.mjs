@@ -94,7 +94,10 @@ const baseUrl = String(args["base-url"] || config.base_url || DEFAULT_BASE_URL).
 const model = String(args.model || config.model || DEFAULT_MODEL);
 const providerName = String(config.provider_name || config.name || "ThinkAI");
 const apiKeyEnv = String(args["api-key-env"] || config.api_key_env || DEFAULT_API_KEY_ENV);
-const apiKey = String(process.env[apiKeyEnv] || config.api_key || (providerName === "ThinkAI" && (process.env[DEFAULT_API_KEY_ENV] || process.env[LEGACY_API_KEY_ENV])) || "").trim();
+const configuredApiKey = String(config.api_key || "").trim();
+const environmentApiKey = String(process.env[apiKeyEnv] || (providerName === "ThinkAI" && (process.env[DEFAULT_API_KEY_ENV] || process.env[LEGACY_API_KEY_ENV])) || "").trim();
+const apiKey = configuredApiKey || environmentApiKey;
+const credentialSource = configuredApiKey ? "local_provider_config" : environmentApiKey ? "environment" : "missing";
 const capabilities = normalizeProviderCapabilities(config.capabilities);
 const size = resolveProviderSize({ requested: args.size, capabilities });
 const quality = resolveCapabilityValue({ requested: args.quality, capability: capabilities.quality, label: "quality" });
@@ -119,6 +122,7 @@ try {
       endpoint: request.endpoint,
       requested_size: size,
       quality,
+      credential_source: credentialSource,
       n: count,
       output_dir: outputDir,
       request_path: path.join(outputDir, "request.json"),
@@ -154,6 +158,7 @@ try {
     endpoint: request.endpoint,
     requested_size: size,
     quality,
+    credential_source: credentialSource,
     n: count,
     output_dir: outputDir,
     images: assets,

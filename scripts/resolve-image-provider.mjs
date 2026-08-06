@@ -41,7 +41,10 @@ if (!MODES.has(requestedMode)) fail(`Unsupported provider mode: ${requestedMode}
 const detected = detectThirdParty(codex);
 const thirdParty = normalizeThirdParty(local.third_party || {}, detected);
 const selectedMode = selectMode(requestedMode, local, detected);
-const hasKey = Boolean(process.env[thirdParty.api_key_env] || local.third_party?.api_key || (thirdParty.name === "ThinkAI" && (process.env[THINKAI_IMAGE_API_KEY_ENV] || process.env[LEGACY_THINKAI_API_KEY_ENV])));
+const configuredApiKey = String(local.third_party?.api_key || "").trim();
+const environmentApiKey = String(process.env[thirdParty.api_key_env] || (thirdParty.name === "ThinkAI" && (process.env[THINKAI_IMAGE_API_KEY_ENV] || process.env[LEGACY_THINKAI_API_KEY_ENV])) || "").trim();
+const hasKey = Boolean(configuredApiKey || environmentApiKey);
+const credentialSource = configuredApiKey ? "local_provider_config" : environmentApiKey ? "environment" : "missing";
 const status = selectedMode === "third_party_proxy" && !hasKey ? "configuration_required" : "ready";
 const resolution = {
   schema_version: "sellerpilot.image_provider_resolution.v1",
@@ -49,6 +52,7 @@ const resolution = {
   requested_mode: requestedMode,
   selected_mode: selectedMode,
   status,
+  credential_source: selectedMode === "third_party_proxy" ? credentialSource : "not_applicable",
   provider: selectedMode === "native_codex"
     ? { id: "codex-native-imagegen", execution: "system_imagegen_or_image_gen" }
     : {

@@ -56,6 +56,12 @@ check("generic provider capability boundary", () => {
   }
   if (runtime.includes('args.quality || "hd"') || spec.includes('args.quality || "hd"')) throw new Error("legacy DALL-E quality defaults must not reach generic providers");
 });
+check("provider route precedes generation boundary", () => {
+  const compiler = read("scripts/compile-production-plan.mjs");
+  const skill = read("SKILL.md");
+  if (!compiler.includes('id: "provider-resolution"') || !compiler.includes('depends_on: ["provider-resolution"]')) throw new Error("generation spec must depend on provider resolution");
+  if (!skill.includes("Treat its `selected_mode` as the sole execution authority")) throw new Error("skill must require provider-mode resolution before generation");
+});
 check("automatic cross-platform provider setup boundary", () => {
   const installer = read("scripts/sync-to-codex-skill.mjs");
   const ensure = read("scripts/ensure-image-provider-configuration.mjs");

@@ -53,7 +53,7 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
   --output-dir /abs/run/generated-assets/anchor-01
 ```
 
-When the resolver returns a non-default endpoint, model, key environment variable, or capability profile, pass its exact `provider.base_url`, `provider.model`, `provider.api_key_env`, and resolver report to the runtime. Never replace those values with an inferred provider. The runtime defaults to the resolved provider's declared `quality`, `size`, and `response_format` capabilities; an unknown OpenAI-compatible provider uses the conservative `auto` profile until its supported values are configured and verified.
+When the resolver returns a non-default endpoint, model, key environment variable, or capability profile, pass its exact `provider.base_url`, `provider.model`, `provider.api_key_env`, and resolver report to the runtime. Never replace those values with an inferred provider. For a selected third-party route, a key saved in the local provider configuration has priority over a same-name or legacy environment variable; the environment variable is only a fallback when the local configuration has no key. The runtime defaults to the resolved provider's declared `quality`, `size`, and `response_format` capabilities; an unknown OpenAI-compatible provider uses the conservative `auto` profile until its supported values are configured and verified.
 
 The runtime reads the resolver output or the shared `${CODEX_HOME:-$HOME/.codex}/sellerpilot-product-image-industrial/image-provider.json`. It still recognizes old `.thinkai-image-runtime.json` files for migration, but new configuration must use the shared provider file. Keep all local provider configuration uncommitted.
 

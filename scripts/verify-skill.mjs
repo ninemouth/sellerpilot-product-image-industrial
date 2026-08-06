@@ -932,6 +932,10 @@ record("automatic image provider contract", () => {
   }
   const genericRequest = readJson(path.join(configDir, "generic-runtime", "request.json"));
   if (genericRequest.quality !== "auto" || genericRequest.size !== "auto") throw new Error("generic provider runtime must default to capability-safe auto quality and size.");
+  process.env.ACME_IMAGE_KEY = "stale-environment-key";
+  const configuredKeyRuntime = JSON.parse(run(process.execPath, ["scripts/thinkai-image-runtime.mjs", "--config", path.join(configDir, "image-provider.json"), "--prompt", "verify configured key priority", "--output-dir", path.join(configDir, "configured-key-runtime"), "--dry-run"]));
+  if (configuredKeyRuntime.credential_source !== "local_provider_config") throw new Error("local provider configuration key must take priority over an environment key.");
+  delete process.env.ACME_IMAGE_KEY;
   const customCapabilityConfig = path.join(configDir, "custom-capability-provider.json");
   fs.writeFileSync(customCapabilityConfig, JSON.stringify({ third_party: {
     enabled: true, name: "Custom", base_url: "https://images.example/v1", model: "custom-image", api_key_env: "CUSTOM_IMAGE_KEY",
