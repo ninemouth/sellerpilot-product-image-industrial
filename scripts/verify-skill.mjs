@@ -5,9 +5,10 @@ import os from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { execFileSync, spawnSync } from "node:child_process";
+import { skillRootFrom } from "./lib/skill-paths.mjs";
 
 const require = createRequire(import.meta.url);
-const skillRoot = path.resolve(new URL("..", import.meta.url).pathname);
+const skillRoot = skillRootFrom(import.meta.url);
 const checks = [];
 const requestedFilters = process.argv.slice(2)
   .filter((arg, index, all) => all[index - 1] === "--filter")
@@ -929,6 +930,16 @@ record("automatic image provider contract", () => {
   if (genericRuntime.provider !== "third-party-openai-compatible-image-runtime" || genericRuntime.base_url !== "https://images.example/v1" || genericRuntime.model !== "acme-image") {
     throw new Error("runtime should load the shared resolved third-party provider config.");
   }
+  const genericRequest = readJson(path.join(configDir, "generic-runtime", "request.json"));
+  if (genericRequest.quality !== "auto" || genericRequest.size !== "auto") throw new Error("generic provider runtime must default to capability-safe auto quality and size.");
+  const customCapabilityConfig = path.join(configDir, "custom-capability-provider.json");
+  fs.writeFileSync(customCapabilityConfig, JSON.stringify({ third_party: {
+    enabled: true, name: "Custom", base_url: "https://images.example/v1", model: "custom-image", api_key_env: "CUSTOM_IMAGE_KEY",
+    capabilities: { quality: { default: "high", allowed: ["low", "high"] }, size: { default: "1024x1024", allowed: ["1024x1024"], allow_custom: true }, response_format: { default: "b64_json", allowed: ["b64_json"] } },
+  } }));
+  run(process.execPath, ["scripts/thinkai-image-runtime.mjs", "--config", customCapabilityConfig, "--prompt", "verify custom provider", "--size", "1600x1200", "--output-dir", path.join(configDir, "custom-runtime"), "--dry-run"]);
+  const customRequest = readJson(path.join(configDir, "custom-runtime", "request.json"));
+  if (customRequest.quality !== "high" || customRequest.size !== "1600x1200" || customRequest.response_format !== "b64_json") throw new Error("runtime must honor explicit generic provider capabilities.");
   if (priorCodexHome === undefined) delete process.env.CODEX_HOME;
   else process.env.CODEX_HOME = priorCodexHome;
   delete process.env.ACME_IMAGE_KEY;
@@ -960,8 +971,8 @@ record("generation spec and anchor controller smoke", () => {
   const specDir = path.join(runDir, "generation-spec");
   run(process.execPath, ["scripts/resolve-generation-spec.mjs", "--out-dir", specDir, "--platform", "Ozon", "--category", "apparel"]);
   const spec = readJson(path.join(specDir, "generation-spec.json"));
-  if (spec.required_ratio !== "3:4" || spec.requested_size !== "1920x2560") {
-    throw new Error("Ozon generation spec must resolve the required 3:4 portrait request before generation.");
+  if (spec.required_ratio !== "3:4" || spec.requested_size !== "1024x1536" || spec.quality !== "auto") {
+    throw new Error("Ozon generation spec must select a provider-safe portrait size and quality before generation.");
   }
   fs.mkdirSync(path.join(runDir, "generated-assets"), { recursive: true });
   fs.writeFileSync(path.join(runDir, "generated-assets", "generation-progress.json"), "{}\n");

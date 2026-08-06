@@ -3,8 +3,9 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { skillRootFrom } from "./lib/skill-paths.mjs";
 
-const skillRoot = path.resolve(new URL("..", import.meta.url).pathname);
+const skillRoot = skillRootFrom(import.meta.url);
 const compiler = path.join(skillRoot, "scripts", "compile-production-plan.mjs");
 const contract = path.join(skillRoot, "contracts", "production-contract.json");
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), "sellerpilot-loop-engineering-"));

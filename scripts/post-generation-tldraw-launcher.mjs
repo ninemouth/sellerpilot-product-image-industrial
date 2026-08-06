@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { skillRootFrom } from "./lib/skill-paths.mjs";
 
 function parseArgs(argv) {
   const args = {};
@@ -33,7 +34,7 @@ final user handoff.`);
 const args = parseArgs(process.argv);
 if (!args["run-dir"]) usage();
 
-const skillRoot = path.resolve(new URL("..", import.meta.url).pathname);
+const skillRoot = skillRootFrom(import.meta.url);
 const runDir = path.resolve(args["run-dir"]);
 const manifest = path.resolve(args.manifest || path.join(runDir, "export", "final-images-manifest.json"));
 const outDir = path.resolve(args["out-dir"] || path.join(runDir, "review-workspace"));

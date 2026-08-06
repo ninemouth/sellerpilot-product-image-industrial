@@ -3,11 +3,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { skillRootFrom } from "./lib/skill-paths.mjs";
 
 const args = parseArgs(process.argv);
 if (args.help || !args.input || !args.output || !args["run-dir"] || !args.role) usage();
 
-const skillRoot = path.resolve(new URL("..", import.meta.url).pathname);
+const skillRoot = skillRootFrom(import.meta.url);
 const runDir = path.resolve(args["run-dir"]);
 const input = path.resolve(args.input);
 const output = path.resolve(args.output);

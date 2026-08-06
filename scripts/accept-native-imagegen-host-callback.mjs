@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { skillRootFrom } from "./lib/skill-paths.mjs";
 
 const args = parseArgs(process.argv);
 if (args.help || !args.callback) usage();
@@ -14,7 +15,7 @@ const handoff = path.resolve(runDir, callback.handoff);
 const status = String(callback.status).toLowerCase();
 if (!['succeeded', 'failed'].includes(status)) fail("Callback status must be succeeded or failed.");
 if (status === 'succeeded' && (!callback.image_path || !callback.tool_call_id)) fail("Successful callback needs image_path and tool_call_id.");
-const script = path.join(path.resolve(new URL("..", import.meta.url).pathname), "scripts", "record-native-imagegen-result.mjs");
+const script = path.join(skillRootFrom(import.meta.url), "scripts", "record-native-imagegen-result.mjs");
 const argv = [script, "--run-dir", runDir, "--role", callback.role, "--status", status, "--handoff", handoff, "--execution-evidence", callback.tool_call_id || `host-callback-failure:${callback.failure_code || 'unknown'}`];
 if (callback.image_path) argv.push("--image-path", path.resolve(runDir, callback.image_path));
 const result = spawnSync(process.execPath, argv, { cwd: runDir, encoding: "utf8" });

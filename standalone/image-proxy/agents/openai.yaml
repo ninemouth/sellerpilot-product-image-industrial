@@ -1,0 +1,4 @@
+interface:
+  display_name: "Image Proxy"
+  short_description: "Generate images through a third-party proxy"
+  default_prompt: "Use $image-proxy to generate an image through the configured third-party provider."

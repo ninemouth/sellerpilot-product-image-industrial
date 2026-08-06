@@ -99,12 +99,33 @@ Ask Codex to install this repository as the root skill:
 Use skill-installer to install this Codex skill from:
 https://github.com/ninemouth/sellerpilot-product-image-industrial
 
-The skill is at repository root. Install it as sellerpilot-product-image-industrial,
-verify SKILL.md exists, and remove legacy sellerpilot-product-image-industrial-thinkai
-and sellerpilot-product-image-industrial-proxy installations so Codex shows only one entry.
+The main skill is at repository root. Install it as sellerpilot-product-image-industrial,
+verify SKILL.md exists, and remove the legacy sellerpilot-product-image-industrial-thinkai
+and sellerpilot-product-image-industrial-proxy migration installations. The independent
+image-proxy skill can be installed alongside the main skill when explicitly needed.
 ```
 
 Restart Codex after installation if the skill picker has not reloaded.
+
+### Standalone third-party proxy skill
+
+When you only need to call an explicitly configured OpenAI-compatible image endpoint, without the main skill's product understanding, platform planning, QA, delivery overview, or tldraw workspace, install the standalone proxy skill from this repository:
+
+```text
+Use skill-installer to install this Codex skill from GitHub:
+
+https://github.com/ninemouth/sellerpilot-product-image-industrial
+
+Use --path standalone/image-proxy and set the installed skill name to image-proxy.
+```
+
+Then invoke it explicitly:
+
+```text
+Use $image-proxy to generate one image through the configured third-party image provider; run a dry-run before the real request.
+```
+
+This independent skill is unrelated to the SellerPilot product-image skill. It defaults to ThinkAI `https://www.thinkai.tv/v1` + `gpt-image-2` and accepts an explicitly selected alternative OpenAI-compatible endpoint. It proves only that the provider returned decodable image bytes; it does not provide product identity, physical-truth, marketing, or platform QA, and it never silently falls back to native Codex image generation.
 
 ### Install or update from a development clone
 

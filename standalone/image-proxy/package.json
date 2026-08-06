@@ -1,0 +1,17 @@
+{
+  "name": "image-proxy",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Independent Codex skill for explicit OpenAI-compatible third-party image generation.",
+  "license": "MIT",
+  "scripts": {
+    "verify": "node scripts/verify-runtime.mjs",
+    "resolve": "node scripts/resolve-provider.mjs",
+    "configure": "node scripts/configure-image-provider.mjs",
+    "configure:interactive": "node scripts/configure-image-provider-interactive.mjs",
+    "generate": "node scripts/openai-compatible-image-runtime.mjs",
+    "generate:proxy": "node scripts/openai-compatible-image-runtime.mjs",
+    "paths": "node scripts/codex-path-info.mjs"
+  }
+}

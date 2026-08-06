@@ -2,15 +2,19 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { spawn, spawnSync } from "node:child_process";
-import { skillRootFrom } from "./lib/skill-paths.mjs";
-import { normalizeProviderCapabilities, resolveCapabilityValue, resolveProviderSize } from "./lib/provider-capabilities.mjs";
+import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 const DEFAULT_BASE_URL = "https://www.thinkai.tv/v1";
 const DEFAULT_MODEL = "gpt-image-2";
 const DEFAULT_API_KEY_ENV = "THINKAI_IMAGE_API_KEY";
 const LEGACY_API_KEY_ENV = "THINKAI_API_KEY";
 const DEFAULT_USER_AGENT = "curl/8.7.1";
+const SIZE_ALIASES = new Map([
+  ["1k", "1920x1088"],
+  ["2k", "2560x1440"],
+  ["4k", "3840x2160"],
+]);
 const DEFAULT_REQUEST_TIMEOUT_SECONDS = 1800;
 const DEFAULT_DOWNLOAD_TIMEOUT_SECONDS = 900;
 const DEFAULT_HEARTBEAT_SECONDS = 30;
@@ -42,38 +46,39 @@ function parseArgs(argv) {
 
 function usage() {
   console.error(`Usage:
-node scripts/thinkai-image-runtime.mjs --prompt '<prompt>' --output-dir /abs/out [options]
+  node scripts/openai-compatible-image-runtime.mjs --prompt '<prompt>' --output-dir /abs/out [options]
 
 Options:
   --image /abs/source.png       Add source/reference image. Repeat for multi-image edits.
   --mask /abs/mask.png          Optional edit mask.
-  --size SIZE                   Provider capability default when omitted.
-  --quality auto|low|medium|high Provider capability default when omitted.
+  --size 1k|2k|4k|WIDTHxHEIGHT  Default: 2k for generation, auto for edits.
+  --quality standard|hd         Default: hd.
   --n 1                         Default: 1.
-  --config /abs/config.json     Optional provider config. Default: legacy ThinkAI config.
-  --base-url URL                Override OpenAI-compatible base URL.
-  --model MODEL                 Override model. Default: gpt-image-2.
+  --config /abs/config.json     Optional provider config. Default: Codex proxy config.
+  --base-url URL                Override the OpenAI-compatible base URL.
+  --model MODEL                 Override the model. Default: gpt-image-2.
   --api-key-env NAME            Key environment variable. Default: THINKAI_IMAGE_API_KEY.
-  --provider-resolution FILE    Optional resolver output; preserves a non-default third-party route.
   --progress-file /abs/progress.json  Write run-scoped execution status and heartbeats.
   --request-timeout-seconds N   Request deadline. Default: 1800; does not lower image quality.
   --download-timeout-seconds N  Per-image download deadline. Default: 900.
   --heartbeat-seconds N         Progress heartbeat interval. Default: 30.
-  --run-dir /abs/run            Optional compiled Loop Engineering run for provider budget/ledger recording.
-  --role IMG-01                 Required with --run-dir; binds this call to one final-image role.
+  --run-dir /abs/run            Optional run directory for safe failure diagnostics.
+  --role IMG-01                 Optional role label for run diagnostics.
   --dry-run                     Write request snapshot without calling the network.
 
-API key resolution order: --api-key-env, config.api_key_env, THINKAI_IMAGE_API_KEY, legacy THINKAI_API_KEY, config.api_key.`);
+API key resolution order: --api-key-env, config.api_key_env, the selected environment variable, legacy THINKAI_API_KEY, config.api_key.`);
   process.exit(2);
 }
 
 const args = parseArgs(process.argv);
 if (!args.prompt || !args["output-dir"]) usage();
 
-const skillRoot = skillRootFrom(import.meta.url);
+const skillRoot = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const outputDir = path.resolve(args["output-dir"]);
 const imagePaths = args.image.map((item) => path.resolve(item));
 const isEdit = imagePaths.length > 0;
+const size = resolveSize(args.size || (isEdit ? "auto" : "2k"));
+const quality = args.quality || "hd";
 const count = Number.parseInt(args.n || "1", 10);
 const progressFile = args["progress-file"] ? path.resolve(args["progress-file"]) : "";
 const runDir = args["run-dir"] ? path.resolve(args["run-dir"]) : "";
@@ -85,26 +90,20 @@ const heartbeatSeconds = positiveNumber(args["heartbeat-seconds"], DEFAULT_HEART
 if (!Number.isInteger(count) || count < 1) {
   throwCli("n must be a positive integer.");
 }
-if (runDir && !runRole) throwCli("--role is required when --run-dir is provided.");
-
 fs.mkdirSync(outputDir, { recursive: true });
 
-const config = loadRuntimeConfig(args.config, args["provider-resolution"]);
+const config = loadRuntimeConfig(args.config);
 const baseUrl = String(args["base-url"] || config.base_url || DEFAULT_BASE_URL).replace(/\/+$/, "");
 const model = String(args.model || config.model || DEFAULT_MODEL);
 const providerName = String(config.provider_name || config.name || "ThinkAI");
 const apiKeyEnv = String(args["api-key-env"] || config.api_key_env || DEFAULT_API_KEY_ENV);
-const apiKey = String(process.env[apiKeyEnv] || config.api_key || (providerName === "ThinkAI" && (process.env[DEFAULT_API_KEY_ENV] || process.env[LEGACY_API_KEY_ENV])) || "").trim();
-const capabilities = normalizeProviderCapabilities(config.capabilities);
-const size = resolveProviderSize({ requested: args.size, capabilities });
-const quality = resolveCapabilityValue({ requested: args.quality, capability: capabilities.quality, label: "quality" });
-const responseFormat = resolveCapabilityValue({ requested: args["response-format"], capability: capabilities.response_format, label: "response_format" });
+const apiKey = String(process.env[apiKeyEnv] || process.env[DEFAULT_API_KEY_ENV] || process.env[LEGACY_API_KEY_ENV] || config.api_key || "").trim();
 
 try {
   validateInputs(imagePaths, args.mask);
   const request = isEdit
-    ? buildEditRequest({ model, prompt: args.prompt, imagePaths, maskPath: args.mask ? path.resolve(args.mask) : "", size, quality, responseFormat, count })
-    : buildGenerationRequest({ model, prompt: args.prompt, size, quality, responseFormat, count });
+    ? buildEditRequest({ model, prompt: args.prompt, imagePaths, maskPath: args.mask ? path.resolve(args.mask) : "", size, quality, count })
+    : buildGenerationRequest({ model, prompt: args.prompt, size, quality, count });
 
   writeJson(path.join(outputDir, "request.json"), redactRequest(request.snapshot));
   writeProgress("request_prepared", { output_dir: outputDir, requested_size: size, quality, n: count });
@@ -112,7 +111,7 @@ try {
   if (args["dry-run"]) {
     const summary = {
       status: "dry_run",
-      provider: providerName === "ThinkAI" ? "thinkai-openai-compatible-image-runtime" : "third-party-openai-compatible-image-runtime",
+      provider: runtimeProviderId(),
       provider_name: providerName,
       base_url: baseUrl,
       model,
@@ -133,8 +132,6 @@ try {
     throw new RuntimeError("configuration_required", `${providerName} image API key is not configured in ${apiKeyEnv}.`);
   }
 
-  recordProviderAttempt("requested");
-
   writeProgress("generating", { endpoint: request.endpoint, progress_event: "request_started" });
   const generation = isEdit
     ? executeEdit({ baseUrl, apiKey, request, requestTimeoutSeconds })
@@ -147,7 +144,7 @@ try {
   const assets = await withHeartbeat("downloading", () => writeImagesFromResponse(response, outputDir, downloadTimeoutSeconds));
   const summary = {
     status: "generated",
-    provider: providerName === "ThinkAI" ? "thinkai-openai-compatible-image-runtime" : "third-party-openai-compatible-image-runtime",
+    provider: runtimeProviderId(),
     provider_name: providerName,
     base_url: baseUrl,
     model,
@@ -162,49 +159,20 @@ try {
   };
   writeJson(path.join(outputDir, "summary.json"), summary);
   writeProgress("completed", { completed_images: assets, summary_path: path.join(outputDir, "summary.json"), progress_event: "asset_verified" });
-  recordProviderAttempt("succeeded");
   console.log(JSON.stringify(summary, null, 2));
 } catch (error) {
   writeProviderFailureDiagnostic(error);
   writeProgress("failed", { failure: publicFailure(error) });
-  recordProviderAttempt("failed", true);
   throwCli(JSON.stringify(publicFailure(error)));
 }
 
-function recordProviderAttempt(status, suppressFailure = false) {
-  if (!runDir) return;
-  const recorder = path.join(skillRoot, "scripts", "record-provider-call.mjs");
-  const sourceHash = imagePaths.map((file) => {
-    try { return `${file}:${fs.statSync(file).size}:${fs.statSync(file).mtimeMs}`; } catch { return file; }
-  }).join("|");
-  const result = spawnSync(process.execPath, [
-    recorder,
-    "--run-dir", runDir,
-    "--role", runRole,
-    "--status", status,
-    "--prompt-hash", args.prompt,
-    "--source-hash", sourceHash,
-    "--provider", providerName,
-    "--model", model,
-    "--triggering-gate", "thinkai-image-runtime",
-  ], { cwd: skillRoot, encoding: "utf8" });
-  if (result.status !== 0 && !suppressFailure) {
-    throw new RuntimeError("provider_budget_or_evidence_delta_blocked", (result.stderr || result.stdout || "Provider call was blocked by run budget.").trim());
-  }
-}
-
-function loadRuntimeConfig(configArg, resolutionArg) {
-  if (resolutionArg) {
-    const resolution = readJsonSafe(path.resolve(resolutionArg));
-    if (resolution?.selected_mode === "third_party_proxy" && resolution.provider) {
-      return { ...resolution.provider, provider_name: resolution.provider.name || "third-party provider" };
-    }
-  }
+function loadRuntimeConfig(configArg) {
+  const codexHome = process.env.CODEX_HOME || path.join(os.homedir(), ".codex");
   const candidates = configArg
     ? [path.resolve(configArg)]
     : [
-        path.join(process.env.CODEX_HOME || path.join(os.homedir(), ".codex"), "sellerpilot-product-image-industrial", "image-provider.json"),
-        path.join(skillRoot, ".thinkai-image-runtime.json"),
+        path.join(codexHome, "image-proxy", "image-provider.json"),
+        path.join(skillRoot, ".third-party-image-provider.json"),
       ];
   for (const configPath of candidates) {
     if (!fs.existsSync(configPath)) continue;
@@ -215,6 +183,17 @@ function loadRuntimeConfig(configArg, resolutionArg) {
     return config;
   }
   return {};
+}
+
+function resolveSize(rawSize) {
+  const normalized = String(rawSize).trim().toLowerCase();
+  return SIZE_ALIASES.get(normalized) || String(rawSize).trim();
+}
+
+function runtimeProviderId() {
+  return providerName === "ThinkAI"
+    ? "thinkai-openai-compatible-image-runtime"
+    : "third-party-openai-compatible-image-runtime";
 }
 
 function validateInputs(paths, maskPath) {
@@ -230,14 +209,14 @@ function validateInputs(paths, maskPath) {
   }
 }
 
-function buildGenerationRequest({ model, prompt, size, quality, responseFormat, count }) {
+function buildGenerationRequest({ model, prompt, size, quality, count }) {
   const body = {
     model,
     prompt,
     n: count,
     size,
     quality,
-    response_format: responseFormat,
+    response_format: "url",
   };
   return {
     endpoint: "/images/generations",
@@ -246,10 +225,10 @@ function buildGenerationRequest({ model, prompt, size, quality, responseFormat, 
   };
 }
 
-function buildEditRequest({ model, prompt, imagePaths, maskPath, size, quality, responseFormat, count }) {
+function buildEditRequest({ model, prompt, imagePaths, maskPath, size, quality, count }) {
   return {
     endpoint: "/images/edits",
-    fields: { model, prompt, size, quality, response_format: responseFormat, n: String(count) },
+    fields: { model, prompt, size, quality, n: String(count) },
     imagePaths,
     maskPath,
     snapshot: {
@@ -260,7 +239,7 @@ function buildEditRequest({ model, prompt, imagePaths, maskPath, size, quality, 
       n: count,
       images: imagePaths,
       mask: maskPath || null,
-      response_format: responseFormat,
+      response_format: "url_or_b64_json",
     },
   };
 }
@@ -498,7 +477,7 @@ function positiveNumber(raw, fallback) {
 function publicFailure(error) {
   const code = error?.code || "generation_failed";
   const message = code === "configuration_required"
-    ? "ThinkAI requires a configured API key before generation can start."
+    ? "The configured third-party image provider requires an API key before generation can start."
     : code === "cancelled"
       ? "Generation was cancelled; completed assets remain available for recovery."
       : "Image generation could not complete. The run state was preserved so only affected assets need retrying.";
@@ -512,7 +491,7 @@ function writeProviderFailureDiagnostic(error) {
   const curlExitMatch = raw.match(/curl exited with (\d+)/i);
   const code = String(error?.code || "generation_failed");
   const diagnostic = {
-    schema_version: "sellerpilot.provider_failure_diagnostic.v1",
+    schema_version: "codex.third_party_provider_failure_diagnostic.v1",
     recorded_at: new Date().toISOString(),
     provider: providerName,
     model,

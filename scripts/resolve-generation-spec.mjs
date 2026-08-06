@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
+import { nearestSupportedSizeForRatio, normalizeProviderCapabilities, resolveCapabilityValue, resolveProviderSize } from "./lib/provider-capabilities.mjs";
 
 const args = parseArgs(process.argv);
 if (!args["out-dir"]) usage();
@@ -10,17 +11,24 @@ const category = String(args.category || "").trim();
 const requestedRatio = args["required-ratio"] || inferPlatformRatio(platform, category) || "1:1";
 const ratio = parseRatio(requestedRatio);
 const longEdge = Number(args["long-edge"] || 2560);
-const size = args.size || sizeForRatio(ratio, longEdge);
+const providerResolution = args["provider-resolution"] ? readJson(path.resolve(args["provider-resolution"])) : null;
+const capabilities = normalizeProviderCapabilities(providerResolution?.provider?.capabilities);
+const platformTargetSize = sizeForRatio(ratio, longEdge);
+const providerSelectedSize = args.size || nearestSupportedSizeForRatio({ requiredRatio: ratio.label, capabilities }) || platformTargetSize;
+const size = resolveProviderSize({ requested: providerSelectedSize, capabilities });
+const quality = resolveCapabilityValue({ requested: args.quality, capability: capabilities.quality, label: "quality" });
 const spec = {
   schema_version: "sellerpilot.generation_spec.v1",
   status: "ready",
-  provider: String(args.provider || "thinkai-gpt-image-2"),
+  provider: String(args.provider || providerResolution?.provider?.name || "openai-compatible-image-provider"),
   platform: platform || null,
   category: category || null,
   required_ratio: ratio.label,
   requested_size: size,
-  quality: String(args.quality || "hd"),
-  policy: "Resolve platform ratio before provider execution. Do not generate a landscape default and discover a platform-ratio failure only at export.",
+  platform_target_size: platformTargetSize,
+  quality,
+  provider_capabilities: capabilities,
+  policy: "Resolve platform ratio before provider execution. Use only a provider-supported generation size; preserve the requested platform ratio through the approved crop/export path when an exact generation size is unavailable.",
 };
 const outDir = path.resolve(args["out-dir"]);
 fs.mkdirSync(outDir, { recursive: true });
@@ -40,7 +48,7 @@ function parseArgs(argv) {
 }
 
 function usage() {
-  console.error("Usage: node scripts/resolve-generation-spec.mjs --out-dir /abs/run/generation-spec [--platform Ozon] [--category apparel] [--required-ratio 3:4] [--size WIDTHxHEIGHT]");
+  console.error("Usage: node scripts/resolve-generation-spec.mjs --out-dir /abs/run/generation-spec [--platform Ozon] [--category apparel] [--required-ratio 3:4] [--provider-resolution /abs/run/runtime/image-provider-resolution.json] [--size SIZE]");
   process.exit(2);
 }
 
@@ -62,3 +70,5 @@ function sizeForRatio(ratio, longEdge) {
   const height = Math.max(64, Math.round((ratio.height * scale) / 2) * 2);
   return `${width}x${height}`;
 }
+
+function readJson(file) { try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return null; } }

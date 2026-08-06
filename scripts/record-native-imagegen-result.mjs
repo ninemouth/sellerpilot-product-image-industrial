@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { skillRootFrom } from "./lib/skill-paths.mjs";
 
 const args = parseArgs(process.argv);
 if (args.help || !args["run-dir"] || !args.role || !args.status) usage();
@@ -19,7 +20,7 @@ if (args.handoff && (!handoff || handoff.schema_version !== "sellerpilot.native_
 if (handoff && (handoff.run_id !== readJson(path.join(runDir, "run-state.json"))?.run_id || handoff.role !== role)) fail("Native imagegen handoff does not belong to this run and role.");
 const prompt = String(handoff?.prompt || args.prompt || args["prompt-hash"] || "");
 const source = String(handoff?.source_evidence || args["source-hash"] || "");
-const ledger = path.join(path.resolve(new URL("..", import.meta.url).pathname), "scripts", "record-provider-call.mjs");
+const ledger = path.join(skillRootFrom(import.meta.url), "scripts", "record-provider-call.mjs");
 const ledgerArgs = [ledger, "--run-dir", runDir, "--role", role, "--status", status, "--prompt-hash", prompt, "--source-hash", source, "--provider", "native_codex", "--model", "imagegen", "--triggering-gate", args["triggering-gate"] || "generation_dispatch"];
 for (const [flag, key] of [["--latency-ms", "latency-ms"], ["--cost-estimate", "cost-estimate"], ["--input-tokens", "input-tokens"], ["--output-tokens", "output-tokens"], ["--cached-tokens", "cached-tokens"]]) {
   if (args[key] !== undefined) ledgerArgs.push(flag, String(args[key]));

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
 import path from "node:path";
+import { skillRootFrom } from "./lib/skill-paths.mjs";
 
 function parseArgs(argv) {
   const args = {};
@@ -31,7 +32,7 @@ ready URL. Use this as the final workflow step when interactive review is next.`
 const args = parseArgs(process.argv);
 if (!args["workspace-dir"]) usage();
 
-const skillRoot = path.resolve(new URL("..", import.meta.url).pathname);
+const skillRoot = skillRootFrom(import.meta.url);
 const workspaceDir = path.resolve(args["workspace-dir"]);
 const sessionId = args["session-id"] || inferSessionId(workspaceDir);
 const sharedRootArgs = args["shared-root"] ? ["--shared-root", args["shared-root"]] : [];

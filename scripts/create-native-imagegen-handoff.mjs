@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { skillRootFrom } from "./lib/skill-paths.mjs";
 
 const args = parseArgs(process.argv);
 if (args.help || !args["run-dir"] || !args.role || !args.prompt) usage();
@@ -15,7 +16,7 @@ const prompt = String(args.prompt);
 const sourceHash = String(args["source-hash"] || sourceFingerprint(args.image));
 const handoffId = crypto.createHash("sha256").update(JSON.stringify({ run_id: state.run_id, role, prompt, sourceHash, created_at: new Date().toISOString() })).digest("hex").slice(0, 20);
 const out = args.out ? path.resolve(args.out) : path.join(runDir, "generated-assets", `native-imagegen-handoff-${role.toLowerCase()}.json`);
-const record = spawnSync(process.execPath, [path.join(path.resolve(new URL("..", import.meta.url).pathname), "scripts", "record-provider-call.mjs"), "--run-dir", runDir, "--role", role, "--status", "requested", "--prompt-hash", prompt, "--source-hash", sourceHash, "--provider", "native_codex", "--model", "imagegen", "--triggering-gate", args["triggering-gate"] || "generation_dispatch"], { cwd: runDir, encoding: "utf8" });
+const record = spawnSync(process.execPath, [path.join(skillRootFrom(import.meta.url), "scripts", "record-provider-call.mjs"), "--run-dir", runDir, "--role", role, "--status", "requested", "--prompt-hash", prompt, "--source-hash", sourceHash, "--provider", "native_codex", "--model", "imagegen", "--triggering-gate", args["triggering-gate"] || "generation_dispatch"], { cwd: runDir, encoding: "utf8" });
 if (record.status !== 0) { process.stderr.write(record.stderr || record.stdout || "Native imagegen preflight was blocked.\n"); process.exit(record.status || 1); }
 const handoff = {
   schema_version: "sellerpilot.native_imagegen_handoff.v1",

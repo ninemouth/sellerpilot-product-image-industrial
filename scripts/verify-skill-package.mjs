@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
+import { skillRootFrom } from "./lib/skill-paths.mjs";
 
-const skillRoot = path.resolve(new URL("..", import.meta.url).pathname);
+const skillRoot = skillRootFrom(import.meta.url);
 const skillPath = path.join(skillRoot, "SKILL.md");
 const metadataPath = path.join(skillRoot, "agents", "openai.yaml");
 const skill = fs.readFileSync(skillPath, "utf8");

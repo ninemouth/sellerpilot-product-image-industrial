@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { skillRootFrom } from "./lib/skill-paths.mjs";
 
 function parseArgs(argv) {
   const args = {};
@@ -31,7 +32,7 @@ The shared service can host many sessions at URLs like /?session=<session-id>.`)
 const args = parseArgs(process.argv);
 if (!args["workspace-dir"]) usage();
 
-const skillRoot = path.resolve(new URL("..", import.meta.url).pathname);
+const skillRoot = skillRootFrom(import.meta.url);
 const templateDir = path.join(skillRoot, "assets", "tldraw-review-workspace");
 const workspaceDir = path.resolve(args["workspace-dir"]);
 const sharedRoot = path.resolve(expandHome(args["shared-root"] || "~/.codex/sellerpilot-product-image-industrial/canvas-service"));

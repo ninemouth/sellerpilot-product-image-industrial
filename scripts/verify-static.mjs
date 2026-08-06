@@ -2,8 +2,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { skillRootFrom } from "./lib/skill-paths.mjs";
 
-const skillRoot = path.resolve(new URL("..", import.meta.url).pathname);
+const skillRoot = skillRootFrom(import.meta.url);
 const checks = [];
 check("package JSON", () => JSON.parse(read("package.json")));
 check("skill package metadata", () => {
@@ -35,6 +36,25 @@ check("platform overrides invariants", () => {
 check("third-party dispatch boundary", () => {
   const dispatch = read("scripts/create-image-generation-dispatch.mjs");
   for (const token of ["resolve-image-provider.mjs", "third_party_proxy", "create-native-imagegen-handoff.mjs", "runtime_script"]) if (!dispatch.includes(token)) throw new Error(`dispatch missing ${token}`);
+});
+check("cross-platform module path boundary", () => {
+  const forbidden = ["new URL(\"..\", import.meta.url)", ".pathname"].join("");
+  const offenders = fs.readdirSync(path.join(skillRoot, "scripts"))
+    .filter((name) => name.endsWith(".mjs"))
+    .filter((name) => name !== "verify-static.mjs")
+    .filter((name) => fs.readFileSync(path.join(skillRoot, "scripts", name), "utf8").includes(forbidden));
+  if (offenders.length) throw new Error(`file URL pathnames must not be used as native paths: ${offenders.join(", ")}`);
+  const helper = read("scripts/lib/skill-paths.mjs");
+  if (!helper.includes("fileURLToPath")) throw new Error("skill path helper must convert file URLs with fileURLToPath");
+});
+check("generic provider capability boundary", () => {
+  const resolver = read("scripts/resolve-image-provider.mjs");
+  const runtime = read("scripts/thinkai-image-runtime.mjs");
+  const spec = read("scripts/resolve-generation-spec.mjs");
+  for (const [name, text] of [["resolver", resolver], ["runtime", runtime], ["generation spec", spec]]) {
+    if (!text.includes("provider-capabilities.mjs")) throw new Error(`${name} must use provider capability normalization`);
+  }
+  if (runtime.includes('args.quality || "hd"') || spec.includes('args.quality || "hd"')) throw new Error("legacy DALL-E quality defaults must not reach generic providers");
 });
 check("automatic cross-platform provider setup boundary", () => {
   const installer = read("scripts/sync-to-codex-skill.mjs");

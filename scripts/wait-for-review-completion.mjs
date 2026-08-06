@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { skillRootFrom } from "./lib/skill-paths.mjs";
 
 function parseArgs(argv) {
   const args = {};
@@ -32,7 +33,7 @@ generation-tasks.json, and writes a Codex wakeup report for the next revision st
 const args = parseArgs(process.argv);
 if (!args["workspace-dir"]) usage();
 
-const skillRoot = path.resolve(new URL("..", import.meta.url).pathname);
+const skillRoot = skillRootFrom(import.meta.url);
 const workspaceDir = path.resolve(args["workspace-dir"]);
 const runDir = args["run-dir"] ? path.resolve(args["run-dir"]) : inferRunDir(workspaceDir);
 const sessionId = args["session-id"] || readJson(path.join(workspaceDir, "data", "import-manifest.json"))?.workspace?.session_id || "";

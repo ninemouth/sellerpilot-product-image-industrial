@@ -10,11 +10,12 @@
     "url": "https://github.com/ninemouth/sellerpilot-product-image-industrial.git"
   },
   "scripts": {
-    "verify": "npm run verify:static && npm run verify:unit",
+    "verify": "npm run verify:static && npm run verify:unit && npm run verify:image-proxy",
     "verify:static": "node scripts/verify-static.mjs",
     "verify:unit": "node scripts/verify-loop-engineering.mjs",
     "verify:integration": "node scripts/verify-integration.mjs",
     "verify:skill-package": "node scripts/verify-skill-package.mjs",
+    "verify:image-proxy": "npm --prefix standalone/image-proxy run verify",
     "verify:loop-engineering": "node scripts/verify-loop-engineering.mjs",
     "sync": "npm run sync:codex",
     "sync:codex": "node scripts/sync-to-codex-skill.mjs --skill-name sellerpilot-product-image-industrial",

@@ -6,6 +6,7 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
+import { skillRootFrom } from "./lib/skill-paths.mjs";
 
 function parseArgs(argv) {
   const args = {};
@@ -35,7 +36,7 @@ opened as sessions with /?session=<session-id>.`);
 }
 
 const args = parseArgs(process.argv);
-const skillRoot = path.resolve(new URL("..", import.meta.url).pathname);
+const skillRoot = skillRootFrom(import.meta.url);
 const templateDir = path.join(skillRoot, "assets", "tldraw-review-workspace");
 const sharedRoot = path.resolve(expandHome(args["shared-root"] || "~/.codex/sellerpilot-product-image-industrial/canvas-service"));
 const statePath = path.join(sharedRoot, "data", "shared-server-state.json");

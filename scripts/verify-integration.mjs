@@ -2,8 +2,9 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { skillRootFrom } from "./lib/skill-paths.mjs";
 
-const skillRoot = path.resolve(new URL("..", import.meta.url).pathname);
+const skillRoot = skillRootFrom(import.meta.url);
 const timeoutMs = Math.max(30_000, Number(process.env.SELLERPILOT_INTEGRATION_TIMEOUT_MS || 180_000));
 const filterIndex = process.argv.indexOf("--filter");
 const suiteIndex = process.argv.indexOf("--suite");

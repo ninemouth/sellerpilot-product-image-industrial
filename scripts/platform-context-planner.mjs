@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
+import { skillRootFrom } from "./lib/skill-paths.mjs";
 
 function parseArgs(argv) {
   const args = {};
@@ -29,7 +30,7 @@ node scripts/platform-context-planner.mjs --run-dir /abs/run \\
 const args = parseArgs(process.argv);
 if (!args["run-dir"]) usage();
 
-const skillRoot = path.resolve(new URL("..", import.meta.url).pathname);
+const skillRoot = skillRootFrom(import.meta.url);
 const runDir = path.resolve(args["run-dir"]);
 const researchDir = path.join(runDir, "research");
 fs.mkdirSync(researchDir, { recursive: true });

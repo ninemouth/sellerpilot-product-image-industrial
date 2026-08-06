@@ -2,6 +2,8 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { skillRootFrom } from "./lib/skill-paths.mjs";
+import { normalizeProviderCapabilities } from "./lib/provider-capabilities.mjs";
 
 const THINKAI_BASE_URL = "https://www.thinkai.tv/v1";
 const THINKAI_MODEL = "gpt-image-2";
@@ -27,7 +29,7 @@ if (args.help) {
   process.exit(2);
 }
 
-const skillRoot = path.resolve(new URL("..", import.meta.url).pathname);
+const skillRoot = skillRootFrom(import.meta.url);
 const codexHome = path.resolve(process.env.CODEX_HOME || path.join(os.homedir(), ".codex"));
 const providerConfigPath = path.resolve(args.config || path.join(codexHome, "sellerpilot-product-image-industrial", "image-provider.json"));
 const codexConfigPath = path.resolve(args["codex-config"] || path.join(codexHome, "config.toml"));
@@ -39,7 +41,7 @@ if (!MODES.has(requestedMode)) fail(`Unsupported provider mode: ${requestedMode}
 const detected = detectThirdParty(codex);
 const thirdParty = normalizeThirdParty(local.third_party || {}, detected);
 const selectedMode = selectMode(requestedMode, local, detected);
-const hasKey = Boolean(process.env[thirdParty.api_key_env] || process.env[THINKAI_IMAGE_API_KEY_ENV] || process.env[LEGACY_THINKAI_API_KEY_ENV] || local.third_party?.api_key);
+const hasKey = Boolean(process.env[thirdParty.api_key_env] || local.third_party?.api_key || (thirdParty.name === "ThinkAI" && (process.env[THINKAI_IMAGE_API_KEY_ENV] || process.env[LEGACY_THINKAI_API_KEY_ENV])));
 const status = selectedMode === "third_party_proxy" && !hasKey ? "configuration_required" : "ready";
 const resolution = {
   schema_version: "sellerpilot.image_provider_resolution.v1",
@@ -55,6 +57,7 @@ const resolution = {
         base_url: thirdParty.base_url,
         model: thirdParty.model,
         api_key_env: thirdParty.api_key_env,
+        capabilities: thirdParty.capabilities,
         runtime_script: path.join(skillRoot, "scripts", "thinkai-image-runtime.mjs"),
       },
   detected_codex_provider: detected,
@@ -92,6 +95,7 @@ function normalizeThirdParty(value, detectedProvider) {
     base_url: stripSlash(value.base_url || detectedProvider.base_url || legacy.base_url || THINKAI_BASE_URL),
     model: String(value.model || detectedProvider.model || legacy.model || THINKAI_MODEL),
     api_key_env: String(value.api_key_env || legacy.api_key_env || defaultImageApiKeyEnv(detectedProvider) || THINKAI_IMAGE_API_KEY_ENV),
+    capabilities: normalizeProviderCapabilities(value.capabilities || legacy.capabilities),
   };
 }
 

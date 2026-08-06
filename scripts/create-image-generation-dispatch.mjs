@@ -3,11 +3,13 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { skillRootFrom } from "./lib/skill-paths.mjs";
 
 const args = parseArgs(process.argv);
 if (args.help || !args["run-dir"] || !args.role || !args.prompt) usage();
-const skillRoot = path.resolve(new URL("..", import.meta.url).pathname);
+const skillRoot = skillRootFrom(import.meta.url);
 const runDir = path.resolve(args["run-dir"]);
+fs.mkdirSync(runDir, { recursive: true });
 const role = normalizeRole(args.role);
 if (!role) fail("role must be IMG-01 style.");
 const images = args.image.map((file) => path.resolve(file));
@@ -44,7 +46,7 @@ if (resolution.status !== "ready") {
   const out = path.join(runDir, "generated-assets", `third-party-imagegen-handoff-${role.toLowerCase()}.json`);
   fs.mkdirSync(path.dirname(out), { recursive: true });
   fs.writeFileSync(out, `${JSON.stringify(handoff, null, 2)}\n`);
-  const command = [resolution.provider.runtime_script, "--run-dir", runDir, "--role", role, "--prompt", args.prompt, "--output-dir", path.dirname(outputPath()), ...images.flatMap((file) => ["--image", file])];
+  const command = [resolution.provider.runtime_script, "--run-dir", runDir, "--role", role, "--prompt", args.prompt, "--output-dir", path.dirname(outputPath()), "--base-url", resolution.provider.base_url, "--model", resolution.provider.model, "--api-key-env", resolution.provider.api_key_env, "--provider-resolution", resolution.run_report, ...images.flatMap((file) => ["--image", file])];
   console.log(JSON.stringify({ status: "ready", selected_mode: "third_party_proxy", role, resolution: resolution.run_report, handoff: out, runtime_command: command, next_action: "Execute the resolved runtime command. It records requested/succeeded/failed provider ledger events itself." }, null, 2));
 } else fail(`Unsupported resolved provider mode: ${resolution.selected_mode}`);
 

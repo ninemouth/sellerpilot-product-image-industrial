@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { skillRootFrom } from "./lib/skill-paths.mjs";
 
 function parseArgs(argv) {
   const args = {};
@@ -58,7 +59,7 @@ const args = parseArgs(process.argv);
 if (args.help) usage();
 const includeDiagnostics = Boolean(args["include-diagnostics"]);
 
-const source = path.resolve(args.source || new URL("..", import.meta.url).pathname);
+const source = path.resolve(args.source || skillRootFrom(import.meta.url));
 const codexHome = process.env.CODEX_HOME || path.join(os.homedir(), ".codex");
 const skillName = String(args["skill-name"] || "sellerpilot-product-image-industrial");
 const dest = path.resolve(args.dest || path.join(codexHome, "skills", skillName));

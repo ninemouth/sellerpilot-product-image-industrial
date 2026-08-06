@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { skillRootFrom } from "./lib/skill-paths.mjs";
 
 function parseArgs(argv) {
   const args = {};
@@ -36,7 +37,7 @@ locations, raw remote errors, and install/source directories. Use
 const args = parseArgs(process.argv);
 if (args.help) usage();
 
-const skillRoot = path.resolve(args["skill-root"] || new URL("..", import.meta.url).pathname);
+const skillRoot = path.resolve(args["skill-root"] || skillRootFrom(import.meta.url));
 const cacheFile = path.resolve(args["cache-file"] || path.join(skillRoot, ".cache", "skill-update-status.json"));
 const ttlMs = Math.max(0, Number(args["cache-ttl-hours"] ?? 24) * 60 * 60 * 1000);
 const timeoutMs = Math.max(250, Number(args["timeout-ms"] ?? 1500));

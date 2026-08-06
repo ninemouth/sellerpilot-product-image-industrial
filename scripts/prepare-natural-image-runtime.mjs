@@ -4,9 +4,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { skillRootFrom } from "./lib/skill-paths.mjs";
 
 const args = parseArgs(process.argv);
-const skillRoot = path.resolve(args["skill-root"] || new URL("..", import.meta.url).pathname);
+const skillRoot = path.resolve(args["skill-root"] || skillRootFrom(import.meta.url));
 const codexHome = path.resolve(args["codex-home"] || process.env.CODEX_HOME || path.join(os.homedir(), ".codex"));
 const runtimeRoot = path.resolve(args["runtime-root"] || path.join(codexHome, "sellerpilot-product-image-industrial", "natural-image-runtime"));
 const requirements = path.join(skillRoot, "runtime", "natural-image-finish", "requirements.txt");

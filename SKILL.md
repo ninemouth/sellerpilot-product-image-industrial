@@ -84,7 +84,7 @@ or:
 生成一张拼多多女包主图。
 ```
 
-Do not require the user to recite the industrial workflow, QA policy, generation boundary, blocked-runtime behavior, model name, tool name, or review-canvas rules. Infer the missing production steps from the product/category/platform request, then run the workflow conservatively. If the user asks for "生成图片/套图" and the task needs product-bearing generation, attempt Codex-native built-in image generation through the system `imagegen` skill / built-in `image_gen` tool when available, unless the user explicitly selects ThinkAI `gpt-image-2`. Only create a request pack as fallback or audit evidence when generation cannot be executed or when the user explicitly asks for it.
+Do not require the user to recite the industrial workflow, QA policy, generation boundary, blocked-runtime behavior, model name, tool name, or review-canvas rules. Infer the missing production steps from the product/category/platform request, resolve the configured provider route first, then execute only that route: system `imagegen` / built-in `image_gen` for native Codex, or the resolved OpenAI-compatible runtime for any configured third-party provider. Never infer a provider from membership, never silently replace a configured third-party route with ThinkAI or native generation, and only create a request pack as fallback or audit evidence when generation cannot be executed or when the user explicitly asks for it.
 
 The long strict prompt is an internal acceptance policy, not a required user prompt.
 

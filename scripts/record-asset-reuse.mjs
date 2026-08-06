@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { skillRootFrom } from "./lib/skill-paths.mjs";
 
 const args = parseArgs(process.argv);
 if (!args["run-dir"]) usage();
@@ -44,7 +45,7 @@ console.log(JSON.stringify({
 
 function syncRunState() {
   if (!fs.existsSync(path.join(runDir, "run-state.json"))) return;
-  const script = path.join(path.resolve(new URL("..", import.meta.url).pathname), "scripts", "run-state-transition.mjs");
+  const script = path.join(skillRootFrom(import.meta.url), "scripts", "run-state-transition.mjs");
   const result = spawnSync(process.execPath, [script, "--run-dir", runDir, "--event", "reuse", "--input", outPath], { cwd: runDir, encoding: "utf8" });
   if (result.status !== 0) console.error(`run-state reuse projection skipped: ${(result.stderr || result.stdout || "unknown error").trim()}`);
 }

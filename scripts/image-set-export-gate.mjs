@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { collectScopedImages, createFinalImagesManifest, imageScopeUsage } from "./lib/image-scope.mjs";
+import { skillRootFrom } from "./lib/skill-paths.mjs";
 
 const require = createRequire(import.meta.url);
 
@@ -230,11 +231,11 @@ function inferPlatformRequiredRatio(context) {
   if (exceptionPattern && context.category) {
     try {
       if (new RegExp(exceptionPattern, "i").test(context.category)) {
-        return { ...parseRatio("1:1"), source: `${path.relative(path.resolve(new URL("..", import.meta.url).pathname), profilePath)} exception_category_pattern` };
+        return { ...parseRatio("1:1"), source: `${path.relative(skillRootFrom(import.meta.url), profilePath)} exception_category_pattern` };
       }
     } catch {}
   }
-  return { ...parseRatio(ratioText), source: path.relative(path.resolve(new URL("..", import.meta.url).pathname), profilePath) };
+  return { ...parseRatio(ratioText), source: path.relative(skillRootFrom(import.meta.url), profilePath) };
 }
 
 function resolveProfile(platform) {
@@ -259,7 +260,7 @@ function resolveProfile(platform) {
   ];
   const found = mapping.find(([pattern]) => pattern.test(key));
   if (!found) return null;
-  const file = path.join(path.resolve(new URL("..", import.meta.url).pathname), "platform-profiles", found[1]);
+  const file = path.join(skillRootFrom(import.meta.url), "platform-profiles", found[1]);
   return fs.existsSync(file) ? file : null;
 }
 

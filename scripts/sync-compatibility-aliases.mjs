@@ -3,10 +3,14 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { skillRootFrom } from "./lib/skill-paths.mjs";
 
-const root = path.resolve(new URL("..", import.meta.url).pathname);
+const root = skillRootFrom(import.meta.url);
 const only = process.argv.includes("--only") ? process.argv[process.argv.indexOf("--only") + 1] : "";
-const aliases = ["sellerpilot-product-image-industrial-thinkai", "sellerpilot-product-image-industrial-proxy"].filter((name) => !only || name === only);
+if (only === "sellerpilot-product-image-industrial-proxy") {
+  throw new Error("The legacy proxy alias is superseded by standalone/image-proxy; install that standalone skill instead.");
+}
+const aliases = ["sellerpilot-product-image-industrial-thinkai"].filter((name) => !only || name === only);
 for (const name of aliases) {
   const template = path.join(root, "compatibility-aliases", `${name}.md`);
   if (!fs.existsSync(template)) throw new Error(`Missing alias template: ${template}`);

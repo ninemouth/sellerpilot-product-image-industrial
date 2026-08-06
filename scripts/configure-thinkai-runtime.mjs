@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { skillRootFrom } from "./lib/skill-paths.mjs";
 
 const DEFAULT_BASE_URL = "https://www.thinkai.tv/v1";
 const DEFAULT_MODEL = "gpt-image-2";
@@ -42,7 +43,7 @@ This writes a local config file with mode 600. Do not commit the generated file.
 const args = parseArgs(process.argv);
 if (args.help) usage();
 
-const packageRoot = path.resolve(new URL("..", import.meta.url).pathname);
+const packageRoot = skillRootFrom(import.meta.url);
 const skillDir = path.resolve(args["skill-dir"] || packageRoot);
 const configPath = path.resolve(args.config || path.join(skillDir, ".thinkai-image-runtime.json"));
 const apiKey = String(args["api-key"] || process.env[DEFAULT_API_KEY_ENV] || process.env[LEGACY_API_KEY_ENV] || "").trim();

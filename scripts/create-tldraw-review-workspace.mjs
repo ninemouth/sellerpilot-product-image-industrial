@@ -4,6 +4,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { collectScopedImages, imageScopeUsage } from "./lib/image-scope.mjs";
+import { skillRootFrom } from "./lib/skill-paths.mjs";
 
 function parseArgs(argv) {
   const args = {};
@@ -37,7 +38,7 @@ also starts or reuses the shared tldraw service and returns a ready URL. Pass
 const args = parseArgs(process.argv);
 if (!args["out-dir"] || (!args["image-dir"] && !args.images && !args.manifest)) usage();
 
-const skillRoot = path.resolve(new URL("..", import.meta.url).pathname);
+const skillRoot = skillRootFrom(import.meta.url);
 const templateDir = path.join(skillRoot, "assets", "tldraw-review-workspace");
 const outDir = path.resolve(args["out-dir"]);
 const title = args.title || "SellerPilot Product Image Review";

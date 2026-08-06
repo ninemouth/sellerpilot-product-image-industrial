@@ -106,7 +106,27 @@ npm install
 
 主 skill 会先解析 provider：原生 Codex 环境使用 `imagegen` / `image_gen`；当前 Codex 配置选用第三方 `model_provider` 时，使用该 OpenAI-compatible endpoint。它不猜测会员身份，也不会静默切换模型。ThinkAI 是第三方模式的默认 profile，模型为 `gpt-image-2`。
 
-旧 ThinkAI/Proxy 名称只为历史迁移保留模板，不会默认安装；Codex 列表中只应显示主 skill。
+旧 ThinkAI/Proxy 名称只为历史迁移保留模板，不会默认安装；独立的 `image-proxy` skill 位于 `standalone/image-proxy`，也不会随主 skill 默认安装。
+
+### 独立第三方代理 skill
+
+如果你只需要直接调用已配置的 OpenAI-compatible 第三方图片 endpoint，而不需要主 skill 的商品理解、平台规划、QA、总览图和 tldraw 工作台，可以单独安装仓库里的代理 skill：
+
+```text
+请使用 skill-installer 从 GitHub 安装这个 Codex skill：
+
+https://github.com/ninemouth/sellerpilot-product-image-industrial
+
+请使用 --path standalone/image-proxy，并将安装后的 skill 名称设为 image-proxy。
+```
+
+安装后调用：
+
+```text
+请使用 $image-proxy，通过当前配置的第三方图片 provider 生成一张图片；先 dry-run，再执行真实请求。
+```
+
+该独立 skill 与 SellerPilot 商品图 skill 无关，只负责第三方代理制图。它默认使用 ThinkAI `https://www.thinkai.tv/v1` + `gpt-image-2`，也支持显式指定其他 OpenAI-compatible endpoint；它只证明 provider 返回了可解码图片，不提供商品身份、物理、营销或平台 QA，也不会自动回退到 Codex 原生生图。
 
 ### 店铺统一风格记忆
 
@@ -227,7 +247,7 @@ npm run sync:codex -- --full-verify
 
 https://github.com/ninemouth/sellerpilot-product-image-industrial
 
-注意：这个 skill 位于仓库根目录，请使用 --path .，并把安装后的 skill 名称设为 sellerpilot-product-image-industrial。安装完成后请验证 SKILL.md 存在，并清理旧的 sellerpilot-product-image-industrial-thinkai / sellerpilot-product-image-industrial-proxy 安装目录，避免显示重复条目。提醒我重启 Codex。
+注意：这个主 skill 位于仓库根目录，请使用 --path .，并把安装后的 skill 名称设为 sellerpilot-product-image-industrial。安装完成后请验证 SKILL.md 存在，并清理旧的 sellerpilot-product-image-industrial-thinkai / sellerpilot-product-image-industrial-proxy 迁移安装目录；独立 `image-proxy` 如需使用可单独安装并与主 skill 并存。提醒我重启 Codex。
 ```
 
 Codex 应该会使用内置的 `skill-installer`。安装成功后，重启 Codex。

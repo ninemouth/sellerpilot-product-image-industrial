@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
+import { skillRootFrom } from "./lib/skill-paths.mjs";
 
-const skillRoot = path.resolve(new URL("..", import.meta.url).pathname);
+const skillRoot = skillRootFrom(import.meta.url);
 const args = parseArgs(process.argv);
 if (args.help || !args["run-dir"] || !args.platform || !args.category) usage();
 
@@ -154,7 +155,7 @@ function compileTasks(ctx) {
     execution_class: "deterministic_pre_gate",
     trigger_reason: "always_required_before_generation",
     depends_on: ["brief-intake"],
-    outputs: ["provider/provider-resolution.json"],
+    outputs: ["runtime/image-provider-resolution.json"],
     command: [process.execPath, path.join(skillRoot, "scripts", "resolve-image-provider.mjs"), "--run-dir", "."],
   });
   const generationSpecCommand = [
@@ -163,6 +164,7 @@ function compileTasks(ctx) {
     "--out-dir", "generation-spec",
     "--platform", String(ctx.args.platform),
     "--category", String(ctx.args.category),
+    "--provider-resolution", path.join("runtime", "image-provider-resolution.json"),
   ];
   if (ctx.platformOverride.required_ratio) generationSpecCommand.push("--required-ratio", String(ctx.platformOverride.required_ratio));
   add({
