@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { AssetRecordType, Tldraw, createShapeId, toRichText } from "tldraw";
+import { Tldraw } from "tldraw";
 import "tldraw/tldraw.css";
 import "./styles.css";
 
@@ -53,8 +53,8 @@ const QUICK_FEEDBACK = [
 
 function App() {
   const editorRef = useRef(null);
-  const importedManifestKeyRef = useRef("");
-  const renderedShapeIdsRef = useRef([]);
+  const displayedImageIdRef = useRef("");
+  const canvasImportTimerRef = useRef(null);
   const canvasSnapshotsRef = useRef({});
   const [manifest, setManifest] = useState(null);
   const [annotations, setAnnotations] = useState([]);
@@ -84,12 +84,7 @@ function App() {
     return images.map((image, index) => ({
       ...image,
       src: resolveImageSrc(image.src),
-      assetId: AssetRecordType.createId(`sellerpilot-${safeId(image.id || index)}`),
-      shapeId: createShapeId(`sellerpilot-image-${safeId(image.id || index)}`),
-      x: 90,
-      y: 80,
-      width: 900,
-      height: 900,
+      floorId: `sellerpilot-image-floor-${safeId(image.id || index)}`,
     }));
   }, [images]);
 
@@ -99,115 +94,45 @@ function App() {
   const markedImages = new Set(openAnnotations.map((item) => item.image_id));
   const unmarkedCount = Math.max(0, cards.length - markedImages.size);
 
-  const importImagesIntoTldraw = useCallback((editor, nextCards) => {
-    if (!editor || !nextCards.length) return;
-    const manifestKey = nextCards.map((card) => `${card.id}:${card.src}`).join("|");
-    if (importedManifestKeyRef.current === manifestKey) return;
-    importedManifestKeyRef.current = manifestKey;
-    if (renderedShapeIdsRef.current.length) editor.deleteShapes(renderedShapeIdsRef.current);
-
-    const assets = [];
-    const shapes = [];
-    const labelShapes = [];
-    for (const card of nextCards) {
-      if (!editor.getAsset(card.assetId)) {
-        assets.push({
-          id: card.assetId,
-          typeName: "asset",
-          type: "image",
-          props: {
-            w: card.width,
-            h: card.width,
-            name: card.copied_file || card.file || card.id,
-            isAnimated: false,
-            mimeType: "image/png",
-            src: card.src,
-          },
-          meta: {
-            sellerpilot_image_id: card.id,
-            original_path: card.path || "",
-          },
-        });
-      }
-      if (!editor.getShape(card.shapeId)) {
-        shapes.push({
-          id: card.shapeId,
-          type: "image",
-          x: card.x,
-          y: card.y,
-          isLocked: true,
-          meta: {
-            sellerpilot_layer: "image-floor-layer",
-            sellerpilot_image_id: card.id,
-          },
-          props: {
-            assetId: card.assetId,
-            w: card.width,
-            h: card.width,
-            playing: false,
-            url: "",
-            crop: null,
-            flipX: false,
-            flipY: false,
-            altText: card.copied_file || card.file || card.id,
-          },
-        });
-      }
-      const labelId = createShapeId(`sellerpilot-label-${safeId(card.id)}`);
-      if (!editor.getShape(labelId)) {
-        labelShapes.push({
-          id: labelId,
-          type: "text",
-          x: card.x,
-          y: card.y + card.width + 14,
-          isLocked: true,
-          meta: {
-            sellerpilot_layer: "image-floor-label",
-            sellerpilot_image_id: card.id,
-          },
-          props: {
-            color: "black",
-            size: "s",
-            font: "draw",
-            textAlign: "start",
-            w: card.width,
-            richText: toRichText(`${card.id} · ${card.copied_file || card.file || ""}`),
-            scale: 1,
-            autoSize: false,
-          },
-        });
-      }
-    }
-
-    if (assets.length) editor.createAssets(assets);
-    if (shapes.length) editor.createShapes(shapes);
-    if (labelShapes.length) editor.createShapes(labelShapes);
-    const imageShapeIds = nextCards.map((card) => card.shapeId);
-    const labelShapeIds = nextCards.map((card) => createShapeId(`sellerpilot-label-${safeId(card.id)}`));
-    renderedShapeIdsRef.current = [...imageShapeIds, ...labelShapeIds];
-    editor.sendToBack([...imageShapeIds, ...labelShapeIds]);
-    editor.selectNone();
-    editor.setCurrentTool("draw");
-    setTimeout(() => {
-      try {
-        editor.zoomToFit({ animation: { duration: 220 }, inset: 80 });
-      } catch {
-        editor.zoomToFit({ animation: { duration: 220 } });
-      }
-    }, 80);
-    setStatus("在大图上圈选或画箭头；未标注图片会自动保留");
+  const clearCurrentCanvas = useCallback((editor) => {
+    const shapeIds = [...editor.getCurrentPageShapeIds()];
+    if (shapeIds.length) editor.deleteShapes(shapeIds);
   }, []);
 
+  const restoreSelectedCanvas = useCallback((editor, imageId) => {
+    clearCurrentCanvas(editor);
+    if (canvasImportTimerRef.current) clearTimeout(canvasImportTimerRef.current);
+    // The product image is a stable DOM floor below tldraw, rather than a
+    // persisted image shape. This keeps thumbnail switching independent from
+    // tldraw asset restoration while each image retains its own mark snapshot.
+    canvasImportTimerRef.current = setTimeout(() => {
+      if (editorRef.current !== editor || displayedImageIdRef.current !== imageId) return;
+      editor.selectNone();
+      editor.setCurrentTool("draw");
+      setStatus("在大图上圈选或画箭头；未标注图片会自动保留");
+    }, 80);
+  }, [clearCurrentCanvas]);
+
   useEffect(() => {
-    if (editorRef.current && selectedCards.length) {
-      importImagesIntoTldraw(editorRef.current, selectedCards);
+    const editor = editorRef.current;
+    if (!editor || !selectedImageId || !selectedCards.length || displayedImageIdRef.current === selectedImageId) return;
+    const snapshot = canvasSnapshotsRef.current[selectedImageId];
+    if (snapshot) {
+      editor.loadSnapshot(snapshot);
+    } else {
+      restoreSelectedCanvas(editor, selectedImageId);
     }
-  }, [selectedCards, importImagesIntoTldraw]);
+    displayedImageIdRef.current = selectedImageId;
+  }, [selectedImageId, selectedCards, restoreSelectedCanvas]);
 
   const handleMount = useCallback((editor) => {
     editorRef.current = editor;
-    if (selectedCards.length) importImagesIntoTldraw(editor, selectedCards);
-  }, [selectedCards, importImagesIntoTldraw]);
+    if (!selectedCards.length) return;
+    const snapshot = canvasSnapshotsRef.current[selectedImageId];
+    if (snapshot) editor.loadSnapshot(snapshot);
+    else restoreSelectedCanvas(editor, selectedImageId);
+    displayedImageIdRef.current = selectedImageId;
+  }, [selectedImageId, selectedCards, restoreSelectedCanvas]);
 
   const addAnnotation = () => {
     if (!selectedImageId || !comment.trim()) return;
@@ -258,7 +183,10 @@ function App() {
   };
 
   const switchImage = (id) => {
+    if (id === selectedImageId) return;
     captureActiveCanvas();
+    displayedImageIdRef.current = "";
+    if (canvasImportTimerRef.current) clearTimeout(canvasImportTimerRef.current);
     setSelectedImageId(id);
   };
 
@@ -306,13 +234,6 @@ function App() {
     } catch (error) {
       setStatus(`review complete: download ready; auto handoff save failed: ${error.message}`);
     }
-  };
-
-  const focusSelectedImage = () => {
-    if (!editorRef.current || !selectedImage) return;
-    editorRef.current.select(selectedImage.shapeId);
-    editorRef.current.zoomToSelection({ animation: { duration: 220 } });
-    editorRef.current.selectNone();
   };
 
   return (
@@ -384,7 +305,8 @@ function App() {
         </section>
 
         <section className="tldraw-shell" aria-label="Native tldraw review canvas">
-          <Tldraw key={selectedImageId} onMount={handleMount} persistenceKey={`sellerpilot-tldraw-review:${STORAGE_SCOPE}:${selectedImageId}`} />
+          {selectedImage ? <img className="selected-image-floor" src={selectedImage.src} alt={`${selectedImage.id} review image`} /> : null}
+          <Tldraw onMount={handleMount} persistenceKey={`sellerpilot-tldraw-review:${STORAGE_SCOPE}`} />
         </section>
       </main>
     </div>
@@ -408,8 +330,8 @@ function buildCanvasStatePayload({ manifest, editor, cards }) {
     workspace: manifest?.workspace || {},
     board: {
       canvas_engine: "native-tldraw",
-      image_floor: "locked-tldraw-image-shapes",
-      layer_order: ["locked-image-floor-shapes", "native-tldraw-user-marks", "top-controls"],
+      image_floor: "stable-selected-image-review-floor",
+      layer_order: ["selected-image-floor", "native-tldraw-user-marks", "top-controls"],
     },
     tldraw_snapshot: editor?.store?.getSnapshot ? editor.store.getSnapshot() : null,
     image_shapes: cards.map((card) => ({
@@ -417,12 +339,8 @@ function buildCanvasStatePayload({ manifest, editor, cards }) {
       file: card.file,
       copied_file: card.copied_file,
       path: card.path,
-      shape_id: card.shapeId,
-      asset_id: card.assetId,
-      x: card.x,
-      y: card.y,
-      width: card.width,
-      height: card.width,
+      floor_id: card.floorId,
+      rendering: "stable-dom-image-floor",
     })),
   };
 }

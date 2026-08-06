@@ -224,11 +224,33 @@ textarea {
 .tldraw-shell {
   position: relative;
   min-height: 0;
+  isolation: isolate;
   background: #eef3f7;
 }
 
-.tldraw-shell .tl-container {
-  background: #eef3f7;
+.selected-image-floor {
+  position: absolute;
+  z-index: 0;
+  top: 50%;
+  left: 50%;
+  display: block;
+  max-width: min(900px, calc(100% - 120px));
+  max-height: calc(100% - 80px);
+  width: auto;
+  height: auto;
+  transform: translate(-50%, -50%);
+  border-radius: 10px;
+  box-shadow: 0 18px 46px rgba(16, 24, 32, 0.22);
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.tldraw-shell .tl-container,
+.tldraw-shell .tl-canvas,
+.tldraw-shell .tl-background {
+  position: relative;
+  z-index: 1;
+  background: transparent !important;
 }
 
 .board-viewport {

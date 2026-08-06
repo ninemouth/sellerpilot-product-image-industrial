@@ -74,7 +74,7 @@ check("automatic cross-platform provider setup boundary", () => {
 check("decision-first canvas review boundary", () => {
   const canvas = read("assets/tldraw-review-workspace/src/main.jsx");
   const parser = read("scripts/parse-canvas-annotations.mjs");
-  for (const token of ["thumbnail-nav", "QUICK_FEEDBACK", "提交修改给 AI", "implicitly_approved_image_ids", "unannotated_images: \"keep_approved\"", "tldraw_snapshots_by_image"]) if (!canvas.includes(token)) throw new Error(`canvas review missing ${token}`);
+  for (const token of ["thumbnail-nav", "QUICK_FEEDBACK", "提交修改给 AI", "implicitly_approved_image_ids", "unannotated_images: \"keep_approved\"", "tldraw_snapshots_by_image", "selected-image-floor", "stable-dom-image-floor", "canvasSnapshotsRef.current[selectedImageId]", "editor.loadSnapshot(snapshot)", "restoreSelectedCanvas", "canvasImportTimerRef", "getCurrentPageShapeIds", "displayedImageIdRef.current = \"\""]) if (!canvas.includes(token)) throw new Error(`canvas review missing ${token}`);
   for (const token of ["implicitly_approved_image_ids", "scene-asset-required", "scene-asset-production", "snapshot_image_ids"]) if (!parser.includes(token)) throw new Error(`canvas task parser missing ${token}`);
 });
 check("integration suite registry invariants", () => {
