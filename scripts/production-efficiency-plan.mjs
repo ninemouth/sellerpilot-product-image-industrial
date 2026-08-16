@@ -196,6 +196,12 @@ function buildPlan(ctx) {
       reconcile_with_final_manifest_before_final_delivery: true,
       user_visible_update_interval_seconds: 300,
       long_running_threshold_seconds: 900,
+      // This is a run-local provider deadline, not a global runtime default.
+      // It prevents one stalled external image job from consuming the legacy
+      // 30-minute transport ceiling while no provider response is arriving.
+      provider_request_timeout_seconds: 900,
+      provider_meaningful_progress_stale_seconds: 600,
+      provider_deadline_policy: "After the run-local deadline, preserve completed assets, fail only the affected role, and route it through provider/QA repair. Do not change global provider defaults from one run.",
       if_generation_exceeds_threshold: "report completed/pending assets and continue only missing assets",
       next_action: ctx.signals.multi_image_set
         ? "resolve provider-compatible platform ratio, build compact image-set planning, then run anchor batch"

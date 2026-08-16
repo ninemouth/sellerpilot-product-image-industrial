@@ -58,7 +58,7 @@ Before generation the skill resolves exactly one provider route from actual loca
 | `third_party_proxy` | The configured OpenAI-compatible image endpoint |
 | `configuration_required` | The selected third-party route lacks a usable local key; configuration is needed, not renewed generation authorization |
 
-ThinkAI is the default third-party profile: `https://www.thinkai.tv/v1` with `gpt-image-2`. When Codex already selects another OpenAI-compatible `model_provider`, the skill uses that endpoint, model, and key variable instead. It never guesses a user's subscription and never silently switches providers.
+`Codex Native` and `NVIDIA FLUX` are built-in profiles. ThinkAI is an explicit external profile (it may use `https://www.thinkai.tv/v1` with `gpt-image-2`), never the main skill's implicit default. Legacy ThinkAI configuration is migrated as an already-selected external profile to preserve existing routing. The skill never guesses a user's subscription or silently switches providers.
 
 An image-generation request already authorizes the resolved provider route for that run. The skill must not ask again before every native or third-party provider call.
 

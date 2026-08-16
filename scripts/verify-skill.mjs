@@ -908,11 +908,11 @@ record("automatic image provider contract", () => {
   }
   const codexConfig = path.join(configDir, "config.toml");
   fs.writeFileSync(codexConfig, 'model_provider = "acme"\n[model_providers.acme]\nbase_url = "https://images.example/v1"\nenv_key = "ACME_IMAGE_KEY"\n');
-  process.env.ACME_IMAGE_API_KEY = "verify-provider-key";
+  process.env.ACME_IMAGE_KEY = "verify-provider-key";
   const resolution = JSON.parse(run(process.execPath, ["scripts/resolve-image-provider.mjs", "--config", path.join(configDir, "missing.json"), "--codex-config", codexConfig]));
-  delete process.env.ACME_IMAGE_API_KEY;
-  if (resolution.selected_mode !== "third_party_proxy" || resolution.provider.base_url !== "https://images.example/v1" || resolution.provider.api_key_env !== "ACME_IMAGE_API_KEY") {
-    throw new Error("provider resolver should use current Codex third-party provider endpoint while deriving a dedicated image API key env.");
+  delete process.env.ACME_IMAGE_KEY;
+  if (resolution.selected_mode !== "third_party_proxy" || resolution.provider.base_url !== "https://images.example/v1" || resolution.provider.api_key_env !== "ACME_IMAGE_KEY") {
+    throw new Error("provider resolver should use the explicitly configured Codex third-party endpoint and key environment.");
   }
   const autoConfiguration = JSON.parse(run(process.execPath, ["scripts/ensure-image-provider-configuration.mjs", "--config", path.join(configDir, "auto-missing.json"), "--codex-config", codexConfig, "--no-prompt"]));
   if (autoConfiguration.status !== "configuration_required" || autoConfiguration.prompted !== false || autoConfiguration.action !== "secure_local_input_pending") {
@@ -920,6 +920,22 @@ record("automatic image provider contract", () => {
   }
   const nativeResolution = JSON.parse(run(process.execPath, ["scripts/resolve-image-provider.mjs", "--config", path.join(configDir, "missing.json"), "--codex-config", path.join(configDir, "no-config.toml")]));
   if (nativeResolution.selected_mode !== "native_codex") throw new Error("provider resolver should default to native Codex without a third-party provider.");
+  const legacyProfileConfig = path.join(configDir, "legacy-thinkai.json");
+  fs.writeFileSync(legacyProfileConfig, JSON.stringify({ provider_mode: "third_party_proxy", third_party: { enabled: true, name: "ThinkAI", base_url: "https://thinkai.example/v1", model: "gpt-image-2", api_key_env: "THINKAI_TEST_KEY", api_key: "legacy-profile-key" } }, null, 2));
+  const legacyProfileResolution = JSON.parse(run(process.execPath, ["scripts/resolve-image-provider.mjs", "--config", legacyProfileConfig, "--codex-config", path.join(configDir, "no-config.toml")]));
+  if (legacyProfileResolution.selected_mode !== "third_party_proxy" || legacyProfileResolution.profile.kind !== "external" || legacyProfileResolution.profile.source !== "legacy_migration" || legacyProfileResolution.profile.id !== "external-thinkai") {
+    throw new Error("legacy ThinkAI configuration must migrate as an explicitly selected external profile, not a built-in default.");
+  }
+  const profileConfig = path.join(configDir, "profiles.json");
+  run(process.execPath, ["scripts/manage-image-provider-profiles.mjs", "--action", "upsert", "--config", profileConfig, "--id", "thinkai-team", "--label", "ThinkAI Team", "--runtime", "openai_images", "--base-url", "https://thinkai.example/v1", "--model", "gpt-image-2", "--api-key-env", "THINKAI_TEAM_KEY", "--api-key", "profile-key", "--set-active"]);
+  const profileResolution = JSON.parse(run(process.execPath, ["scripts/resolve-image-provider.mjs", "--config", profileConfig, "--codex-config", path.join(configDir, "no-config.toml")]));
+  if (profileResolution.profile.id !== "thinkai-team" || profileResolution.profile.kind !== "external" || profileResolution.selected_mode !== "third_party_proxy") {
+    throw new Error("saved external provider profiles must resolve only when selected.");
+  }
+  const profilePicker = JSON.parse(run(process.execPath, ["scripts/select-image-provider-interactive.mjs", "--config", profileConfig, "--dry-run"]));
+  if (!profilePicker.profiles.some((profile) => profile.id === "codex-native") || !profilePicker.profiles.some((profile) => profile.id === "nvidia-flux") || !profilePicker.profiles.some((profile) => profile.id === "thinkai-team")) {
+    throw new Error("provider selector must expose both built-in profiles and saved external profiles.");
+  }
   const priorCodexHome = process.env.CODEX_HOME;
   process.env.CODEX_HOME = path.join(configDir, "codex-home");
   process.env.ACME_IMAGE_KEY = "verify-provider-key";
@@ -3080,6 +3096,42 @@ record("runtime watchdog classifies long-running stalls", () => {
   const stalledReport = readJson(path.join(stalledRun, "qa", "runtime-watchdog-report.json"));
   if (stalledReport.classification !== "blocked_stalled_no_progress" || !stalledReport.decision.user_update_required) {
     throw new Error("watchdog should block stale long-running production without recent activity.");
+  }
+
+  const heartbeatRun = path.join(tmpDir("sp-verify-watchdog-provider-heartbeat-"), "run");
+  fs.mkdirSync(path.join(heartbeatRun, "generated-assets"), { recursive: true });
+  fs.writeFileSync(path.join(heartbeatRun, "generated-assets", "generation-progress.json"), JSON.stringify({
+    schema_version: "sellerpilot.generation_progress.v1",
+    status: "generating",
+    created_at: "2026-07-09T09:00:00.000Z",
+    updated_at: "2026-07-09T09:59:50.000Z",
+    image_count: 2,
+    completed_images: ["IMG-01-main-product.png"],
+    pending_images: ["IMG-02-scene.png"],
+    failed_images: [],
+  }, null, 2));
+  fs.writeFileSync(path.join(heartbeatRun, "generated-assets", "progress-img-02.json"), JSON.stringify({
+    status: "generating",
+    updated_at: "2026-07-09T09:59:50.000Z",
+    runtime: {
+      last_meaningful_progress_at: "2026-07-09T09:00:00.000Z",
+      meaningful_progress_events: [{ event: "request_started", at: "2026-07-09T09:00:00.000Z" }],
+      heartbeat: true,
+      waiting: true,
+    },
+  }, null, 2));
+  fs.utimesSync(path.join(heartbeatRun, "generated-assets", "progress-img-02.json"), new Date("2026-07-09T09:59:50.000Z"), new Date("2026-07-09T09:59:50.000Z"));
+  const heartbeat = spawnSync(process.execPath, [
+    "scripts/runtime-watchdog.mjs",
+    "--run-dir", heartbeatRun,
+    "--now", now,
+    "--warn-after-seconds", "900",
+    "--meaningful-progress-stale-seconds", "600",
+  ], { cwd: skillRoot, encoding: "utf8" });
+  if (heartbeat.status === 0) throw new Error("provider heartbeat without meaningful progress must require attention.");
+  const heartbeatReport = readJson(path.join(heartbeatRun, "qa", "runtime-watchdog-report.json"));
+  if (heartbeatReport.classification !== "provider_wait_stale" || heartbeatReport.runtime_snapshot.child_progress_files !== 1) {
+    throw new Error("watchdog must classify fresh heartbeats with stale provider progress as provider_wait_stale.");
   }
 });
 

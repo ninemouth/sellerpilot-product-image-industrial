@@ -174,11 +174,12 @@ function classify() {
     return makeDecision("blocked", "blocked_stalled_no_progress", true, true, "Stop automatic work. Report completed/pending assets and ask whether to continue, change direction, or repair the blocked node.", "Long-running task has no recent filesystem progress.");
   }
 
-  if (oldEnoughToWarn && noRecentProgress && pending.length) {
-    if (noMeaningfulProgress) {
-      findings.push(finding("fail", "provider-meaningful-progress-stale", `No provider meaningful progress event for ${meaningfulProgressAgeSeconds}s while ${pending.length} pending asset(s) remain.`));
+  if (oldEnoughToWarn && pending.length && noMeaningfulProgress) {
+    findings.push(finding("fail", "provider-meaningful-progress-stale", `No provider meaningful progress event for ${meaningfulProgressAgeSeconds}s while ${pending.length} pending asset(s) remain. Heartbeats do not count as provider progress.`));
     return makeDecision("needs_attention", "provider_wait_stale", true, true, "Stop waiting on the current provider job. Preserve completed assets, mark only the stale job retryable, and continue from the failed/missing asset list.", "Heartbeat alone is not meaningful provider progress.", "Provider progress is stale; completed assets are preserved and only stale or missing assets should be retried.");
-    }
+  }
+
+  if (oldEnoughToWarn && noRecentProgress && pending.length) {
     findings.push(finding("warn", "active-generation-or-network-wait", `No generation-progress update for ${progressSeconds}s while ${pending.length} pending asset(s) remain.`));
     return makeDecision("continue", "active_generation_wait", false, true, "Give the user a progress update, then continue only pending assets if the image generation call is still active.", "The run is long, but pending assets suggest generation/network wait rather than a QA loop.", `Generation is still active with ${pending.length} pending asset(s); continuing without restarting completed work.`);
   }

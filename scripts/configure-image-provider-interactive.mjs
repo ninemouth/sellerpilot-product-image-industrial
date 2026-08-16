@@ -21,8 +21,9 @@ if (!key) {
   process.exit(2);
 }
 const skillRoot = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
-const configure = path.join(skillRoot, "scripts", "configure-image-provider.mjs");
-const forwarded = [configure, "--api-key-stdin"];
+const profileId = String(args["profile-id"] || "").trim();
+const configure = path.join(skillRoot, "scripts", profileId ? "manage-image-provider-profiles.mjs" : "configure-image-provider.mjs");
+const forwarded = profileId ? [configure, "--action", "upsert", "--id", profileId, "--api-key-stdin"] : [configure, "--api-key-stdin"];
 for (const flag of ["config", "name", "base-url", "model", "api-key-env", "quality-default", "quality-allowed", "size-default", "size-allowed", "allow-custom-size", "response-format-default", "response-format-allowed"]) if (args[flag]) forwarded.push(`--${flag}`, String(args[flag]));
 const configured = spawnSync(process.execPath, forwarded, { input: `${key}\n`, encoding: "utf8" });
 if (configured.status !== 0) {
@@ -68,4 +69,4 @@ function parsePromptOutput(value) {
   return String(value || "").trim();
 }
 function safeJson(value) { try { return JSON.parse(String(value || "")); } catch { return null; } }
-function usage() { console.error("Usage: node scripts/configure-image-provider-interactive.mjs [--config /abs/image-provider.json] [--name NAME] [--base-url URL] [--model MODEL] [--api-key-env NAME] [--quality-default auto] [--quality-allowed auto,low,medium,high] [--size-default auto] [--size-allowed auto,1024x1024] [--allow-custom-size] [--dry-run]"); process.exit(2); }
+function usage() { console.error("Usage: node scripts/configure-image-provider-interactive.mjs [--config /abs/image-provider.json] [--profile-id PROFILE_ID] [--name NAME] [--base-url URL] [--model MODEL] [--api-key-env NAME] [--quality-default auto] [--quality-allowed auto,low,medium,high] [--size-default auto] [--size-allowed auto,1024x1024] [--allow-custom-size] [--dry-run]"); process.exit(2); }

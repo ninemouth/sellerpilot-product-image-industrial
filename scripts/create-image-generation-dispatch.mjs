@@ -16,8 +16,11 @@ const images = args.image.map((file) => path.resolve(file));
 const generationSpecPath = path.resolve(args["generation-spec"] || path.join(runDir, "generation-spec", "generation-spec.json"));
 const generationSpec = readJson(generationSpecPath);
 const requestedSize = String(args.size || generationSpec?.requested_size || "").trim() || null;
+const efficiencyPlan = readJson(path.join(runDir, "planning", "production-efficiency-plan.json")) || {};
+const providerTimeoutSeconds = positiveInteger(args["request-timeout-seconds"] || efficiencyPlan?.progress_update_policy?.provider_request_timeout_seconds) || 900;
+const progressFile = path.join(runDir, "generated-assets", `progress-${role.toLowerCase()}.json`);
 const resolverArgs = [path.join(skillRoot, "scripts", "resolve-image-provider.mjs"), "--run-dir", runDir];
-for (const [flag, key] of [["--provider", "provider"], ["--config", "provider-config"], ["--codex-config", "codex-config"]]) if (args[key]) resolverArgs.push(flag, args[key]);
+for (const [flag, key] of [["--provider", "provider"], ["--profile", "profile"], ["--config", "provider-config"], ["--codex-config", "codex-config"]]) if (args[key]) resolverArgs.push(flag, args[key]);
 const resolved = spawnSync(process.execPath, resolverArgs, { cwd: runDir, encoding: "utf8" });
 const resolution = parseJson(resolved.stdout);
 if (!resolution) fail("Image provider resolution produced no readable result.");
@@ -43,6 +46,9 @@ if (resolution.status !== "ready") {
     provider: { id: resolution.provider?.id, name: resolution.provider?.name, base_url: resolution.provider?.base_url, model: resolution.provider?.model, runtime_script: resolution.provider?.runtime_script },
     generation_spec: generationSpec?.status === "ready" ? path.relative(runDir, generationSpecPath) : null,
     requested_size: requestedSize,
+    progress_file: path.relative(runDir, progressFile),
+    provider_timeout_seconds: providerTimeoutSeconds,
+    meaningful_progress_timeout_seconds: positiveInteger(efficiencyPlan?.progress_update_policy?.provider_meaningful_progress_stale_seconds),
     prompt: args.prompt,
     source_images: images.map((file) => path.relative(runDir, file)),
     output_dir: path.relative(runDir, path.dirname(outputPath())),
@@ -58,7 +64,7 @@ if (resolution.status !== "ready") {
   const out = path.join(runDir, "generated-assets", `third-party-imagegen-handoff-${role.toLowerCase()}.json`);
   fs.mkdirSync(path.dirname(out), { recursive: true });
   fs.writeFileSync(out, `${JSON.stringify(handoff, null, 2)}\n`);
-  const command = [resolution.provider.runtime_script, "--run-dir", runDir, "--role", role, "--prompt", args.prompt, "--output-dir", path.dirname(outputPath()), "--base-url", resolution.provider.base_url, "--model", resolution.provider.model, "--api-key-env", resolution.provider.api_key_env, "--provider-resolution", resolution.run_report, ...(requestedSize ? ["--size", requestedSize] : []), ...images.flatMap((file) => ["--image", file])];
+  const command = [resolution.provider.runtime_script, "--run-dir", runDir, "--role", role, "--prompt", args.prompt, "--output-dir", path.dirname(outputPath()), "--progress-file", progressFile, "--base-url", resolution.provider.base_url, "--model", resolution.provider.model, "--api-key-env", resolution.provider.api_key_env, "--provider-resolution", resolution.run_report, ...(requestedSize ? ["--size", requestedSize] : []), ...(providerTimeoutSeconds ? ["--request-timeout-seconds", String(providerTimeoutSeconds)] : []), ...images.flatMap((file) => ["--image", file])];
   console.log(JSON.stringify({ status: "ready", selected_mode: "third_party_proxy", role, resolution: resolution.run_report, handoff: out, runtime_command: command, required_execution_capabilities: ["outbound_network"], next_action: "Execute the resolved runtime command directly. The configured third-party route is already authorized at skill setup; record requested/succeeded/failed provider ledger events and do not substitute another provider." }, null, 2));
 } else fail(`Unsupported resolved provider mode: ${resolution.selected_mode}`);
 
@@ -67,5 +73,6 @@ function normalizeRole(value) { const match = String(value || "").match(/(?:IMG|
 function parseArgs(argv) { const result = { image: [] }; for (let i = 2; i < argv.length; i += 1) { if (!argv[i].startsWith("--")) continue; const key = argv[i].slice(2); const value = argv[i + 1]; if (key === "image") { if (!value || value.startsWith("--")) fail("--image requires a path"); result.image.push(value); i += 1; } else if (!value || value.startsWith("--")) result[key] = true; else { result[key] = value; i += 1; } } return result; }
 function parseJson(value) { try { return JSON.parse(String(value || "").trim()); } catch { return null; } }
 function readJson(file) { try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return null; } }
+function positiveInteger(value) { const parsed = Number(value); return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : null; }
 function fail(message) { console.error(message); process.exit(2); }
-function usage() { console.error("Usage: node scripts/create-image-generation-dispatch.mjs --run-dir /abs/run --role IMG-01 --prompt '<final prompt>' [--image /abs/source.png] [--generation-spec /abs/run/generation-spec/generation-spec.json] [--size WxH] [--provider auto|native_codex|third_party_proxy] [--provider-config /abs/image-provider.json] [--codex-config /abs/config.toml] [--output-path /abs/run/generated-assets/IMG-01/image.png]"); process.exit(2); }
+function usage() { console.error("Usage: node scripts/create-image-generation-dispatch.mjs --run-dir /abs/run --role IMG-01 --prompt '<final prompt>' [--image /abs/source.png] [--generation-spec /abs/run/generation-spec/generation-spec.json] [--size WxH] [--provider auto|native_codex|third_party_proxy] [--profile PROFILE_ID] [--provider-config /abs/image-provider.json] [--codex-config /abs/config.toml] [--output-path /abs/run/generated-assets/IMG-01/image.png]"); process.exit(2); }

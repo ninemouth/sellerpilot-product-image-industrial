@@ -19,7 +19,7 @@ The resolver checks the shared SellerPilot provider configuration and the local 
 
 - `native_codex`: use the system `imagegen` / `image_gen` capability. Do not silently substitute a proxy if that capability is unavailable.
 - `third_party_proxy`: use the resolved OpenAI-compatible `base_url`, model, and key environment variable through the runtime below.
-- `configuration_required`: pause only because the required local key is absent. This is a technical configuration requirement, not a need for renewed generation authorization. The default ThinkAI endpoint and `gpt-image-2` model are already known unless the user explicitly requests a different endpoint/model.
+- `configuration_required`: pause only because the selected external profile lacks its required local key. This is a technical configuration requirement, not a need for renewed generation authorization. Do not invent a ThinkAI endpoint/model or change profiles to satisfy it.
 
 ### External provider execution permission
 
@@ -29,10 +29,10 @@ In Codex environments whose terminal call exposes an execution-permission parame
 
 If authorization is unavailable or declined, preserve the run and surface only that the selected external image provider needs network access. Do not retry it unprivileged, consume provider retry budget, or switch to Gamma, native imagegen, or another provider. After authorization, rerun the same resolved command; that is the first real provider attempt.
 
-Configure the third-party profile once, without exposing the key:
+Configure a named third-party profile once, without exposing the key:
 
 ```bash
-npm run configure:image-provider -- --api-key "<API_KEY>"
+npm run providers:upsert -- --id acme-images --label "Acme Images" --runtime openai_images --base-url "https://images.example/v1" --model "image-model" --api-key-env ACME_IMAGES_API_KEY --api-key "<API_KEY>" --set-active
 ```
 
 Installation and update run `ensure-image-provider-configuration.mjs` automatically after the installed copy is verified. When the resolver detects `third_party_proxy` but no usable key, it opens the OS-native masked local input dialog automatically; users do not need to know or type a special chat command. It supports macOS (AppleScript hidden answer), Windows (password-masked WinForms dialog), and Linux desktop when Zenity or KDialog is available. Native routing and already configured third-party routing never prompt or overwrite a key. Headless/CI installs and user cancellation retain the installed skill and return the safe `configuration_required` state.
@@ -71,7 +71,7 @@ When the resolver returns a non-default endpoint, model, key environment variabl
 
 ### NVIDIA Build FLUX route
 
-NVIDIA Build FLUX is selected explicitly, not as a fallback from ThinkAI. Configure it in the shared provider file with the `nvidia_nim_flux` runtime; this preserves the default ThinkAI `gpt-image-2` profile unless the configuration is changed deliberately:
+NVIDIA Build FLUX is a built-in profile selected explicitly, not as a fallback from ThinkAI. Configure its key in the shared provider registry; it preserves the current selected profile unless the configuration is changed deliberately:
 
 ```bash
 npm run configure:nvidia-flux -- --api-key "<YOUR_NVIDIA_API_KEY>"

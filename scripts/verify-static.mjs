@@ -35,7 +35,28 @@ check("platform overrides invariants", () => {
 });
 check("third-party dispatch boundary", () => {
   const dispatch = read("scripts/create-image-generation-dispatch.mjs");
-  for (const token of ["resolve-image-provider.mjs", "third_party_proxy", "create-native-imagegen-handoff.mjs", "runtime_script", "outbound_network", "do_not_substitute_provider"]) if (!dispatch.includes(token)) throw new Error(`dispatch missing ${token}`);
+  for (const token of ["resolve-image-provider.mjs", "third_party_proxy", "create-native-imagegen-handoff.mjs", "runtime_script", "outbound_network", "do_not_substitute_provider", "--progress-file", "--request-timeout-seconds", "provider_request_timeout_seconds"]) if (!dispatch.includes(token)) throw new Error(`dispatch missing ${token}`);
+});
+check("provider profile registry boundary", () => {
+  const resolver = read("scripts/resolve-image-provider.mjs");
+  const registry = read("scripts/lib/provider-profile-registry.mjs");
+  const manager = read("scripts/manage-image-provider-profiles.mjs");
+  const picker = read("scripts/select-image-provider-interactive.mjs");
+  for (const [name, text, tokens] of [
+    ["registry", registry, ["codex-native", "nvidia-flux", "BUILT_IN_PROVIDER_PROFILES", "legacy_migration"]],
+    ["resolver", resolver, ["--profile", "selected_profile_source", "sellerpilot.image_provider_resolution.v2"]],
+    ["manager", manager, ["list", "upsert", "select", "remove", "api-key-stdin"]],
+    ["picker", picker, ["macos_provider_picker", "windows_provider_picker", "linux_provider_picker"]],
+  ]) for (const token of tokens) if (!text.includes(token)) throw new Error(`${name} missing ${token}`);
+  if (resolver.includes('const THINKAI_BASE_URL')) throw new Error("resolver must not make ThinkAI a default provider profile");
+});
+check("provider wait observability boundary", () => {
+  const watchdog = read("scripts/runtime-watchdog.mjs");
+  const plan = read("scripts/production-efficiency-plan.mjs");
+  for (const [name, text, tokens] of [
+    ["watchdog", watchdog, ["provider_wait_stale", "Heartbeats do not count as provider progress", "pending.length && noMeaningfulProgress"]],
+    ["efficiency plan", plan, ["provider_request_timeout_seconds", "provider_meaningful_progress_stale_seconds", "Do not change global provider defaults"]],
+  ]) for (const token of tokens) if (!text.includes(token)) throw new Error(`${name} missing ${token}`);
 });
 check("cross-platform module path boundary", () => {
   const forbidden = ["new URL(\"..\", import.meta.url)", ".pathname"].join("");

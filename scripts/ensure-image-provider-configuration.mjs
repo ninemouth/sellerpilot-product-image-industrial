@@ -19,7 +19,7 @@ if (args["no-prompt"] || process.env.CI === "true" || process.env.CI === "1") {
   console.log(JSON.stringify({ status: "configuration_required", selected_mode: "third_party_proxy", provider: resolution.provider?.name || "third-party provider", action: "secure_local_input_pending", prompted: false }, null, 2));
   process.exit(0);
 }
-const configureArgs = [path.join(skillRoot, "scripts", "configure-image-provider-interactive.mjs")];
+const configureArgs = [path.join(skillRoot, "scripts", "configure-image-provider-interactive.mjs"), "--profile-id", resolution.profile?.id || ""];
 for (const [flag, value] of Object.entries({ config: args.config, name: resolution.provider?.name, "base-url": resolution.provider?.base_url, model: resolution.provider?.model, "api-key-env": resolution.provider?.api_key_env, "quality-default": resolution.provider?.capabilities?.quality?.default, "quality-allowed": resolution.provider?.capabilities?.quality?.allowed?.join(","), "size-default": resolution.provider?.capabilities?.size?.default, "size-allowed": resolution.provider?.capabilities?.size?.allowed?.join(","), "response-format-default": resolution.provider?.capabilities?.response_format?.default, "response-format-allowed": resolution.provider?.capabilities?.response_format?.allowed?.join(",") })) if (value) configureArgs.push(`--${flag}`, String(value));
 if (resolution.provider?.capabilities?.size?.allow_custom === true) configureArgs.push("--allow-custom-size");
 const configured = spawnSync(process.execPath, configureArgs, { encoding: "utf8" });

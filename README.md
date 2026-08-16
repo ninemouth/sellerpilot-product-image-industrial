@@ -13,6 +13,13 @@
 
 ## 最新更新
 
+2026-08-16 Provider profile、长等待治理与 QA 可观测性升级：
+
+- **内置 profile 与外部 profile 分离**：`Codex Native`、`NVIDIA FLUX` 为内置 profile；ThinkAI 和任意 OpenAI-compatible 服务都必须作为明确命名的外部 profile 保存，绝不再是主 skill 的隐式默认。
+- **可维护、可切换的 provider 配置**：`providers:list`、`providers:upsert`、`providers:select` 与跨平台 provider 选择弹窗管理多个 endpoint/key；profile 选择在 run 开始时锁定，运行中不重复授权，也不会静默回退。
+- **停止把心跳当作进展**：第三方 dispatch 现在为每个角色写入 run-local progress 文件，并传递 run-local 15 分钟请求上限。watchdog 使用 10 分钟“有意义的 provider 进展”阈值，识别 `provider_wait_stale`，保留已完成素材、只修复失败角色，不据单次慢任务修改全局 timeout。
+- **QA 链路不因 provider 改变**：只要图片进入当前 run manifest，身份、营销、文本、自然质感、背景/card、导出、lineage 与 Final Delivery Gate 仍全部执行；provider 卡住时会在生成前阶段收敛，而不是把未审核图交付。
+
 2026-07-31 Loop Engineering 与第三方 provider 配置体验升级：
 
 - **Contract-driven Loop Engineering**：生产计划由唯一 contract、平台覆盖和 run-local DAG 编译而来；provider、QA、交付、重试和成本账本共享同一 run state，避免复制工作流、无状态重试和重复 token/provider 消耗。
@@ -33,7 +40,7 @@
 2026-07-15 版本收敛为一个用户入口和自动 provider 路由：
 
 - **只安装和调用一个主 skill**：用户只需使用 `sellerpilot-product-image-industrial`。它会自动识别当前 Codex 是否使用原生 provider 或第三方 OpenAI-compatible `model_provider`，并路由到正确的图片执行层。
-- **ThinkAI 是默认第三方 profile**：第三方模式默认使用 `https://www.thinkai.tv/v1` 与 `gpt-image-2`；若 Codex `config.toml` 已配置其他第三方 endpoint，则自动采用该 endpoint、模型和 key 环境变量。
+- **历史说明（已由 2026-08-16 profile registry 取代）**：ThinkAI 不再是主 skill 的默认 third-party profile；已保存的旧配置会迁移为显式外部 profile，保持既有路由不变。
 - **不再产生重复条目**：旧 ThinkAI/Proxy 名称只保留为仓库内迁移模板，不会随安装或更新进入 Codex skill 列表。
 - **跨平台路径识别**：`npm run paths:codex` 会输出 macOS/Linux/Windows 的主 skill、兼容别名与统一 provider 配置路径。
 
@@ -88,7 +95,7 @@
 - NumPy、Pillow、OpenCV、SciPy：无需手工装到全局 Python，skill 会在独立虚拟环境中自动准备。
 - 可选：`tesseract`，用于 AI 视觉识别不确定时本地 OCR 兜底读取源图文字。
 - 可选：Google Chrome、Microsoft Edge 或 Playwright 浏览器，用于 HTML/画布渲染。
-- 可选：第三方 OpenAI-compatible 图片 API key。当前 Codex 使用第三方 provider 时才需要；默认 profile 是 ThinkAI `gpt-image-2`。
+- 可选：第三方图片 API key。只有主动选择 NVIDIA FLUX 或一个已保存的外部 provider profile 时才需要；新 registry 默认选择 Codex Native。
 
 Codex runtime 通常已经带有 `sharp` 和 `playwright`。普通 Node 环境可以运行：
 
@@ -104,7 +111,7 @@ npm install
 请使用 $sellerpilot-product-image-industrial 为 Amazon US 做 7 张 listing 图片。
 ```
 
-主 skill 会先解析 provider：原生 Codex 环境使用 `imagegen` / `image_gen`；当前 Codex 配置选用第三方 `model_provider` 时，使用该 OpenAI-compatible endpoint。它不猜测会员身份，也不会静默切换模型。ThinkAI 是第三方模式的默认 profile，模型为 `gpt-image-2`。
+主 skill 会先解析已选 provider profile：新 registry 默认是 `Codex Native`，使用 `imagegen` / `image_gen`；`NVIDIA FLUX` 是内置 profile；ThinkAI 或其他 OpenAI-compatible endpoint 必须保存为明确命名的外部 profile。它不猜测会员身份、不会把 ThinkAI 当默认，也不会静默切换模型。旧 ThinkAI 配置会安全迁移为已选的外部 profile，保持原有工作路由。
 
 旧 ThinkAI/Proxy 名称只为历史迁移保留模板，不会默认安装；独立的 `image-proxy` skill 位于 `standalone/image-proxy`，也不会随主 skill 默认安装。
 
@@ -152,7 +159,7 @@ ${SELLERPILOT_IMAGE_SKILL_MEMORY:-$HOME/.codex/sellerpilot-product-image-industr
 
 ### 第三方图片 provider 配置
 
-当前 Codex 选用第三方 provider 时，默认 ThinkAI profile 使用本仓库的 `scripts/thinkai-image-runtime.mjs`，默认模型保持 `gpt-image-2`。图片请求尺寸由当前 run 的平台 generation spec 决定；provider 不再用未验证的通用尺寸白名单替换平台目标。
+图片请求尺寸始终由当前 run 的平台 generation spec 决定；provider profile 不得用未验证的通用尺寸白名单替换平台目标。`Codex Native` 与 `NVIDIA FLUX` 是内置 profile。ThinkAI 只是一个可选外部 profile，使用本仓库的 `scripts/thinkai-image-runtime.mjs`，可配置自己的 base URL、模型、key 环境变量和 capabilities。
 
 ```bash
 export THINKAI_IMAGE_API_KEY="<YOUR_THINKAI_IMAGE_API_KEY>"
@@ -163,7 +170,23 @@ export THINKAI_IMAGE_API_KEY="<YOUR_THINKAI_IMAGE_API_KEY>"
 如需手动轮换或重新配置，也可运行：
 
 ```bash
-npm run configure:image-provider-interactive
+npm run providers:select-interactive
+```
+
+这个弹窗只切换已保存的 profile，不会在生成过程中改路由。维护多个第三方 endpoint、模型或 key 时，使用同一份本地 registry：
+
+```bash
+# 查看（不会显示 key）
+npm run providers:list
+
+# 新增或更新一个外部 profile；优先用 --api-key-stdin，避免 key 出现在 shell 历史
+printf '%s\n' "<API_KEY>" | npm run providers:upsert -- \
+  --id thinkai-team --label ThinkAI --runtime openai_images \
+  --base-url https://www.thinkai.tv/v1 --model gpt-image-2 \
+  --api-key-env THINKAI_IMAGE_API_KEY --api-key-stdin --set-active
+
+# 非交互切换到已有 profile
+npm run providers:select -- --id codex-native
 ```
 
 当用户明确选择把 key 粘贴进本地 Codex 对话时，可以由当前本地任务代为配置；但对话文本可能保留在聊天记录中，因此默认优先使用上述本地隐藏输入框。
@@ -172,17 +195,17 @@ npm run configure:image-provider-interactive
 
 ```bash
 cd ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial
-npm run configure:image-provider -- --api-key "<YOUR_THINKAI_IMAGE_API_KEY>"
+npm run providers:upsert -- --id thinkai-team --label ThinkAI --runtime openai_images --base-url https://www.thinkai.tv/v1 --model gpt-image-2 --api-key-env THINKAI_IMAGE_API_KEY --api-key "<YOUR_THINKAI_IMAGE_API_KEY>" --set-active
 ```
 
 Windows PowerShell 默认路径示例：
 
 ```powershell
 cd "$env:USERPROFILE\.codex\skills\sellerpilot-product-image-industrial"
-npm run configure:image-provider -- --api-key "<YOUR_THINKAI_IMAGE_API_KEY>"
+npm run providers:upsert -- --id thinkai-team --label ThinkAI --runtime openai_images --base-url https://www.thinkai.tv/v1 --model gpt-image-2 --api-key-env THINKAI_IMAGE_API_KEY --api-key "<YOUR_THINKAI_IMAGE_API_KEY>" --set-active
 ```
 
-运行时默认 base URL 是 `https://www.thinkai.tv/v1`，默认模型固定为 `gpt-image-2`。可用 dry-run 检查请求快照，不会真实调用网络：
+ThinkAI profile 内的 base URL 与模型由该 profile 定义，例如 `https://www.thinkai.tv/v1` 与 `gpt-image-2`；它们不是主 skill 的默认值。可用 dry-run 检查请求快照，不会真实调用网络：
 
 ```bash
 npm run generate:proxy -- \
@@ -201,7 +224,7 @@ npm run generate:proxy -- \
   --dry-run
 ```
 
-NVIDIA Build 的 FLUX 是另一条显式可选路线，不会替换默认 ThinkAI。它使用 NVIDIA GenAI JSON API（不是 ThinkAI/OpenAI Images API），目前支持 `FLUX.1-dev`、`FLUX.1-schnell`、`FLUX.1-Kontext-dev` 和默认的 `FLUX.2-klein-4b`。配置 NVIDIA key 后可切换：
+NVIDIA Build 的 FLUX 是一个内置且显式可选的 profile；它不会替换当前选中的 provider。它使用 NVIDIA GenAI JSON API（不是 ThinkAI/OpenAI Images API），目前支持 `FLUX.1-dev`、`FLUX.1-schnell`、`FLUX.1-Kontext-dev` 和默认的 `FLUX.2-klein-4b`。配置 NVIDIA key 后可切换：
 
 ```bash
 npm run configure:nvidia-flux -- --api-key "<YOUR_NVIDIA_API_KEY>"
@@ -269,7 +292,7 @@ Codex 应该会使用内置的 `skill-installer`。安装成功后，重启 Code
 用户不需要安装 ThinkAI 版。若 Codex 当前使用第三方 provider，直接在对话中说：
 
 ```text
-请为 sellerpilot-product-image-industrial 配置第三方图片 provider。优先读取当前 Codex 配置；若缺少图片 API key，再向我索取。默认使用 ThinkAI https://www.thinkai.tv/v1 和 gpt-image-2。不要输出或提交 key。
+请为 sellerpilot-product-image-industrial 配置一个命名的外部图片 provider profile。优先读取当前 Codex 配置或已保存的 profile；若缺少图片 API key，再向我索取。不要输出或提交 key，也不要把 ThinkAI 设为默认 profile。
 ```
 
 若用户明确需要其他 OpenAI-compatible endpoint，只需额外提供其 `base_url`、模型名和 API key 环境变量名称。
@@ -369,11 +392,16 @@ npm run qa:native-imagegen-ledger -- --run-dir /abs/run
 没有官方 Codex native `imagegen` 权限的账号，直接配置并使用 OpenAI-compatible 第三方图片 API；不要尝试伪造 native 成功状态：
 
 ```bash
-# ThinkAI 是默认第三方 profile；也可以指定其他 OpenAI-compatible endpoint/model。
-npm run configure:image-provider -- \
+# ThinkAI 是显式外部 profile；也可保存任何其他 OpenAI-compatible endpoint/model。
+npm run providers:upsert -- \
+  --id thinkai-team \
+  --label ThinkAI \
+  --runtime openai_images \
   --api-key "<API_KEY>" \
+  --api-key-env THINKAI_IMAGE_API_KEY \
   --base-url "https://www.thinkai.tv/v1" \
-  --model "gpt-image-2"
+  --model "gpt-image-2" \
+  --set-active
 
 # This resolves native versus third party from the current config and writes a run-local handoff.
 npm run dispatch:image-generation -- \

@@ -110,7 +110,7 @@ try {
     : buildGenerationRequest({ model, prompt: args.prompt, size, quality, responseFormat, count });
 
   writeJson(path.join(outputDir, "request.json"), redactRequest(request.snapshot));
-  writeProgress("request_prepared", { output_dir: outputDir, requested_size: size, quality, n: count });
+  writeProgress("request_prepared", { output_dir: outputDir, requested_size: size, quality, n: count, request_timeout_seconds: requestTimeoutSeconds });
 
   if (args["dry-run"]) {
     const summary = {
