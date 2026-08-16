@@ -5,10 +5,6 @@
       "description": "Compiler-adjacent orchestration, provider control, phase trace, and QA loop compatibility probes.",
       "filters": ["generation spec", "production orchestrator", "phase tracer", "provider instability", "qa loop"]
     },
-    "natural-finish": {
-      "description": "Adaptive natural-image finishing, lineage, and artifact proof probes.",
-      "filters": ["adaptive natural image finish", "natural image finish lineage"]
-    },
     "canvas-review": {
       "description": "tldraw workspace, launcher, and completion handoff probes.",
       "filters": ["tldraw workspace", "post-generation tldraw", "review completion"]

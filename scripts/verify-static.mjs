@@ -127,7 +127,7 @@ check("decision-first canvas review boundary", () => {
 check("integration suite registry invariants", () => {
   const registry = JSON.parse(read("contracts/integration-suite-registry.json"));
   if (registry.schema_version !== "sellerpilot.integration_suite_registry.v1") throw new Error("integration suite registry schema version is invalid");
-  for (const name of ["control-plane", "natural-finish", "canvas-review", "delivery"]) if (!registry.suites?.[name]?.filters?.length) throw new Error(`integration suite ${name} has no filters`);
+  for (const name of ["control-plane", "canvas-review", "delivery"]) if (!registry.suites?.[name]?.filters?.length) throw new Error(`integration suite ${name} has no filters`);
 });
 for (const file of fs.readdirSync(path.join(skillRoot, "scripts")).filter((name) => name.endsWith(".mjs")).sort()) {
   check(`syntax ${file}`, () => {

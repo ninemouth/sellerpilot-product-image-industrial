@@ -4,6 +4,7 @@ import http from "node:http";
 import net from "node:net";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
+import { cleanInstallArgs, resolvePackageManager, scriptArgs } from "./lib/package-manager.mjs";
 
 function parseArgs(argv) {
   const args = {};
@@ -23,11 +24,11 @@ function parseArgs(argv) {
 
 function usage() {
   console.error(`Usage:
-node scripts/start-tldraw-review-workspace.mjs --workspace-dir /abs/run/review-workspace [--port 5190] [--no-install] [--dry-run]
+node scripts/start-tldraw-review-workspace.mjs --workspace-dir /abs/run/review-workspace [--port 5190] [--package-manager npm|pnpm] [--allow-install] [--dry-run]
 
-Starts one Vite/tldraw review server per workspace directory. If an existing
-server for the same workspace is still alive, it returns that server instead of
-starting another instance.`);
+Starts one Vite/tldraw review server per workspace directory. Normal production
+startup reuses prepared dependencies. --allow-install is only for an explicit
+isolated fallback setup.`);
   process.exit(2);
 }
 
@@ -42,6 +43,11 @@ const waitMs = args["wait-ms"] ? Number(args["wait-ms"]) : 20000;
 
 if (!fs.existsSync(path.join(workspaceDir, "package.json"))) {
   throw new Error(`Workspace package.json not found: ${workspaceDir}`);
+}
+const packageManager = resolvePackageManager({ cwd: workspaceDir, requested: args["package-manager"] });
+if (packageManager.status !== "ready") {
+  console.log(JSON.stringify({ status: "blocked_canvas_package_manager_unavailable", message: packageManager.message }, null, 2));
+  process.exit(1);
 }
 
 const existing = readJson(statePath);
@@ -80,8 +86,15 @@ if (args["dry-run"]) {
   process.exit(0);
 }
 
-if (!args["no-install"] && !fs.existsSync(path.join(workspaceDir, "node_modules"))) {
-  const install = spawnSync("npm", ["install"], {
+if (!fs.existsSync(path.join(workspaceDir, "node_modules"))) {
+  if (!args["allow-install"]) {
+    console.log(JSON.stringify({
+      status: "blocked_canvas_dependencies_not_prepared",
+      message: "Workspace dependencies are not prepared. Reuse the shared canvas service or explicitly prepare this isolated fallback workspace.",
+    }, null, 2));
+    process.exit(1);
+  }
+  const install = spawnSync(packageManager.command, cleanInstallArgs(packageManager.command), {
     cwd: workspaceDir,
     stdio: "inherit",
   });
@@ -94,7 +107,7 @@ fs.mkdirSync(path.dirname(statePath), { recursive: true });
 fs.mkdirSync(logDir, { recursive: true });
 const stdout = fs.openSync(path.join(logDir, "vite.stdout.log"), "a");
 const stderr = fs.openSync(path.join(logDir, "vite.stderr.log"), "a");
-const child = spawn("npm", ["run", "dev", "--", "--port", String(port)], {
+const child = spawn(packageManager.command, scriptArgs(packageManager.command, "dev", ["--", "--port", String(port)]), {
   cwd: workspaceDir,
   detached: true,
   stdio: ["ignore", stdout, stderr],

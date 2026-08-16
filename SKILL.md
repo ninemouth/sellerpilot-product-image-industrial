@@ -46,8 +46,6 @@ During installation or update, run `ensure-image-provider-configuration.mjs` aft
 
 The shared tldraw canvas is prepared during skill installation and update at `${CODEX_HOME:-$HOME/.codex}/sellerpilot-product-image-industrial/canvas-service`. Do not run dependency installation during a product-image task. When the canvas is missing or its lockfile changes, complete preparation first; normal post-generation startup may only reuse prepared dependencies and verify the local service.
 
-The required adaptive natural image finish runtime follows the same install-time rule. Skill installation/update runs `scripts/prepare-natural-image-runtime.mjs` to detect Python and FFmpeg, create an isolated virtual environment, install NumPy/Pillow/OpenCV/SciPy, and self-check the stack. Production tasks only run `--check`; they must not install into the global Python environment or install packages while generation is active. Every generated final image in the current run manifest must pass the adaptive batch before marketing/export/final delivery gates, including the internal camera/Photoshop A/B naturalness review that catches excessive tone, color, contrast, or pixel drift before batch promotion.
-
 Do not copy competitor visuals, invent product facts, auto-publish assets, or promise CTR, CVR, ROAS, ACOS, ranking, or sales lift.
 
 ## Production Update Gate
@@ -87,8 +85,6 @@ or:
 Do not require the user to recite the industrial workflow, QA policy, generation boundary, blocked-runtime behavior, model name, tool name, or review-canvas rules. Infer the missing production steps from the product/category/platform request, resolve the configured provider route first, then execute only that route: system `imagegen` / built-in `image_gen` for native Codex, or the resolved OpenAI-compatible runtime for any configured third-party provider. Never infer a provider from membership, never silently replace a configured third-party route with ThinkAI or native generation, and only create a request pack as fallback or audit evidence when generation cannot be executed or when the user explicitly asks for it.
 
 The long strict prompt is an internal acceptance policy, not a required user prompt.
-
-Natural image finish is also a short natural request, not a prompt-engineering burden. Treat requests such as "让这批图更自然", "降低 AI 味", "对这个 run 做自然质感收尾", "继续历史任务，只优化自然质感，不重生图", or "独立测试自然质感能力" as sufficient. Do not ask the user to name FFT, profiles, noise, blur, sharpening, lineage, or gate reruns. Do not add these natural-finish internals to the provider generation prompt; apply them only after final images exist, or in an isolated processor test when the user asks to test the capability.
 
 Never expose sandbox, DNS, network-permission, raw curl, API-key, or local-path diagnostics as a user-facing production update. Keep those only in the run diagnostic files. A user-facing failure message may state that the affected asset is blocked, that completed assets were preserved, and the smallest safe next action; it must not claim that Codex will bypass a sandbox or alter API configuration.
 
@@ -217,7 +213,7 @@ Use the compiler and contracts as the production control plane; do not hand-auth
 - **Source identity, printed material, geometry, product facts, or physical claims:** read the matching identity, source-understanding, surface-material, geometry, or physical-truth reference before prompt generation.
 - **Visible copy, localization, personalized text, or graphic layout:** read [copy-strategy-loop.md](references/copy-strategy-loop.md), [prompt-layering-subloop.md](references/prompt-layering-subloop.md), and [personalized-prompt-delivery.md](references/personalized-prompt-delivery.md) as applicable.
 - **Scenes, commercial photography, buyer positioning, platform/category research, or conversion work:** load only the applicable scene, photography, visual-director, audience, platform, or bestseller reference.
-- **Generated images, naturalization, export, delivery, canvas review, or revision:** read [natural-image-finish.md](references/natural-image-finish.md), [marketing-quality-gates.md](references/marketing-quality-gates.md), [output-contract.md](references/output-contract.md), [review-canvas.md](references/review-canvas.md), and [qa-loop-routing.md](references/qa-loop-routing.md) only for the gates in scope.
+- **Generated images, export, delivery, canvas review, or revision:** read [marketing-quality-gates.md](references/marketing-quality-gates.md), [output-contract.md](references/output-contract.md), [review-canvas.md](references/review-canvas.md), and [qa-loop-routing.md](references/qa-loop-routing.md) only for the gates in scope.
 
 Use [production-runtime-runbook.md](references/production-runtime-runbook.md) for exact CLI invocations, provider setup, native callback recording, telemetry, watchdog, lineage backfill, canvas service, and review completion mechanics. It is intentionally not loaded for ordinary planning.
 
@@ -362,7 +358,6 @@ Read these skill references as needed:
 - `references/multi-source-image-fusion.md` for multi-image source classification, complementary enhancement, and identity-lock fusion.
 - `references/visual-director.md` for photography, camera angle, lighting, scene, detail-crop, and buyer-facing-copy direction.
 - `references/source-image-quality.md` for source-photo preflight and enhancement.
-- `references/natural-image-finish.md` for install-time Python/FFmpeg dependency preparation and the required all-final-image adaptive finishing batch.
 - `references/source-product-understanding.md` for source-image product recognition, AI-first text reading, conditional OCR fallback, text fact extraction, and propagation into locks.
 - `references/platform-category-research.md` for web-search backed platform/category tone research.
 - `references/loop-efficiency.md` for gated generation loops and retry budgets.

@@ -489,15 +489,6 @@ Use this before final delivery for every source-backed product image set and for
 
 For printed/woven fabric bags, the review cannot be a single generic `pass`. Each product-bearing final image must explicitly pass bucket/body silhouette and proportions, opening/interior lining, strap/handle route, canonical motif/pattern, and woven/cotton-poly texture. Missing evidence or notes describing motif drift, material drift, tote/structured-bag drift, glossy/plastic/leather-like texture, or similar-product substitution must fail.
 
-After all current-run final images exist and product/background consistency has passed, apply the adaptive natural finish to the complete manifest in one transactional batch:
-
-```bash
-node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/natural-image-finish-batch.mjs \
-  --run-dir /abs/run
-```
-
-The user-facing request for this step should stay simple, for example "让这批图更自然" or "继续这个 run，只做自然质感收尾，不重生图". Internally, the batch does not use one parameter set for every image. It combines structured role/panel metadata with pixel inspection and selects `photographic_scene`, `studio_product`, `macro_detail`, `graphic_text`, `transparent_asset`, or `hybrid_commerce`. The processor then runs a visual-state camera/Photoshop realism check rather than a product-category recipe: high-key, low-key, flat render, glossy, matte/smooth, macro, graphic, transparent, lifestyle camera scene, and studio clean product states can receive bounded white-balance and color-temperature correction, filmic highlight shoulder and shadow toe, Photoshop-style local contrast/clarity, material microtexture, surface mottle, chroma drift, signal-dependent sensor grain, subtle lens edge softness, and highlight bloom. Each asset proof includes a camera/Photoshop A/B naturalness review comparing before/after luminance variation, local contrast, saturation shift, white-balance drift, and mean pixel movement; blocked reviews stop the transaction before replacing final images, while warnings remain human-review signals. The processor writes spectral diagnostics and may apply restrained FFT notch attenuation only when a concrete periodic artifact is detected above the selected profile threshold; it does not run generic "AI frequency" suppression. Visible-text assets use conservative processing plus text-region restoration and then require `post-natural-finish-visible-text-review.mjs` evidence bound to each final file hash. Transparent assets preserve their alpha channel. Originals remain in `generated-assets/natural-finish-originals/`, all outputs are staged before promotion, and a failed batch preserves/restores the complete original set. Successful processing writes batch/gate/per-asset proofs and preserves upstream provider/text-overlay lineage under `natural_image_finish`. This is a natural-quality finish, not AI-detector evasion; do not add CLIP-detector adversarial perturbations or describe the output as detector-resistant. Read `references/natural-image-finish.md` for the full execution and review contract.
-
 ```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/backfill-final-image-lineage.mjs \
   --run-dir /abs/run \
@@ -652,10 +643,11 @@ Isolated fallback server for one workspace:
 
 ```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/start-tldraw-review-workspace.mjs \
-  --workspace-dir /abs/run/review-workspace
+  --workspace-dir /abs/run/review-workspace \
+  --allow-install
 ```
 
-This writes `data/server-state.json` with the selected localhost URL. It starts at most one server per workspace directory. Use it only when the shared service is undesirable, unavailable, or isolation is explicitly required.
+This writes `data/server-state.json` with the selected localhost URL. It starts at most one server per workspace directory. Use it only when the shared service is undesirable, unavailable, or isolation is explicitly required; `--allow-install` is an explicit isolated setup action, not normal production startup.
 
 After the user exports or saves annotations, convert them into generation tasks:
 

@@ -230,10 +230,10 @@ fs.writeFileSync(path.join(outDir, "HOW_TO_USE_WITH_CODEX.md"), [
   "Controlled launcher:",
   "",
   "```bash",
-  `node ${path.join(skillRoot, "scripts", "start-tldraw-review-workspace.mjs")} --workspace-dir ${outDir}`,
+  `node ${path.join(skillRoot, "scripts", "start-tldraw-review-workspace.mjs")} --workspace-dir ${outDir} --allow-install`,
   "```",
   "",
-  "The isolated launcher writes `data/server-state.json` and reuses a live server for this workspace instead of starting duplicates.",
+  "The isolated launcher writes `data/server-state.json`, reuses a live server for this workspace instead of starting duplicates, and requires explicit --allow-install because normal production uses the prewarmed shared service.",
   "",
 ].join("\n"));
 

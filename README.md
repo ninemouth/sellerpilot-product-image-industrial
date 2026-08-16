@@ -18,7 +18,7 @@
 - **内置 profile 与外部 profile 分离**：`Codex Native`、`NVIDIA FLUX` 为内置 profile；ThinkAI 和任意 OpenAI-compatible 服务都必须作为明确命名的外部 profile 保存，绝不再是主 skill 的隐式默认。
 - **可维护、可切换的 provider 配置**：`providers:list`、`providers:upsert`、`providers:select` 与跨平台 provider 选择弹窗管理多个 endpoint/key；profile 选择在 run 开始时锁定，运行中不重复授权，也不会静默回退。
 - **停止把心跳当作进展**：第三方 dispatch 现在为每个角色写入 run-local progress 文件，并传递 run-local 15 分钟请求上限。watchdog 使用 10 分钟“有意义的 provider 进展”阈值，识别 `provider_wait_stale`，保留已完成素材、只修复失败角色，不据单次慢任务修改全局 timeout。
-- **QA 链路不因 provider 改变**：只要图片进入当前 run manifest，身份、营销、文本、自然质感、背景/card、导出、lineage 与 Final Delivery Gate 仍全部执行；provider 卡住时会在生成前阶段收敛，而不是把未审核图交付。
+- **QA 链路不因 provider 改变**：只要图片进入当前 run manifest，身份、营销、文本、背景/card、导出、lineage 与 Final Delivery Gate 仍全部执行；provider 卡住时会在生成前阶段收敛，而不是把未审核图交付。
 
 2026-07-31 Loop Engineering 与第三方 provider 配置体验升级：
 
@@ -26,16 +26,6 @@
 - **自动第三方配置引导**：安装或更新后，若当前 Codex 确实解析为第三方代理但缺少可用 key，会自动启动本机密码遮蔽输入框；macOS、Windows 和可用 Zenity/KDialog 的 Linux 桌面环境均支持。原生路由、已有 key、CI/headless 或用户取消不会触发错误回退或覆盖现有 key。
 - **唯一执行路由**：用户请求正式生图即授权 resolver 选定的原生或第三方路径；`configuration_required` 仅是本机技术配置状态，绝不静默切换 provider，也不要求每轮生成重复授权。
 - **可审计失败收敛**：不可重试的 provider 拒绝会写入最小化的 run 级安全诊断并立即打开 circuit breaker；不再堆叠相同 prompt 重试。
-
-2026-07-20 自然质感能力升级为全量自适应批处理，并保留依赖自准备：
-
-- **安装/更新自动准备依赖**：同步主 skill 时自动检测 Python、FFmpeg、NumPy、Pillow、OpenCV 和 SciPy；缺少 FFmpeg 时按 macOS/Linux/Windows 可用的包管理器尝试安装，并把 Python 库放进独立虚拟环境，不污染全局 Python。
-- **正式生图不临时装包**：生产任务只检查运行环境是否 ready；缺失或版本过期时保留已批准图片并阻断该可选阶段，回到安装/更新流程准备。
-- **所有正式成品图都批量处理**：当前 run manifest 中的每张生成图片都会进入同一事务批次，不再只处理无字摄影图；整批成功后才替换成品，失败则保留/恢复原图。
-- **按图识别后使用不同参数**：结合图片角色和像素特征，自动区分场景图、棚拍商品图、微距细节、文字信息图、透明素材和混合电商图；不同类型使用不同亮度/色度颗粒、模糊、锐化、对比、tone curve、频谱诊断和编码策略。
-- **频谱只做伪影修复**：新增 FFT 周期峰值诊断；只有检测到具体条纹、网格、振铃等周期性伪影且超过 profile 阈值时，才做克制 notch attenuation，不做通用 AI 频率指纹压制。
-- **文字与透明通道有专门保护**：带文字图片使用保守参数并恢复文字区域，之后必须做逐图哈希绑定的可见文字复核；透明图片保留原 alpha。
-- **派生资产可追溯**：处理器写入原图备份、输入/输出哈希、依赖版本、分类、参数、随机种子、QA proof 和 `natural_image_finish` lineage；后续仍需身份一致性、文字、营销、导出和 Final Delivery Gate。
 
 2026-07-15 版本收敛为一个用户入口和自动 provider 路由：
 
@@ -91,8 +81,6 @@
 - Codex Desktop 或支持本地 skills 的 Codex 环境。
 - Node.js 20 或更新版本。
 - npm。
-- Python 3.10+ 与 FFmpeg；安装/更新流程会自动检测，FFmpeg 缺失时会尝试通过当前系统可用的包管理器安装。
-- NumPy、Pillow、OpenCV、SciPy：无需手工装到全局 Python，skill 会在独立虚拟环境中自动准备。
 - 可选：`tesseract`，用于 AI 视觉识别不确定时本地 OCR 兜底读取源图文字。
 - 可选：Google Chrome、Microsoft Edge 或 Playwright 浏览器，用于 HTML/画布渲染。
 - 可选：第三方图片 API key。只有主动选择 NVIDIA FLUX 或一个已保存的外部 provider profile 时才需要；新 registry 默认选择 Codex Native。
@@ -258,14 +246,7 @@ Windows 默认路径是：
 %USERPROFILE%\.codex\skills\sellerpilot-product-image-industrial
 ```
 
-`npm run sync:codex` 在复制并校验主 skill 后，会自动准备共享 tldraw 依赖和自然质感收尾运行环境。也可以单独检查或准备：
-
-```bash
-npm run check:natural-image-runtime
-npm run prepare:natural-image-runtime
-```
-
-正式商品图任务只运行 check，不会边生图边安装第三方库。
+`npm run sync:codex` 在复制并校验主 skill 后，会准备共享 tldraw 依赖并检查当前 Node 包管理器。它根据 lockfile 选择 `npm` 或 `pnpm`；仓库只有 `package-lock.json` 时固定使用 npm，以避免生成第二套 lockfile。正式商品图任务不会在生图期间安装依赖。
 
 同步默认运行快速发布基线（static、Loop Engineering unit、skill package），避免把完整 legacy 验证链变成每次安装的长耗时阻塞。需要在 CI 或发布审计中显式运行完整历史回归时使用：
 
@@ -328,13 +309,13 @@ git clone https://github.com/ninemouth/sellerpilot-product-image-industrial.git
 cd sellerpilot-product-image-industrial
 ```
 
-验证开发目录（默认快速 static + unit，不启动 canvas/Python 长链）：
+验证开发目录（默认快速 static + unit，不启动 canvas 长链）：
 
 ```bash
 npm run verify
 ```
 
-需要测试完整 legacy canvas、Python natural-finish 与 provider mock 集成链时，显式运行：
+需要测试完整 legacy canvas 与 provider mock 集成链时，显式运行：
 
 ```bash
 npm run verify:integration
@@ -344,7 +325,6 @@ npm run verify:integration
 
 ```bash
 npm run verify:integration -- --filter "generation spec"
-npm run verify:integration -- --filter "natural image"
 npm run verify:integration -- --filter "tldraw workspace"
 ```
 
@@ -352,7 +332,6 @@ npm run verify:integration -- --filter "tldraw workspace"
 
 ```bash
 npm run verify:integration -- --suite control-plane
-npm run verify:integration -- --suite natural-finish
 npm run verify:integration -- --suite canvas-review
 npm run verify:integration -- --suite delivery
 ```
@@ -361,8 +340,8 @@ npm run verify:integration -- --suite delivery
 
 ```bash
 npm run verify:integration -- \
-  --suite natural-finish \
-  --report /abs/release-evidence/natural-finish-report.json
+  --suite delivery \
+  --report /abs/release-evidence/delivery-report.json
 ```
 
 `npm run verify:skill-package` 是不依赖全局 Python/YAML 模块的 skill frontmatter 与 `agents/openai.yaml` 校验；它与 `npm run verify` 一起用于发布前基础检查。
@@ -641,33 +620,6 @@ npm run qa:personalized-text -- \
   --font-family "Snell Roundhand" \
   --visible-text-status pass
 ```
-
-所有正式生成图片进入当前 run 的 final manifest 后，运行全量自适应批处理：
-
-```bash
-npm run finish:natural-image-batch -- \
-  --run-dir runs/demo-amazon-bag
-```
-
-它会根据 panel/role 和图片像素自动选择 `photographic_scene`、`studio_product`、`macro_detail`、`graphic_text`、`transparent_asset` 或 `hybrid_commerce`，不会给所有图片套同一组参数。随后它会按视觉状态而不是商品类别做 camera / Photoshop realism 判断，例如 high-key、low-key、flat render、glossy、matte/smooth、macro、graphic、transparent、lifestyle camera scene、studio clean product。处理器会在内部触发有上限的相机/后期调参：白平衡与色温校正、filmic 高光肩部和阴影 toe、Photoshop 式局部对比/clarity、平滑材质区域微纹理、低频明暗/色温微漂移、信号相关颗粒、轻微镜头边缘柔化和高光 bloom。每张图都会写处理前/处理后的 A/B 自然度复核，比较局部对比、亮度分布、饱和度漂移、白平衡偏移和平均像素改动；普通 warning 作为人工复核信号，明显过度处理会阻断整批替换。原图保存在当前 run 的 `generated-assets/natural-finish-originals/`。带文字图片处理后会进入 `post-natural-finish-visible-text-review`，透明图会保留 alpha。它不是“去 AI 检测”工具，也不能保证图片被判断为人类制作；目标只是以克制、可审计的摄影成像与人工后期视觉统计降低不自然的数字塑料感。不会加入 CLIP-based adversarial perturbation 或其他检测器对抗扰动。
-
-当批次包含可见文字时，完成视觉复核后用结构化证据收口：
-
-```bash
-npm run qa:post-natural-finish-text -- \
-  --run-dir runs/demo-amazon-bag \
-  --evidence runs/demo-amazon-bag/qa/post-finish-review-evidence.json
-```
-
-历史任务不需要整套重生图，也不需要用户背内部流程。对话里直接说下面任意一句就够：
-
-```text
-继续这个历史任务，只做自然质感收尾，不重生图。
-让这批图更自然，降低 AI 味。
-独立测试自然质感能力。
-```
-
-skill 会从该任务自己的 manifest 读取图片，并把处理前原图保留在同一 run 下。FFT、profile、文字复核、lineage 和最终 gate 都是内部执行细节，不应该写进生图提示词。
 
 最终导出后，manifest 需要能说明每张图的来源。若包含裁切、衍生、失败角色修复或本地文字合成，运行：
 

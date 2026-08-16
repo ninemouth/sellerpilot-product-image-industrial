@@ -7,6 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { skillRootFrom } from "./lib/skill-paths.mjs";
+import { cleanInstallArgs, resolvePackageManager, scriptArgs } from "./lib/package-manager.mjs";
 
 function parseArgs(argv) {
   const args = {};
@@ -26,7 +27,7 @@ function parseArgs(argv) {
 
 function usage() {
   console.error(`Usage:
-node scripts/start-tldraw-shared-service.mjs [--shared-root ~/.codex/sellerpilot-canvas-service] [--port 5190] [--session-id ...] [--prepare-only] [--dry-run]
+node scripts/start-tldraw-shared-service.mjs [--shared-root ~/.codex/sellerpilot-canvas-service] [--port 5190] [--session-id ...] [--package-manager npm|pnpm] [--prepare-only] [--dry-run]
 
 Prepares or starts one shared tldraw canvas service. Preparation syncs the
 template and installs dependencies once during skill install/update; normal
@@ -50,7 +51,7 @@ const templateSync = syncSharedTemplate({
   sharedRoot,
   dryRun: Boolean(args["dry-run"]) || !preparing,
 });
-const dependency = prepareDependencies({ sharedRoot, dryRun: Boolean(args["dry-run"]), templateSync, allowInstall: preparing });
+const dependency = prepareDependencies({ sharedRoot, dryRun: Boolean(args["dry-run"]), templateSync, allowInstall: preparing, requestedPackageManager: args["package-manager"] });
 
 if (args["prepare-only"]) {
   console.log(JSON.stringify({
@@ -114,7 +115,12 @@ fs.mkdirSync(path.dirname(statePath), { recursive: true });
 fs.mkdirSync(logDir, { recursive: true });
 const stdout = fs.openSync(path.join(logDir, "vite.stdout.log"), "a");
 const stderr = fs.openSync(path.join(logDir, "vite.stderr.log"), "a");
-const child = spawn("npm", ["run", "dev", "--", "--port", String(port), "--strictPort"], {
+const runtimePackageManager = resolvePackageManager({ cwd: sharedRoot, requested: args["package-manager"] });
+if (runtimePackageManager.status !== "ready") {
+  console.log(JSON.stringify({ status: "blocked_canvas_package_manager_unavailable", message: runtimePackageManager.message }, null, 2));
+  process.exit(1);
+}
+const child = spawn(runtimePackageManager.command, scriptArgs(runtimePackageManager.command, "dev", ["--", "--port", String(port), "--strictPort"]), {
   cwd: sharedRoot,
   detached: true,
   stdio: ["ignore", stdout, stderr],
@@ -207,16 +213,18 @@ function syncSharedTemplate({ templateDir: sourceDir, sharedRoot: destDir, dryRu
   return result;
 }
 
-function prepareDependencies({ sharedRoot: root, dryRun, templateSync, allowInstall }) {
+function prepareDependencies({ sharedRoot: root, dryRun, templateSync, allowInstall, requestedPackageManager }) {
   const markerPath = path.join(root, "data", "dependency-preparation.json");
   const lockPath = path.join(root, "package-lock.json");
   const lockHash = fs.existsSync(lockPath) ? crypto.createHash("sha256").update(fs.readFileSync(lockPath)).digest("hex") : "";
   const existing = readJson(markerPath);
   const needsInstall = !dependenciesReady(root) || existing?.lock_hash !== lockHash || templateSync.changed;
-  if (!needsInstall) return { status: "already_prepared", lock_hash: lockHash, marker_path: markerPath };
-  if (!allowInstall) return { status: "not_prepared", lock_hash: lockHash, marker_path: markerPath };
-  if (dryRun) return { status: "dry_run", lock_hash: lockHash, marker_path: markerPath, would_install: true };
-  const install = spawnSync("npm", ["ci", "--no-audit", "--no-fund"], { cwd: root, stdio: "inherit" });
+  const packageManager = resolvePackageManager({ cwd: root, requested: requestedPackageManager });
+  if (packageManager.status !== "ready") return { status: "package_manager_unavailable", lock_hash: lockHash, marker_path: markerPath, message: packageManager.message };
+  if (!needsInstall) return { status: "already_prepared", lock_hash: lockHash, marker_path: markerPath, package_manager: packageManager.command };
+  if (!allowInstall) return { status: "not_prepared", lock_hash: lockHash, marker_path: markerPath, package_manager: packageManager.command };
+  if (dryRun) return { status: "dry_run", lock_hash: lockHash, marker_path: markerPath, package_manager: packageManager.command, would_install: true };
+  const install = spawnSync(packageManager.command, cleanInstallArgs(packageManager.command), { cwd: root, stdio: "inherit" });
   if (install.status !== 0) return { status: "failed", lock_hash: lockHash, marker_path: markerPath };
   fs.mkdirSync(path.dirname(markerPath), { recursive: true });
   fs.writeFileSync(markerPath, JSON.stringify({
@@ -224,8 +232,9 @@ function prepareDependencies({ sharedRoot: root, dryRun, templateSync, allowInst
     status: "prepared",
     prepared_at: new Date().toISOString(),
     lock_hash: lockHash,
+    package_manager: packageManager.command,
   }, null, 2));
-  return { status: "prepared", lock_hash: lockHash, marker_path: markerPath };
+  return { status: "prepared", lock_hash: lockHash, marker_path: markerPath, package_manager: packageManager.command };
 }
 
 function dependenciesReady(root) {

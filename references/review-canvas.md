@@ -66,7 +66,8 @@ Use the isolated workspace launcher only when the shared service is unavailable 
 
 ```bash
 node scripts/start-tldraw-review-workspace.mjs \
-  --workspace-dir /abs/run/review-workspace
+  --workspace-dir /abs/run/review-workspace \
+  --allow-install
 ```
 
 Capabilities:

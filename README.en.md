@@ -12,7 +12,6 @@ The current release consolidates the production system around a contract-driven 
 - Provider attempts, retries, QA routes, delivery closure, image lineage, and cost evidence share one run state.
 - The skill starts with a small anchor batch, validates identity and direction, then generates only approved missing roles. It does not spend an entire multi-image budget before reviewing direction.
 - A non-retryable provider refusal opens a circuit breaker immediately. The skill preserves completed assets and routes only the smallest affected repair instead of repeating the same prompt.
-- Every final generated image receives adaptive natural-image finishing with role-aware, conservative parameters, visible-text protection, alpha preservation, lineage, and re-run gates.
 
 ## What it does
 
@@ -36,8 +35,7 @@ The current release consolidates the production system around a contract-driven 
 ## Requirements
 
 - Codex Desktop or another Codex environment with local skills.
-- Node.js 20+ and npm.
-- Python 3.10+ and FFmpeg for adaptive natural-image finishing. Install/update prepares an isolated runtime; active production only checks readiness and never changes the global Python environment.
+- Node.js 20+ and a detected lockfile-compatible package manager (npm for this repository’s `package-lock.json`; pnpm when a `pnpm-lock.yaml` is supplied).
 - Optional: Tesseract for conditional local OCR when visual reading is uncertain.
 - Optional: Chrome, Edge, or Playwright for review rendering.
 - Optional but required for third-party image routing: an OpenAI-compatible image API key.
@@ -137,7 +135,7 @@ npm run verify
 npm run sync:codex
 ```
 
-`sync:codex` runs the release baseline (static contracts, Loop Engineering unit tests, and skill-package validation), backs up the previous installation, copies the single main skill, verifies source/destination parity, prepares the tldraw and natural-finish runtime, and then performs the automatic provider configuration check. The expensive legacy verifier is not a default installation tax.
+`sync:codex` runs the release baseline (static contracts, Loop Engineering unit tests, and skill-package validation), backs up the previous installation, copies the single main skill, verifies source/destination parity, prepares the tldraw runtime with the lockfile-compatible package manager, and then performs the automatic provider configuration check. The expensive legacy verifier is not a default installation tax.
 
 For headless release automation, defer only the local dialog:
 
@@ -178,7 +176,6 @@ Update check
 → anchor batch
 → identity/direction QA decision
 → only missing approved roles, at most two independent provider calls at once
-→ adaptive natural finish
 → focused QA, manifest, overview, tldraw workspace, final delivery gate
 ```
 
@@ -214,7 +211,7 @@ The skill will preserve the pattern as canonical product material, use Ozon's or
 - **Surface materials:** printed nails, tattoo transfers, stickers, textiles, patterned bags, apparel, accessories, and home textiles preserve the supplied material as canonical rather than freely redrawn visual inspiration.
 - **Text:** final visible text gets a layout proof before expensive final generation. Russian, German, Arabic, and other localization-sensitive output receives source traceability, translation review, script/RTL checks, and final raster text review.
 - **Scenes:** a product cutout on a decorative layout is not passed off as a lifestyle scene. Use/context roles require a real generated or photographic scene asset and a realism review.
-- **Lineage:** derived, repaired, local-text-overlay, reused, and natural-finished final assets record their source, transformation, and relevant gate evidence.
+- **Lineage:** derived, repaired, local-text-overlay, and reused final assets record their source, transformation, and relevant gate evidence.
 - **No watermark by default:** platform labels, system marks, `SellerPilot`, `Codex`, AI labels, and arbitrary marks are prohibited unless the user explicitly authorizes exact visible text, placement, purpose, and image scope.
 
 ## Verification and release checks
@@ -234,7 +231,6 @@ Run integration suites only when their domain is affected:
 
 ```bash
 npm run verify:integration -- --suite control-plane
-npm run verify:integration -- --suite natural-finish
 npm run verify:integration -- --suite canvas-review
 npm run verify:integration -- --suite delivery
 ```

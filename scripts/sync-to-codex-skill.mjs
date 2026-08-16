@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { skillRootFrom } from "./lib/skill-paths.mjs";
+import { resolvePackageManager, scriptArgs } from "./lib/package-manager.mjs";
 
 function parseArgs(argv) {
   const args = {};
@@ -23,7 +24,7 @@ function parseArgs(argv) {
 
 function usage() {
   console.error(`Usage:
-node scripts/sync-to-codex-skill.mjs [--source /abs/skill] [--dest /abs/codex/skill] [--remote-branch branch] [--skip-verify] [--full-verify] [--no-backup] [--skip-runtime-prepare] [--no-provider-config-prompt] [--include-diagnostics]
+node scripts/sync-to-codex-skill.mjs [--source /abs/skill] [--dest /abs/codex/skill] [--remote-branch branch] [--package-manager npm|pnpm] [--skip-verify] [--full-verify] [--no-backup] [--no-provider-config-prompt] [--include-diagnostics]
 
 Runs verification by default, backs up the installed skill, copies this project
 to the Codex skill directory, and verifies source/destination content matches.
@@ -81,10 +82,13 @@ if (!fs.existsSync(path.join(source, "SKILL.md"))) {
   throw new Error(`Source does not look like a skill folder: ${source}`);
 }
 
+const packageManager = resolvePackageManager({ cwd: source, requested: args["package-manager"] });
+if (packageManager.status !== "ready") throw new Error(packageManager.message);
+
 if (!args["skip-verify"]) {
   console.log("Running release baseline verification...");
-  run("npm", ["run", "verify"], { cwd: source });
-  run("npm", ["run", "verify:skill-package"], { cwd: source });
+  run(packageManager.command, scriptArgs(packageManager.command, "verify"), { cwd: source });
+  run(packageManager.command, scriptArgs(packageManager.command, "verify:skill-package"), { cwd: source });
   if (args["full-verify"]) {
     console.log("Running explicit full legacy verification...");
     run(process.execPath, [path.join(source, "scripts", "verify-skill.mjs")], { cwd: source });
@@ -112,31 +116,12 @@ if (differences.length) {
 const releaseMetadata = buildReleaseMetadata({ source, dest });
 fs.writeFileSync(path.join(dest, ".sellerpilot-skill-release.json"), JSON.stringify(releaseMetadata, null, 2));
 
-const naturalRuntimeRoot = path.join(codexHome, "sellerpilot-product-image-industrial", "natural-image-runtime");
-const naturalRuntimeScript = path.join(dest, "scripts", "prepare-natural-image-runtime.mjs");
-let naturalRuntimePreparationReport = { status: "not_applicable", ready: false };
-if (fs.existsSync(naturalRuntimeScript) && !args["skip-runtime-prepare"]) {
-  console.log("Checking and preparing natural image finish dependencies...");
-  const preparation = run(process.execPath, [
-    naturalRuntimeScript,
-    "--prepare",
-    "--skill-root", dest,
-    "--runtime-root", naturalRuntimeRoot,
-  ], { cwd: dest });
-  naturalRuntimePreparationReport = parseLastJson(preparation);
-  if (!naturalRuntimePreparationReport || !["prepared", "already_prepared"].includes(naturalRuntimePreparationReport.status)) {
-    throw new Error("Natural image finish dependency preparation did not complete.");
-  }
-} else if (args["skip-runtime-prepare"]) {
-  naturalRuntimePreparationReport = { status: "skipped", ready: false };
-}
-
 const canvasRoot = path.join(codexHome, "sellerpilot-product-image-industrial", "canvas-service");
 const canvasScript = path.join(dest, "scripts", "start-tldraw-shared-service.mjs");
 let canvasPreparationReport = { status: "not_applicable" };
 if (fs.existsSync(canvasScript)) {
   console.log("Preparing shared tldraw canvas dependencies...");
-  const canvasPreparation = run(process.execPath, [canvasScript, "--shared-root", canvasRoot, "--prepare-only"], { cwd: dest });
+  const canvasPreparation = run(process.execPath, [canvasScript, "--shared-root", canvasRoot, "--prepare-only", "--package-manager", packageManager.command], { cwd: dest });
   canvasPreparationReport = parseLastJson(canvasPreparation);
   if (!canvasPreparationReport || !["prepared", "already_prepared"].includes(canvasPreparationReport.status)) {
     throw new Error("Shared tldraw canvas dependency preparation did not complete.");
@@ -155,7 +140,7 @@ const safeSummary = {
   status: "synced",
   skill_name: skillName,
   release: publicReleaseMetadata(releaseMetadata),
-  natural_image_runtime_preparation: publicNaturalRuntimePreparation(naturalRuntimePreparationReport),
+  package_manager: publicPackageManager(packageManager),
   canvas_preparation: publicCanvasPreparation(canvasPreparationReport),
   image_provider_configuration: publicProviderConfiguration(providerConfigurationReport),
   user_message: "SellerPilot product image skill was verified and synced.",
@@ -171,7 +156,7 @@ if (includeDiagnostics) {
       codex_home: codexHome,
       skills_dir: path.join(codexHome, "skills"),
       installed_skill: dest,
-      natural_image_runtime: naturalRuntimeRoot,
+      package_manager: packageManager,
     },
   };
 }
@@ -291,6 +276,7 @@ function publicCanvasPreparation(report) {
     dependency: {
       status: report?.dependency?.status || "",
       lock_hash: report?.dependency?.lock_hash || "",
+      package_manager: report?.dependency?.package_manager || "",
       would_install: Boolean(report?.dependency?.would_install),
     },
     templateSync: {
@@ -313,21 +299,11 @@ function publicProviderConfiguration(report) {
   };
 }
 
-function publicNaturalRuntimePreparation(report) {
+function publicPackageManager(report) {
   return {
-    status: report?.status || "unknown",
-    ready: Boolean(report?.ready),
-    dependency: {
-      python: report?.dependency?.python || "",
-      ffmpeg: report?.dependency?.ffmpeg || "",
-      python_packages: report?.dependency?.python_packages || "",
-      requirements_sha256: report?.dependency?.requirements_sha256 || "",
-      processor_sha256: report?.dependency?.processor_sha256 || "",
-    },
-    installation: {
-      python_packages: report?.installation?.python_packages || "",
-      ffmpeg: report?.installation?.ffmpeg || "",
-    },
+    command: report?.command || "",
+    lockfile: report?.lockfile || null,
+    selected_by: report?.selected_by || "unknown",
   };
 }
 

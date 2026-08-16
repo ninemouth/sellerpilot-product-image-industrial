@@ -121,7 +121,7 @@ Current implementation status: `contracts/platform-overrides.json` is compiler-c
 
 **Acceptance:** fast checks complete predictably; slow canvas/Python tests are observable, bounded, and isolated.
 
-Current implementation status: default `npm run verify` now runs isolated static and unit suites. The legacy suite is exposed as `npm run verify:integration`, supports `--filter <name fragment>` and named `--suite control-plane|natural-finish|canvas-review|delivery` probes from a versioned registry, and has a process-group timeout, heartbeat, output-tail report, and forced cleanup. It is still a compatibility suite rather than the sole release signal; its remaining checks should be extracted into independently owned files over subsequent slices.
+Current implementation status: default `npm run verify` now runs isolated static and unit suites. The legacy suite is exposed as `npm run verify:integration`, supports `--filter <name fragment>` and named `--suite control-plane|canvas-review|delivery` probes from a versioned registry, and has a process-group timeout, heartbeat, output-tail report, and forced cleanup. It is still a compatibility suite rather than the sole release signal; its remaining checks should be extracted into independently owned files over subsequent slices.
 
 ## Current Operational Commands
 
@@ -160,7 +160,7 @@ npm run qa:native-imagegen-ledger -- --run-dir /abs/run
 
 1. The copied platform workflow lists have been removed. Historical run metadata still needs a versioned importer if it stored only an opaque legacy workflow ID instead of platform/category facts; until then, the compact compatibility pointers preserve the explicit platform override and route defaults.
 2. Native Codex image generation now uses a two-stage delivery-gated handoff: `create-native-imagegen-handoff.mjs` records budget/evidence preflight and binds prompt/source/role, then `record-native-imagegen-result.mjs --handoff` binds the true output hash and host evidence ID. A local Node script still cannot intercept the host-native `imagegen` tool call itself; the next host integration should invoke those two actions automatically, removing the remaining conversational handoff.
-3. The legacy verifier can now run bounded filtered probes with cleanup, but its individual checks are still located in one large compatibility file. The next extraction should move canvas, natural-finish, and provider-mock probes into independently owned suite files without changing their fixtures.
+3. The legacy verifier can now run bounded filtered probes with cleanup, but its individual checks are still located in one large compatibility file. The next extraction should move canvas and provider-mock probes into independently owned suite files without changing their fixtures.
 4. Agent-planning tasks intentionally pause until real source/brief/prompt evidence is bound. That is a truth boundary, not an execution failure; a later UI/host binder can make these handoffs structured instead of conversational.
 
 ## Closure Assessment
