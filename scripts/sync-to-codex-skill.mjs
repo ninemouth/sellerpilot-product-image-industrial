@@ -70,6 +70,7 @@ const syncExcludes = new Set([
   "node_modules",
   "runs",
   "outputs",
+  "work",
   "dist",
   "compatibility-aliases",
   ".cache",
