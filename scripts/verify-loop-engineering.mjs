@@ -163,6 +163,24 @@ assert(nonRetryableCircuit.status !== 0, "a non-retryable provider configuration
 const nonRetryableCircuitReport = readJson(path.join(missingKeyRun, "qa", "provider-instability-circuit-breaker-report.json"));
 assert(nonRetryableCircuitReport.summary.non_retryable_failures === 1 && nonRetryableCircuitReport.decision.stop_provider_retries === true, "provider circuit must expose the non-retryable stop decision");
 
+const ledgerPreflightRun = path.join(temp, "provider-ledger-preflight-run");
+run(skillRoot, [compiler, "--run-dir", ledgerPreflightRun, "--platform", "Amazon", "--category", "bag"]);
+const ledgerPreflightConfig = path.join(temp, "provider-ledger-preflight.json");
+fs.writeFileSync(ledgerPreflightConfig, JSON.stringify({ third_party: { name: "Ledger Fixture", base_url: "https://provider.example/v1", model: "fixture-image", api_key: "fixture-key" } }, null, 2));
+run(skillRoot, ["scripts/record-provider-call.mjs", "--run-dir", ledgerPreflightRun, "--role", "IMG-01", "--status", "failed", "--prompt-hash", "same-evidence", "--provider", "Ledger Fixture", "--model", "fixture-image"]);
+const ledgerPreflightRuntime = spawnSync(process.execPath, [path.join(skillRoot, "scripts", "thinkai-image-runtime.mjs"), "--run-dir", ledgerPreflightRun, "--role", "IMG-01", "--prompt", "same-evidence", "--output-dir", path.join(ledgerPreflightRun, "generated-assets", "IMG-01"), "--config", ledgerPreflightConfig], { cwd: skillRoot, encoding: "utf8" });
+assert(ledgerPreflightRuntime.status !== 0, "same-evidence provider retry must block before any network attempt");
+const ledgerPreflightFailure = JSON.parse(String(ledgerPreflightRuntime.stderr || "").trim());
+assert(ledgerPreflightFailure.code === "provider_evidence_delta_required", "runtime must expose a precise evidence-delta preflight failure code");
+const ledgerPreflightDiagnostic = readJson(path.join(ledgerPreflightRun, "runtime", "provider-failure-diagnostic-img-01.json"));
+assert(ledgerPreflightDiagnostic.stage === "provider_ledger_preflight" && ledgerPreflightDiagnostic.error_code === "provider_evidence_delta_required" && ledgerPreflightDiagnostic.provider_request_recorded === false && ledgerPreflightDiagnostic.provider_request_started === false && ledgerPreflightDiagnostic.http_status === null && ledgerPreflightDiagnostic.curl_exit_code === null, "ledger preflight diagnostics must prove that the request was blocked locally before curl/provider execution");
+const ledgerPreflightEvents = fs.readFileSync(path.join(ledgerPreflightRun, "telemetry", "cost-ledger.jsonl"), "utf8").trim().split("\n").map(JSON.parse);
+assert(ledgerPreflightEvents.length === 2 && ledgerPreflightEvents[1].status === "blocked" && ledgerPreflightEvents[1].rejection_reason.includes("fingerprint did not change"), "preflight rejection must record one precise blocked event without a second synthetic failed attempt");
+const ledgerPreflightCircuit = spawnSync(process.execPath, [path.join(skillRoot, "scripts", "provider-instability-circuit-breaker.mjs"), "--run-dir", ledgerPreflightRun], { cwd: skillRoot, encoding: "utf8" });
+assert(ledgerPreflightCircuit.status !== 0, "ledger preflight block must stop the affected role without contacting another provider");
+const ledgerPreflightCircuitReport = readJson(path.join(ledgerPreflightRun, "qa", "provider-instability-circuit-breaker-report.json"));
+assert(ledgerPreflightCircuitReport.summary.ledger_preflight_failures === 1 && ledgerPreflightCircuitReport.findings.some((finding) => finding.type === "provider-ledger-preflight-blocked") && ledgerPreflightCircuitReport.decision.allowed_next_actions.includes("inspect the provider ledger rejection reason"), "circuit breaker must distinguish local ledger preflight blocks from remote provider instability");
+
 const networkDeniedRun = path.join(temp, "provider-network-denied-run");
 run(skillRoot, [compiler, "--run-dir", networkDeniedRun, "--platform", "Amazon", "--category", "bag"]);
 const deniedConfig = path.join(temp, "network-denied-provider.json");

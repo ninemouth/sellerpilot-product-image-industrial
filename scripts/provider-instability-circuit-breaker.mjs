@@ -22,17 +22,19 @@ const attempts = [
 const failedAttempts = attempts.filter((item) => item.failed);
 const unresolvedFailures = failedAttempts.filter((item) => !item.repaired_by_final_asset);
 const setupRequiredFailures = unresolvedFailures.filter((item) => item.failure_code === "external_provider_transport_unavailable");
-const providerFailures = unresolvedFailures.filter((item) => item.failure_code !== "external_provider_transport_unavailable");
+const ledgerPreflightFailures = unresolvedFailures.filter((item) => isLedgerPreflightFailure(item.failure_code));
+const providerFailures = unresolvedFailures.filter((item) => item.failure_code !== "external_provider_transport_unavailable" && !isLedgerPreflightFailure(item.failure_code));
 const nonRetryableFailures = providerFailures.filter((item) => item.retryable === false);
-const roleCounts = countBy(failedAttempts.filter((item) => item.failure_code !== "external_provider_transport_unavailable"), (item) => item.role_key);
+const roleCounts = countBy(failedAttempts.filter((item) => item.failure_code !== "external_provider_transport_unavailable" && !isLedgerPreflightFailure(item.failure_code)), (item) => item.role_key);
 const repeatedRoles = Object.entries(roleCounts)
   .filter(([, count]) => count >= maxFailuresPerRole)
   .map(([role_key, failed_attempts]) => ({ role_key, failed_attempts }));
 const repairedCount = failedAttempts.length - unresolvedFailures.length;
 const providerCircuitOpen = nonRetryableFailures.length > 0 || (providerFailures.length > 0 && (repeatedRoles.length > 0 || providerFailures.length >= maxTotalFailures));
 const setupRequired = setupRequiredFailures.length > 0;
-const trigger = setupRequired || providerCircuitOpen;
-const status = setupRequired ? "setup_required" : providerCircuitOpen ? "blocked" : failedAttempts.length ? "pass_with_warnings" : "pass";
+const ledgerPreflightBlocked = ledgerPreflightFailures.length > 0;
+const trigger = setupRequired || ledgerPreflightBlocked || providerCircuitOpen;
+const status = setupRequired ? "setup_required" : ledgerPreflightBlocked || providerCircuitOpen ? "blocked" : failedAttempts.length ? "pass_with_warnings" : "pass";
 const findings = [];
 
 if (setupRequired) {
@@ -40,6 +42,12 @@ if (setupRequired) {
     severity: "fail",
     type: "external-provider-transport-unavailable",
     message: `The configured external provider could not be reached for ${setupRequiredFailures.map((item) => item.role_key).join(", ")}. No provider request reached the remote service; restore external-provider connectivity during skill installation or update, then retry the same selected provider.`,
+  });
+} else if (ledgerPreflightBlocked) {
+  findings.push({
+    severity: "fail",
+    type: "provider-ledger-preflight-blocked",
+    message: `Provider request was blocked locally before network execution for ${ledgerPreflightFailures.map((item) => item.role_key).join(", ")}. Inspect the current run contract, role binding, budget, or evidence-delta requirement; do not treat this as a remote provider failure.`,
   });
 } else if (providerCircuitOpen) {
   findings.push({
@@ -75,6 +83,7 @@ const report = {
     repaired_failed_attempts: repairedCount,
     unresolved_failed_attempts: unresolvedFailures.length,
     non_retryable_failures: nonRetryableFailures.length,
+    ledger_preflight_failures: ledgerPreflightFailures.length,
     repeated_failed_roles: repeatedRoles,
     manifest_images: Array.isArray(manifest?.images) ? manifest.images.length : 0,
   },
@@ -88,6 +97,13 @@ const report = {
         "restore external-provider connectivity during skill installation or update",
         "retry the same resolved provider runtime after setup succeeds",
         "do not substitute native imagegen or another provider",
+      ]
+      : ledgerPreflightBlocked
+      ? [
+        "inspect the provider ledger rejection reason",
+        "repair the run contract, role binding, budget, or evidence delta",
+        "retry only after the preflight condition is resolved",
+        "do not switch providers or count this as a remote provider failure",
       ]
       : trigger
       ? [
@@ -183,6 +199,17 @@ function roleKey(id) {
     .replace(/-(retry|simple|gen|edit|rerun)\d*$/i, "")
     .replace(/[^a-z0-9-]+/gi, "-")
     .toLowerCase();
+}
+
+function isLedgerPreflightFailure(code) {
+  return new Set([
+    "provider_evidence_delta_required",
+    "provider_run_budget_exhausted",
+    "provider_role_budget_exhausted",
+    "provider_run_state_invalid",
+    "provider_role_unregistered",
+    "provider_ledger_preflight_failed",
+  ]).has(String(code || ""));
 }
 
 function countBy(items, fn) {

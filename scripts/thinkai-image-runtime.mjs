@@ -81,6 +81,8 @@ const runRole = args.role ? String(args.role) : "";
 const requestTimeoutSeconds = positiveNumber(args["request-timeout-seconds"], DEFAULT_REQUEST_TIMEOUT_SECONDS);
 const downloadTimeoutSeconds = positiveNumber(args["download-timeout-seconds"], DEFAULT_DOWNLOAD_TIMEOUT_SECONDS);
 const heartbeatSeconds = positiveNumber(args["heartbeat-seconds"], DEFAULT_HEARTBEAT_SECONDS);
+let providerRequestRecorded = false;
+let providerRequestStarted = false;
 
 if (!Number.isInteger(count) || count < 1) {
   throwCli("n must be a positive integer.");
@@ -138,7 +140,9 @@ try {
   }
 
   recordProviderAttempt("requested");
+  providerRequestRecorded = true;
 
+  providerRequestStarted = true;
   writeProgress("generating", { endpoint: request.endpoint, progress_event: "request_started" });
   const generation = isEdit
     ? executeEdit({ baseUrl, apiKey, request, requestTimeoutSeconds })
@@ -175,7 +179,7 @@ try {
   // A host-side egress failure means no request reached the provider. It is not
   // a second user-authorization step and must not consume a billable-provider
   // retry or evidence-delta retry slot.
-  if (error?.code !== "external_provider_transport_unavailable") recordProviderAttempt("failed", true);
+  if (providerRequestRecorded && error?.code !== "external_provider_transport_unavailable") recordProviderAttempt("failed", true);
   throwCli(JSON.stringify(publicFailure(error)));
 }
 
@@ -185,20 +189,33 @@ function recordProviderAttempt(status, suppressFailure = false) {
   const sourceHash = imagePaths.map((file) => {
     try { return `${file}:${fs.statSync(file).size}:${fs.statSync(file).mtimeMs}`; } catch { return file; }
   }).join("|");
-  const result = spawnSync(process.execPath, [
+  const recorderArgs = [
     recorder,
     "--run-dir", runDir,
     "--role", runRole,
     "--status", status,
     "--prompt-hash", args.prompt,
-    "--source-hash", sourceHash,
     "--provider", providerName,
     "--model", model,
     "--triggering-gate", "thinkai-image-runtime",
-  ], { cwd: skillRoot, encoding: "utf8" });
+  ];
+  if (sourceHash) recorderArgs.splice(9, 0, "--source-hash", sourceHash);
+  const result = spawnSync(process.execPath, recorderArgs, { cwd: skillRoot, encoding: "utf8" });
   if (result.status !== 0 && !suppressFailure) {
-    throw new RuntimeError("provider_budget_or_evidence_delta_blocked", (result.stderr || result.stdout || "Provider call was blocked by run budget.").trim());
+    const record = parseJsonSafe(result.stdout);
+    const reason = String(record?.reason || result.stderr || result.stdout || "Provider ledger preflight was blocked.").trim();
+    throw new RuntimeError(classifyProviderLedgerFailure(reason), reason);
   }
+}
+
+function classifyProviderLedgerFailure(reason) {
+  const value = String(reason || "");
+  if (/retry rejected because prompt\/source\/provider evidence fingerprint did not change/i.test(value)) return "provider_evidence_delta_required";
+  if (/run provider call budget exhausted/i.test(value)) return "provider_run_budget_exhausted";
+  if (/role provider attempt budget exhausted/i.test(value)) return "provider_role_budget_exhausted";
+  if (/run-state\.json is missing or incompatible/i.test(value)) return "provider_run_state_invalid";
+  if (/Unknown role:/i.test(value)) return "provider_role_unregistered";
+  return "provider_ledger_preflight_failed";
 }
 
 function loadRuntimeConfig(configArg, resolutionArg) {
@@ -512,6 +529,10 @@ function readJsonSafe(file) {
   try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return {}; }
 }
 
+function parseJsonSafe(value) {
+  try { return JSON.parse(String(value || "")); } catch { return null; }
+}
+
 function positiveNumber(raw, fallback) {
   const value = Number(raw || fallback);
   return Number.isFinite(value) && value > 0 ? value : fallback;
@@ -523,6 +544,12 @@ function publicFailure(error) {
     ? "ThinkAI requires a configured API key before generation can start."
     : code === "external_provider_transport_unavailable"
       ? "The configured external image provider could not be reached from this runtime. No provider request was sent; preserve the affected asset and restore provider connectivity through skill setup or update before retrying the same route."
+    : code === "provider_evidence_delta_required"
+      ? "This image role has already failed or completed with the same prompt, source, provider, and model evidence. No new provider request was sent; repair the failed upstream evidence before retrying this role."
+    : code === "provider_run_budget_exhausted" || code === "provider_role_budget_exhausted"
+      ? "The current run's provider retry budget is exhausted. No new provider request was sent; preserve completed assets and route the affected role through QA repair or an explicit retry decision."
+    : code === "provider_run_state_invalid" || code === "provider_role_unregistered" || code === "provider_ledger_preflight_failed"
+      ? "The current run's provider execution contract is incomplete or incompatible. No new provider request was sent; repair the run contract before retrying the affected role."
     : code === "cancelled"
       ? "Generation was cancelled; completed assets remain available for recovery."
       : "Image generation could not complete. The run state was preserved so only affected assets need retrying.";
@@ -535,14 +562,17 @@ function writeProviderFailureDiagnostic(error) {
   const statusMatch = raw.match(/\b([45]\d\d)\b/);
   const curlExitMatch = raw.match(/curl exited with (\d+)/i);
   const code = String(error?.code || "generation_failed");
+  const preflight = code.startsWith("provider_") && code !== "provider_request_failed";
   const diagnostic = {
     schema_version: "sellerpilot.provider_failure_diagnostic.v1",
     recorded_at: new Date().toISOString(),
     provider: providerName,
     model,
     role: runRole || null,
-    stage: code === "provider_request_failed" ? "provider_request" : code === "external_provider_transport_unavailable" ? "external_provider_transport" : code === "invalid_image_payload" ? "asset_validation" : code === "configuration_required" ? "configuration" : code,
+    stage: preflight ? "provider_ledger_preflight" : code === "provider_request_failed" ? "provider_request" : code === "external_provider_transport_unavailable" ? "external_provider_transport" : code === "invalid_image_payload" ? "asset_validation" : code === "configuration_required" ? "configuration" : code,
     error_code: code,
+    provider_request_recorded: providerRequestRecorded,
+    provider_request_started: providerRequestStarted,
     http_status: statusMatch ? Number(statusMatch[1]) : null,
     curl_exit_code: curlExitMatch ? Number(curlExitMatch[1]) : null,
     retryable: code === "provider_request_failed" && (!statusMatch || Number(statusMatch[1]) >= 500),
