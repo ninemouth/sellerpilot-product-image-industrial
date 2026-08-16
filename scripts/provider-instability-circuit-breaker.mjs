@@ -21,25 +21,25 @@ const attempts = [
 ];
 const failedAttempts = attempts.filter((item) => item.failed);
 const unresolvedFailures = failedAttempts.filter((item) => !item.repaired_by_final_asset);
-const authorizationRequiredFailures = unresolvedFailures.filter((item) => item.failure_code === "outbound_network_authorization_required");
-const providerFailures = unresolvedFailures.filter((item) => item.failure_code !== "outbound_network_authorization_required");
+const setupRequiredFailures = unresolvedFailures.filter((item) => item.failure_code === "external_provider_transport_unavailable");
+const providerFailures = unresolvedFailures.filter((item) => item.failure_code !== "external_provider_transport_unavailable");
 const nonRetryableFailures = providerFailures.filter((item) => item.retryable === false);
-const roleCounts = countBy(failedAttempts.filter((item) => item.failure_code !== "outbound_network_authorization_required"), (item) => item.role_key);
+const roleCounts = countBy(failedAttempts.filter((item) => item.failure_code !== "external_provider_transport_unavailable"), (item) => item.role_key);
 const repeatedRoles = Object.entries(roleCounts)
   .filter(([, count]) => count >= maxFailuresPerRole)
   .map(([role_key, failed_attempts]) => ({ role_key, failed_attempts }));
 const repairedCount = failedAttempts.length - unresolvedFailures.length;
 const providerCircuitOpen = nonRetryableFailures.length > 0 || (providerFailures.length > 0 && (repeatedRoles.length > 0 || providerFailures.length >= maxTotalFailures));
-const authorizationRequired = authorizationRequiredFailures.length > 0;
-const trigger = authorizationRequired || providerCircuitOpen;
-const status = authorizationRequired ? "authorization_required" : providerCircuitOpen ? "blocked" : failedAttempts.length ? "pass_with_warnings" : "pass";
+const setupRequired = setupRequiredFailures.length > 0;
+const trigger = setupRequired || providerCircuitOpen;
+const status = setupRequired ? "setup_required" : providerCircuitOpen ? "blocked" : failedAttempts.length ? "pass_with_warnings" : "pass";
 const findings = [];
 
-if (authorizationRequired) {
+if (setupRequired) {
   findings.push({
     severity: "fail",
-    type: "outbound-network-authorization-required",
-    message: `Provider execution is paused for outbound-network authorization on ${authorizationRequiredFailures.map((item) => item.role_key).join(", ")}. No provider request reached the remote service; preserve assets and retry the same selected provider only after authorization.`,
+    type: "external-provider-transport-unavailable",
+    message: `The configured external provider could not be reached for ${setupRequiredFailures.map((item) => item.role_key).join(", ")}. No provider request reached the remote service; restore external-provider connectivity during skill installation or update, then retry the same selected provider.`,
   });
 } else if (providerCircuitOpen) {
   findings.push({
@@ -71,7 +71,7 @@ const report = {
     progress_files: progressFiles.length,
     failure_diagnostics: diagnostics.length,
     failed_attempts: failedAttempts.length,
-    authorization_required_failures: authorizationRequiredFailures.length,
+    setup_required_failures: setupRequiredFailures.length,
     repaired_failed_attempts: repairedCount,
     unresolved_failed_attempts: unresolvedFailures.length,
     non_retryable_failures: nonRetryableFailures.length,
@@ -80,12 +80,13 @@ const report = {
   },
   decision: {
     stop_provider_retries: trigger,
-    requires_user_authorization: authorizationRequired,
-    required_capability: authorizationRequired ? "outbound_network" : null,
-    allowed_next_actions: authorizationRequired
+    requires_user_authorization: false,
+    requires_setup_update: setupRequired,
+    required_capability: null,
+    allowed_next_actions: setupRequired
       ? [
-        "request authorization for outbound network access to the selected external image provider",
-        "retry the same resolved provider runtime after authorization",
+        "restore external-provider connectivity during skill installation or update",
+        "retry the same resolved provider runtime after setup succeeds",
         "do not substitute native imagegen or another provider",
       ]
       : trigger

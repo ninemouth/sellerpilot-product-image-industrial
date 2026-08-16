@@ -172,11 +172,10 @@ try {
 } catch (error) {
   writeProviderFailureDiagnostic(error);
   writeProgress("failed", { failure: publicFailure(error) });
-  // A host-side outbound-network denial means no request reached the provider.
-  // Do not consume a billable-provider retry or evidence-delta retry slot: after
-  // the host grants the capability, the identical resolved call is the first
-  // real provider attempt, not a provider fallback candidate.
-  if (error?.code !== "outbound_network_authorization_required") recordProviderAttempt("failed", true);
+  // A host-side egress failure means no request reached the provider. It is not
+  // a second user-authorization step and must not consume a billable-provider
+  // retry or evidence-delta retry slot.
+  if (error?.code !== "external_provider_transport_unavailable") recordProviderAttempt("failed", true);
   throwCli(JSON.stringify(publicFailure(error)));
 }
 
@@ -362,8 +361,8 @@ function runCurl(curlArgs, label, options = {}) {
       const detail = Buffer.concat(stderr).toString("utf8").trim() || Buffer.concat(stdout).toString("utf8").trim();
       const errorCode = signal
         ? "cancelled"
-        : isOutboundNetworkAuthorizationFailure(detail)
-          ? "outbound_network_authorization_required"
+        : isExternalProviderTransportFailure(detail)
+          ? "external_provider_transport_unavailable"
           : "provider_request_failed";
       reject(new RuntimeError(errorCode, `${label}: ${detail || `curl exited with ${code}`}`));
     });
@@ -373,10 +372,12 @@ function runCurl(curlArgs, label, options = {}) {
   });
 }
 
-function isOutboundNetworkAuthorizationFailure(detail) {
-  // Codex's restricted execution layer reports its denied egress connection as
-  // curl's "Bad access" error. Keep the detector deliberately narrow so real
-  // provider, credential, TLS, and network failures remain provider failures.
+function isExternalProviderTransportFailure(detail) {
+  // Some hosts report unavailable external egress as curl's "Bad access".
+  // Third-party provider execution is authorized by its configured setup; this
+  // is a runtime connectivity failure, not a request for another user consent.
+  // Keep the detector narrow so provider, credential, TLS, and other network
+  // failures retain their existing classifications.
   return /\bBad access\b/i.test(String(detail || ""));
 }
 
@@ -520,8 +521,8 @@ function publicFailure(error) {
   const code = error?.code || "generation_failed";
   const message = code === "configuration_required"
     ? "ThinkAI requires a configured API key before generation can start."
-    : code === "outbound_network_authorization_required"
-      ? "This generation needs authorization to connect to its external image provider. The affected asset was preserved; approve provider network access and retry the same selected provider."
+    : code === "external_provider_transport_unavailable"
+      ? "The configured external image provider could not be reached from this runtime. No provider request was sent; preserve the affected asset and restore provider connectivity through skill setup or update before retrying the same route."
     : code === "cancelled"
       ? "Generation was cancelled; completed assets remain available for recovery."
       : "Image generation could not complete. The run state was preserved so only affected assets need retrying.";
@@ -540,7 +541,7 @@ function writeProviderFailureDiagnostic(error) {
     provider: providerName,
     model,
     role: runRole || null,
-    stage: code === "provider_request_failed" ? "provider_request" : code === "outbound_network_authorization_required" ? "execution_authorization" : code === "invalid_image_payload" ? "asset_validation" : code === "configuration_required" ? "configuration" : code,
+    stage: code === "provider_request_failed" ? "provider_request" : code === "external_provider_transport_unavailable" ? "external_provider_transport" : code === "invalid_image_payload" ? "asset_validation" : code === "configuration_required" ? "configuration" : code,
     error_code: code,
     http_status: statusMatch ? Number(statusMatch[1]) : null,
     curl_exit_code: curlExitMatch ? Number(curlExitMatch[1]) : null,

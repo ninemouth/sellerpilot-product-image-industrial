@@ -23,7 +23,7 @@ The resolver checks the shared SellerPilot provider configuration and the local 
 
 ### External provider execution permission
 
-`third_party_proxy` is an outbound HTTPS execution boundary. The runtime sends the generation/edit request to the resolved provider and, when the response contains a remote image URL, downloads that output as a second outbound request. Run the resolved runtime command with the host's outbound-network authorization from the first attempt; do not use a restricted terminal once as a probe and then interpret its connection denial as a provider failure.
+`third_party_proxy` is an outbound HTTPS execution boundary. The runtime sends the generation/edit request to the resolved provider and, when the response contains a remote image URL, downloads that output as a second outbound request. Its permission is established by third-party provider setup during installation or update. Execute the resolved runtime directly for a ready route; if the host cannot establish the connection, classify that as external-provider transport unavailability rather than a remote provider failure.
 
 In Codex environments whose terminal call exposes an execution-permission parameter, request outbound network access on the runtime call itself (for example, `sandbox_permissions: "require_escalated"`) and give the approval dialog a plain-language reason such as: “Need to connect to the selected external image provider to generate the requested product image.” This is an execution-host requirement, not an API-key or provider configuration change.
 
@@ -46,6 +46,12 @@ npm run configure:image-provider-interactive
 It forwards the key to the local configurator through stdin and prints only configuration status. A user who explicitly pastes a key into a local Codex conversation may authorize local configuration, but the password dialog is the default because chat transcripts can retain pasted text.
 
 Use `--base-url`, `--model`, `--name`, or `--api-key-env` only when the current third-party proxy differs from ThinkAI.
+
+### Setup-time provider authorization
+
+Selecting and configuring a `third_party_proxy` during skill installation or update authorizes that resolved provider route for later image-generation tasks. A task whose resolver returns `third_party_proxy` and `ready` must execute the same resolved runtime directly; do not prompt again for external-provider authorization during generation, image download, retry, QA, or delivery.
+
+If the host cannot establish the provider connection, record `external_provider_transport_unavailable`. This means no remote provider request was sent. Preserve the run and retry budget, do not substitute native generation or another provider, and repair the external-provider capability through installation/update before retrying the same resolved command. It is a technical setup block, not a user-authorization pause.
 
 The old ThinkAI/Proxy names are repository migration templates only and are not installed by default, so Codex shows one SellerPilot skill. New and updated users should invoke only `$sellerpilot-product-image-industrial`.
 
