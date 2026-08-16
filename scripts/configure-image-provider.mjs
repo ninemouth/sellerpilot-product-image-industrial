@@ -10,10 +10,13 @@ const codexHome = path.resolve(process.env.CODEX_HOME || path.join(os.homedir(),
 const configPath = path.resolve(args.config || path.join(codexHome, "sellerpilot-product-image-industrial", "image-provider.json"));
 const defaultApiKeyEnv = "THINKAI_IMAGE_API_KEY";
 const legacyApiKeyEnv = "THINKAI_API_KEY";
+const runtime = String(args.runtime || "openai_images").trim();
+if (!["openai_images", "nvidia_nim_flux"].includes(runtime)) { console.error("--runtime must be openai_images or nvidia_nim_flux."); process.exit(2); }
+const nvidiaFlux = runtime === "nvidia_nim_flux";
 if (args["api-key"] && args["api-key-stdin"]) { console.error("Use either --api-key or --api-key-stdin, not both."); process.exit(2); }
 const stdinKey = args["api-key-stdin"] ? fs.readFileSync(0, "utf8").trim() : "";
-const apiKey = String(args["api-key"] || stdinKey || process.env[defaultApiKeyEnv] || process.env[legacyApiKeyEnv] || "").trim();
-const apiKeyEnv = String(args["api-key-env"] || defaultApiKeyEnv).trim();
+const apiKey = String(args["api-key"] || stdinKey || process.env[nvidiaFlux ? "NVIDIA_API_KEY" : defaultApiKeyEnv] || (!nvidiaFlux && process.env[legacyApiKeyEnv]) || "").trim();
+const apiKeyEnv = String(args["api-key-env"] || (nvidiaFlux ? "NVIDIA_API_KEY" : defaultApiKeyEnv)).trim();
 const capabilities = normalizeProviderCapabilities({
   quality: { default: args["quality-default"], allowed: splitList(args["quality-allowed"]) },
   size: { default: args["size-default"], allowed: splitList(args["size-allowed"]), allow_custom: asBool(args["allow-custom-size"]) },
@@ -24,11 +27,12 @@ const config = {
   provider_mode: "third_party_proxy",
   third_party: {
     enabled: true,
-    name: args.name || "ThinkAI",
-    base_url: String(args["base-url"] || "https://www.thinkai.tv/v1").replace(/\/+$/, ""),
-    model: args.model || "gpt-image-2",
+    name: args.name || (nvidiaFlux ? "NVIDIA NIM" : "ThinkAI"),
+    base_url: String(args["base-url"] || (nvidiaFlux ? "https://ai.api.nvidia.com/v1/genai" : "https://www.thinkai.tv/v1")).replace(/\/+$/, ""),
+    model: args.model || (nvidiaFlux ? "black-forest-labs/flux.2-klein-4b" : "gpt-image-2"),
     api_key_env: apiKeyEnv,
     api_key: apiKey,
+    runtime,
     capabilities,
   },
 };

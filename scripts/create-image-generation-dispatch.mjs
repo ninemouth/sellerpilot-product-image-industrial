@@ -13,6 +13,9 @@ fs.mkdirSync(runDir, { recursive: true });
 const role = normalizeRole(args.role);
 if (!role) fail("role must be IMG-01 style.");
 const images = args.image.map((file) => path.resolve(file));
+const generationSpecPath = path.resolve(args["generation-spec"] || path.join(runDir, "generation-spec", "generation-spec.json"));
+const generationSpec = readJson(generationSpecPath);
+const requestedSize = String(args.size || generationSpec?.requested_size || "").trim() || null;
 const resolverArgs = [path.join(skillRoot, "scripts", "resolve-image-provider.mjs"), "--run-dir", runDir];
 for (const [flag, key] of [["--provider", "provider"], ["--config", "provider-config"], ["--codex-config", "codex-config"]]) if (args[key]) resolverArgs.push(flag, args[key]);
 const resolved = spawnSync(process.execPath, resolverArgs, { cwd: runDir, encoding: "utf8" });
@@ -38,6 +41,8 @@ if (resolution.status !== "ready") {
     role,
     provider_resolution: path.relative(runDir, resolution.run_report || path.join(runDir, "runtime", "image-provider-resolution.json")),
     provider: { id: resolution.provider?.id, name: resolution.provider?.name, base_url: resolution.provider?.base_url, model: resolution.provider?.model, runtime_script: resolution.provider?.runtime_script },
+    generation_spec: generationSpec?.status === "ready" ? path.relative(runDir, generationSpecPath) : null,
+    requested_size: requestedSize,
     prompt: args.prompt,
     source_images: images.map((file) => path.relative(runDir, file)),
     output_dir: path.relative(runDir, path.dirname(outputPath())),
@@ -48,12 +53,12 @@ if (resolution.status !== "ready") {
       applies_to: ["provider_request", "provider_asset_download"],
       fallback_policy: "do_not_substitute_provider",
     },
-    execution_requirements: ["invoke only the resolved OpenAI-compatible runtime", "execute the configured third-party route directly without requesting another user authorization", "pass --run-dir and --role so provider budget and evidence-delta checks apply", "do not fall back to native imagegen or another provider when this dispatch selected third_party_proxy"],
+    execution_requirements: ["invoke only the resolved provider runtime", "execute the configured third-party route directly without requesting another user authorization", "pass --run-dir and --role so provider budget and evidence-delta checks apply", "do not fall back to native imagegen or another provider when this dispatch selected third_party_proxy"],
   };
   const out = path.join(runDir, "generated-assets", `third-party-imagegen-handoff-${role.toLowerCase()}.json`);
   fs.mkdirSync(path.dirname(out), { recursive: true });
   fs.writeFileSync(out, `${JSON.stringify(handoff, null, 2)}\n`);
-  const command = [resolution.provider.runtime_script, "--run-dir", runDir, "--role", role, "--prompt", args.prompt, "--output-dir", path.dirname(outputPath()), "--base-url", resolution.provider.base_url, "--model", resolution.provider.model, "--api-key-env", resolution.provider.api_key_env, "--provider-resolution", resolution.run_report, ...images.flatMap((file) => ["--image", file])];
+  const command = [resolution.provider.runtime_script, "--run-dir", runDir, "--role", role, "--prompt", args.prompt, "--output-dir", path.dirname(outputPath()), "--base-url", resolution.provider.base_url, "--model", resolution.provider.model, "--api-key-env", resolution.provider.api_key_env, "--provider-resolution", resolution.run_report, ...(requestedSize ? ["--size", requestedSize] : []), ...images.flatMap((file) => ["--image", file])];
   console.log(JSON.stringify({ status: "ready", selected_mode: "third_party_proxy", role, resolution: resolution.run_report, handoff: out, runtime_command: command, required_execution_capabilities: ["outbound_network"], next_action: "Execute the resolved runtime command directly. The configured third-party route is already authorized at skill setup; record requested/succeeded/failed provider ledger events and do not substitute another provider." }, null, 2));
 } else fail(`Unsupported resolved provider mode: ${resolution.selected_mode}`);
 
@@ -63,4 +68,4 @@ function parseArgs(argv) { const result = { image: [] }; for (let i = 2; i < arg
 function parseJson(value) { try { return JSON.parse(String(value || "").trim()); } catch { return null; } }
 function readJson(file) { try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return null; } }
 function fail(message) { console.error(message); process.exit(2); }
-function usage() { console.error("Usage: node scripts/create-image-generation-dispatch.mjs --run-dir /abs/run --role IMG-01 --prompt '<final prompt>' [--image /abs/source.png] [--provider auto|native_codex|third_party_proxy] [--provider-config /abs/image-provider.json] [--codex-config /abs/config.toml] [--output-path /abs/run/generated-assets/IMG-01/image.png]"); process.exit(2); }
+function usage() { console.error("Usage: node scripts/create-image-generation-dispatch.mjs --run-dir /abs/run --role IMG-01 --prompt '<final prompt>' [--image /abs/source.png] [--generation-spec /abs/run/generation-spec/generation-spec.json] [--size WxH] [--provider auto|native_codex|third_party_proxy] [--provider-config /abs/image-provider.json] [--codex-config /abs/config.toml] [--output-path /abs/run/generated-assets/IMG-01/image.png]"); process.exit(2); }

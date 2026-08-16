@@ -62,12 +62,22 @@ THINKAI_IMAGE_API_KEY="<key>" \
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/thinkai-image-runtime.mjs \
   --prompt "<final personalized prompt>" \
   --image /abs/source-product.png \
-  --size 2k \
-  --quality hd \
+  --size <platform-target-WxH> \
+  --quality auto \
   --output-dir /abs/run/generated-assets/anchor-01
 ```
 
-When the resolver returns a non-default endpoint, model, key environment variable, or capability profile, pass its exact `provider.base_url`, `provider.model`, `provider.api_key_env`, and resolver report to the runtime. Never replace those values with an inferred provider. For a selected third-party route, a key saved in the local provider configuration has priority over a same-name or legacy environment variable; the environment variable is only a fallback when the local configuration has no key. The runtime defaults to the resolved provider's declared `quality`, `size`, and `response_format` capabilities; an unknown OpenAI-compatible provider uses the conservative `auto` profile until its supported values are configured and verified.
+When the resolver returns a non-default endpoint, model, key environment variable, or capability profile, pass its exact `provider.base_url`, `provider.model`, `provider.api_key_env`, and resolver report to the runtime. Never replace those values with an inferred provider. For a selected third-party route, a key saved in the local provider configuration has priority over a same-name or legacy environment variable; the environment variable is only a fallback when the local configuration has no key. `generation-spec/generation-spec.json` owns the request size: dispatch passes its `requested_size` unchanged to the resolved runtime. A generic provider must not invent a `1024px`-style fallback or replace that platform target with its own default.
+
+### NVIDIA Build FLUX route
+
+NVIDIA Build FLUX is selected explicitly, not as a fallback from ThinkAI. Configure it in the shared provider file with the `nvidia_nim_flux` runtime; this preserves the default ThinkAI `gpt-image-2` profile unless the configuration is changed deliberately:
+
+```bash
+npm run configure:nvidia-flux -- --api-key "<YOUR_NVIDIA_API_KEY>"
+```
+
+The resolver then selects `nvidia-flux-image-runtime.mjs`, which sends a JSON request to the configured NVIDIA GenAI endpoint and stores the returned `artifacts[0].base64` image. `FLUX.1-dev` and `FLUX.1-schnell` are text-to-image only in this adapter. For a product source image, choose `FLUX.2-klein-4b` (the default NVIDIA profile) or `FLUX.1-Kontext-dev`; do not silently turn an ordinary product image into a canny/depth control input. The adapter forwards the platform target as `width` and `height`; if NVIDIA rejects that target, retain the failed role and report the documented incompatibility rather than silently resizing it.
 
 The runtime reads the resolver output or the shared `${CODEX_HOME:-$HOME/.codex}/sellerpilot-product-image-industrial/image-provider.json`. It still recognizes old `.thinkai-image-runtime.json` files for migration, but new configuration must use the shared provider file. Keep all local provider configuration uncommitted.
 

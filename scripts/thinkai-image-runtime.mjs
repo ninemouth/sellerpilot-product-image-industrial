@@ -47,7 +47,7 @@ node scripts/thinkai-image-runtime.mjs --prompt '<prompt>' --output-dir /abs/out
 Options:
   --image /abs/source.png       Add source/reference image. Repeat for multi-image edits.
   --mask /abs/mask.png          Optional edit mask.
-  --size SIZE                   Provider capability default when omitted.
+  --size SIZE                   Platform generation target. Omit only for a direct provider-default request.
   --quality auto|low|medium|high Provider capability default when omitted.
   --n 1                         Default: 1.
   --config /abs/config.json     Optional provider config. Default: legacy ThinkAI config.
@@ -243,10 +243,10 @@ function buildGenerationRequest({ model, prompt, size, quality, responseFormat, 
     model,
     prompt,
     n: count,
-    size,
     quality,
     response_format: responseFormat,
   };
+  if (size) body.size = size;
   return {
     endpoint: "/images/generations",
     body,
@@ -257,7 +257,7 @@ function buildGenerationRequest({ model, prompt, size, quality, responseFormat, 
 function buildEditRequest({ model, prompt, imagePaths, maskPath, size, quality, responseFormat, count }) {
   return {
     endpoint: "/images/edits",
-    fields: { model, prompt, size, quality, response_format: responseFormat, n: String(count) },
+    fields: { model, prompt, ...(size ? { size } : {}), quality, response_format: responseFormat, n: String(count) },
     imagePaths,
     maskPath,
     snapshot: {

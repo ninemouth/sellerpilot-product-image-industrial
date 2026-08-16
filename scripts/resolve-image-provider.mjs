@@ -55,14 +55,15 @@ const resolution = {
   credential_source: selectedMode === "third_party_proxy" ? credentialSource : "not_applicable",
   provider: selectedMode === "native_codex"
     ? { id: "codex-native-imagegen", execution: "system_imagegen_or_image_gen" }
-    : {
-        id: thirdParty.name === "ThinkAI" ? "thinkai-openai-compatible-image-runtime" : "third-party-openai-compatible-image-runtime",
+      : {
+        id: thirdParty.runtime === "nvidia_nim_flux" ? "nvidia-nim-flux-image-runtime" : thirdParty.name === "ThinkAI" ? "thinkai-openai-compatible-image-runtime" : "third-party-openai-compatible-image-runtime",
         name: thirdParty.name,
         base_url: thirdParty.base_url,
         model: thirdParty.model,
         api_key_env: thirdParty.api_key_env,
         capabilities: thirdParty.capabilities,
-        runtime_script: path.join(skillRoot, "scripts", "thinkai-image-runtime.mjs"),
+        runtime: thirdParty.runtime,
+        runtime_script: path.join(skillRoot, "scripts", thirdParty.runtime === "nvidia_nim_flux" ? "nvidia-flux-image-runtime.mjs" : "thinkai-image-runtime.mjs"),
       },
   detected_codex_provider: detected,
   configuration: {
@@ -99,6 +100,7 @@ function normalizeThirdParty(value, detectedProvider) {
     base_url: stripSlash(value.base_url || detectedProvider.base_url || legacy.base_url || THINKAI_BASE_URL),
     model: String(value.model || detectedProvider.model || legacy.model || THINKAI_MODEL),
     api_key_env: String(value.api_key_env || legacy.api_key_env || defaultImageApiKeyEnv(detectedProvider) || THINKAI_IMAGE_API_KEY_ENV),
+    runtime: String(value.runtime || "openai_images"),
     capabilities: normalizeProviderCapabilities(value.capabilities || legacy.capabilities),
   };
 }

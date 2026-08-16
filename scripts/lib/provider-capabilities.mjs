@@ -1,16 +1,19 @@
 const DEFAULT_QUALITY_VALUES = ["auto", "low", "medium", "high"];
-const DEFAULT_SIZE_VALUES = ["auto", "1024x1024", "1024x1536", "1536x1024"];
 const DEFAULT_RESPONSE_FORMAT_VALUES = ["url", "b64_json"];
 
 export function normalizeProviderCapabilities(value = {}) {
   const source = value && typeof value === "object" ? value : {};
   const quality = normalizeEnum(source.quality, DEFAULT_QUALITY_VALUES, "auto");
-  const size = normalizeEnum(source.size, DEFAULT_SIZE_VALUES, "auto");
+  // Image dimensions are an output contract owned by the platform generation
+  // spec. A generic provider has no implicit image-size catalogue: making one
+  // up here caused the resolver to silently replace platform targets such as
+  // 1920x2560 with an unrelated 1024px candidate.
+  const size = normalizeSize(source.size);
   const responseFormat = normalizeEnum(source.response_format, DEFAULT_RESPONSE_FORMAT_VALUES, "url");
   return {
     schema_version: "sellerpilot.openai_compatible_provider_capabilities.v1",
     quality,
-    size: { ...size, allow_custom: source.size?.allow_custom === true },
+    size,
     response_format: responseFormat,
   };
 }
@@ -22,7 +25,8 @@ export function resolveCapabilityValue({ requested, capability, label }) {
 }
 
 export function resolveProviderSize({ requested, capabilities }) {
-  const value = String(requested || capabilities.size.default).trim().toLowerCase();
+  const value = String(requested || capabilities.size.default || "").trim().toLowerCase();
+  if (!value) return null;
   if (capabilities.size.allow_custom && /^\d{2,5}x\d{2,5}$/.test(value)) return value;
   return resolveCapabilityValue({ requested: value, capability: capabilities.size, label: "size" });
 }
@@ -45,6 +49,20 @@ function normalizeEnum(source, fallbackAllowed, fallbackDefault) {
   const allowed = uniqueStrings(raw.allowed, fallbackAllowed);
   const defaultValue = String(raw.default || fallbackDefault).trim().toLowerCase();
   return { default: allowed.includes(defaultValue) ? defaultValue : allowed[0], allowed };
+}
+
+function normalizeSize(source) {
+  const raw = source && typeof source === "object" ? source : {};
+  const allowed = uniqueStrings(raw.allowed, []);
+  const defaultValue = String(raw.default || "").trim().toLowerCase();
+  // An explicit configured allowlist is retained for a provider whose owner
+  // has verified it. It never supplies a generic fallback, and it cannot
+  // override the platform target during spec resolution.
+  return {
+    default: allowed.includes(defaultValue) ? defaultValue : null,
+    allowed,
+    allow_custom: raw.allow_custom !== false,
+  };
 }
 
 function uniqueStrings(value, fallback) {

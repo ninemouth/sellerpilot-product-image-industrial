@@ -152,7 +152,7 @@ ${SELLERPILOT_IMAGE_SKILL_MEMORY:-$HOME/.codex/sellerpilot-product-image-industr
 
 ### 第三方图片 provider 配置
 
-当前 Codex 选用第三方 provider 时，主 skill 使用本仓库的 `scripts/thinkai-image-runtime.mjs`。默认 ThinkAI profile 的最简单配置方式是设置环境变量：
+当前 Codex 选用第三方 provider 时，默认 ThinkAI profile 使用本仓库的 `scripts/thinkai-image-runtime.mjs`，默认模型保持 `gpt-image-2`。图片请求尺寸由当前 run 的平台 generation spec 决定；provider 不再用未验证的通用尺寸白名单替换平台目标。
 
 ```bash
 export THINKAI_IMAGE_API_KEY="<YOUR_THINKAI_IMAGE_API_KEY>"
@@ -199,6 +199,18 @@ npm run generate:proxy -- \
   --image /abs/source-product.png \
   --output-dir /tmp/sellerpilot-thinkai-edit-dry-run \
   --dry-run
+```
+
+NVIDIA Build 的 FLUX 是另一条显式可选路线，不会替换默认 ThinkAI。它使用 NVIDIA GenAI JSON API（不是 ThinkAI/OpenAI Images API），目前支持 `FLUX.1-dev`、`FLUX.1-schnell`、`FLUX.1-Kontext-dev` 和默认的 `FLUX.2-klein-4b`。配置 NVIDIA key 后可切换：
+
+```bash
+npm run configure:nvidia-flux -- --api-key "<YOUR_NVIDIA_API_KEY>"
+```
+
+`FLUX.1-dev` 与 `FLUX.1-schnell` 仅用于文生图；带商品源图的身份保持/编辑默认应选 `FLUX.2-klein-4b` 或 `FLUX.1-Kontext-dev`。NVIDIA adapter 同样会从 generation spec 传入平台目标 `width` 与 `height`，不会静默改写尺寸。先用 dry-run 验证请求，不会消耗 API 配额：
+
+```bash
+npm run generate:nvidia-flux -- --prompt "verify NVIDIA FLUX request" --size 1920x2560 --output-dir /tmp/sellerpilot-nvidia-flux-dry-run --dry-run
 ```
 
 ## 安装到 Codex

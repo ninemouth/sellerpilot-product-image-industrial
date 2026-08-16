@@ -931,7 +931,7 @@ record("automatic image provider contract", () => {
     throw new Error("runtime should load the shared resolved third-party provider config.");
   }
   const genericRequest = readJson(path.join(configDir, "generic-runtime", "request.json"));
-  if (genericRequest.quality !== "auto" || genericRequest.size !== "auto") throw new Error("generic provider runtime must default to capability-safe auto quality and size.");
+  if (genericRequest.quality !== "auto" || Object.hasOwn(genericRequest, "size")) throw new Error("generic provider runtime must not invent a provider image size when no platform generation spec was supplied.");
   process.env.ACME_IMAGE_KEY = "stale-environment-key";
   const configuredKeyRuntime = JSON.parse(run(process.execPath, ["scripts/thinkai-image-runtime.mjs", "--config", path.join(configDir, "image-provider.json"), "--prompt", "verify configured key priority", "--output-dir", path.join(configDir, "configured-key-runtime"), "--dry-run"]));
   if (configuredKeyRuntime.credential_source !== "local_provider_config") throw new Error("local provider configuration key must take priority over an environment key.");
@@ -944,6 +944,16 @@ record("automatic image provider contract", () => {
   run(process.execPath, ["scripts/thinkai-image-runtime.mjs", "--config", customCapabilityConfig, "--prompt", "verify custom provider", "--size", "1600x1200", "--output-dir", path.join(configDir, "custom-runtime"), "--dry-run"]);
   const customRequest = readJson(path.join(configDir, "custom-runtime", "request.json"));
   if (customRequest.quality !== "high" || customRequest.size !== "1600x1200" || customRequest.response_format !== "b64_json") throw new Error("runtime must honor explicit generic provider capabilities.");
+  const nvidiaConfig = path.join(configDir, "nvidia-provider.json");
+  const nvidiaConfigResult = JSON.parse(run(process.execPath, ["scripts/configure-image-provider.mjs", "--runtime", "nvidia_nim_flux", "--config", nvidiaConfig, "--api-key", "nvidia-fixture-key"]));
+  const nvidiaStored = readJson(nvidiaConfig);
+  if (nvidiaConfigResult.provider.model !== "black-forest-labs/flux.2-klein-4b" || nvidiaStored.third_party.runtime !== "nvidia_nim_flux" || nvidiaStored.third_party.api_key_env !== "NVIDIA_API_KEY") throw new Error("NVIDIA FLUX config must use the explicit NVIDIA NIM runtime without changing the ThinkAI default.");
+  const nvidiaResolution = JSON.parse(run(process.execPath, ["scripts/resolve-image-provider.mjs", "--config", nvidiaConfig]));
+  if (nvidiaResolution.provider.id !== "nvidia-nim-flux-image-runtime" || !nvidiaResolution.provider.runtime_script.endsWith("nvidia-flux-image-runtime.mjs")) throw new Error("resolver must select the NVIDIA FLUX adapter only for the NVIDIA runtime profile.");
+  const nvidiaOut = path.join(configDir, "nvidia-runtime");
+  run(process.execPath, ["scripts/nvidia-flux-image-runtime.mjs", "--config", nvidiaConfig, "--prompt", "verify NVIDIA FLUX request", "--size", "1920x2560", "--output-dir", nvidiaOut, "--dry-run"]);
+  const nvidiaRequest = readJson(path.join(nvidiaOut, "request.json"));
+  if (nvidiaRequest.width !== 1920 || nvidiaRequest.height !== 2560 || nvidiaRequest.mode !== "Image Generation") throw new Error("NVIDIA FLUX runtime must pass the platform target dimensions unchanged in its documented JSON contract.");
   if (priorCodexHome === undefined) delete process.env.CODEX_HOME;
   else process.env.CODEX_HOME = priorCodexHome;
   delete process.env.ACME_IMAGE_KEY;
@@ -975,8 +985,8 @@ record("generation spec and anchor controller smoke", () => {
   const specDir = path.join(runDir, "generation-spec");
   run(process.execPath, ["scripts/resolve-generation-spec.mjs", "--out-dir", specDir, "--platform", "Ozon", "--category", "apparel"]);
   const spec = readJson(path.join(specDir, "generation-spec.json"));
-  if (spec.required_ratio !== "3:4" || spec.requested_size !== "1024x1536" || spec.quality !== "auto") {
-    throw new Error("Ozon generation spec must select a provider-safe portrait size and quality before generation.");
+  if (spec.required_ratio !== "3:4" || spec.requested_size !== "1920x2560" || spec.quality !== "auto") {
+    throw new Error("Ozon generation spec must preserve its platform target size and quality before generation.");
   }
   fs.mkdirSync(path.join(runDir, "generated-assets"), { recursive: true });
   fs.writeFileSync(path.join(runDir, "generated-assets", "generation-progress.json"), "{}\n");

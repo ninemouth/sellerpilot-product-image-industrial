@@ -55,6 +55,18 @@ check("generic provider capability boundary", () => {
     if (!text.includes("provider-capabilities.mjs")) throw new Error(`${name} must use provider capability normalization`);
   }
   if (runtime.includes('args.quality || "hd"') || spec.includes('args.quality || "hd"')) throw new Error("legacy DALL-E quality defaults must not reach generic providers");
+  if (spec.includes("nearestSupportedSizeForRatio")) throw new Error("provider size capability must not rewrite the platform target size");
+  if (!spec.includes("args.size || platformTargetSize")) throw new Error("generation spec must default the provider request to the platform target size");
+});
+check("NVIDIA FLUX provider adapter boundary", () => {
+  const resolver = read("scripts/resolve-image-provider.mjs");
+  const runtime = read("scripts/nvidia-flux-image-runtime.mjs");
+  const configurator = read("scripts/configure-image-provider.mjs");
+  for (const [name, text, tokens] of [
+    ["resolver", resolver, ["nvidia_nim_flux", "nvidia-flux-image-runtime.mjs"]],
+    ["NVIDIA runtime", runtime, ["ai.api.nvidia.com/v1/genai", "flux.2-klein-4b", "artifacts", "base64"]],
+    ["configurator", configurator, ["nvidia_nim_flux", "NVIDIA_API_KEY"]],
+  ]) for (const token of tokens) if (!text.includes(token)) throw new Error(`${name} missing ${token}`);
 });
 check("provider route precedes generation boundary", () => {
   const compiler = read("scripts/compile-production-plan.mjs");

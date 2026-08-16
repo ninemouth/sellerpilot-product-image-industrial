@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
-import { nearestSupportedSizeForRatio, normalizeProviderCapabilities, resolveCapabilityValue, resolveProviderSize } from "./lib/provider-capabilities.mjs";
+import { normalizeProviderCapabilities, resolveCapabilityValue, resolveProviderSize } from "./lib/provider-capabilities.mjs";
 
 const args = parseArgs(process.argv);
 if (!args["out-dir"]) usage();
@@ -14,8 +14,9 @@ const longEdge = Number(args["long-edge"] || 2560);
 const providerResolution = args["provider-resolution"] ? readJson(path.resolve(args["provider-resolution"])) : null;
 const capabilities = normalizeProviderCapabilities(providerResolution?.provider?.capabilities);
 const platformTargetSize = sizeForRatio(ratio, longEdge);
-const providerSelectedSize = args.size || nearestSupportedSizeForRatio({ requiredRatio: ratio.label, capabilities }) || platformTargetSize;
-const size = resolveProviderSize({ requested: providerSelectedSize, capabilities });
+// The platform target is the sole default request size. Provider capability
+// data may describe an endpoint, but must never substitute a generic size.
+const size = resolveProviderSize({ requested: args.size || platformTargetSize, capabilities });
 const quality = resolveCapabilityValue({ requested: args.quality, capability: capabilities.quality, label: "quality" });
 const spec = {
   schema_version: "sellerpilot.generation_spec.v1",
@@ -28,7 +29,7 @@ const spec = {
   platform_target_size: platformTargetSize,
   quality,
   provider_capabilities: capabilities,
-  policy: "Resolve platform ratio before provider execution. Use only a provider-supported generation size; preserve the requested platform ratio through the approved crop/export path when an exact generation size is unavailable.",
+  policy: "Resolve the platform target size before provider execution. Send that target unchanged by default; provider adapters may reject an explicitly documented incompatible request, but may not silently downscale, crop, or replace it.",
 };
 const outDir = path.resolve(args["out-dir"]);
 fs.mkdirSync(outDir, { recursive: true });
