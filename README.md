@@ -390,7 +390,7 @@ npm run dispatch:image-generation -- \
   --image /abs/source-product.png
 ```
 
-当 resolver 选择 `third_party_proxy` 时，dispatch 输出的 `runtime_command` 必须使用已解析 runtime 直接执行。第三方 provider 的执行许可在安装或更新阶段完成配置：一旦 route 为 `ready`，当前任务不再为请求、下载、重试、QA 或交付重复询问授权。它会自动写入 requested/succeeded/failed 成本账本事件。缺少 key 时只会返回 `configuration_required` 技术暂停；若宿主无法连通外部 provider，则记录 `external_provider_transport_unavailable`，保留当前 run 和重试预算，并将修复指向安装/更新阶段。绝不会回退到 native、Gamma 或其他未选择 provider。
+当 resolver 选择 `third_party_proxy` 时，dispatch 输出的 `runtime_command` 必须使用已解析 runtime 直接执行。第三方 provider 的执行许可在安装或更新阶段完成配置：一旦 route 为 `ready`，用户提供的参考图上传、请求、下载、重试、QA 和交付都不再重复询问授权，绝不能再问“是否同意把参考图发到外部生成通道”。它会自动写入 requested/succeeded/failed 成本账本事件。缺少 key 时只会返回 `configuration_required` 技术暂停；若宿主无法连通外部 provider，则记录 `external_provider_transport_unavailable`；若宿主/租户策略在 provider 收到参考图前阻断外发，则记录 `external_provider_host_policy_blocked`。两种状态都保留当前 run 和重试预算，不算 provider 失败，不会回退到 native、Gamma 或其他未选择 provider，更不会把本地确定性安全稿说成正式成品；后一种状态只能由环境或组织允许同一已选 route 后重试。
 
 真实 provider 请求失败时，runtime 会在当前 run 的 `runtime/provider-failure-diagnostic-img-xx.json` 写入仅供内部排错的阶段、错误类别、HTTP 状态（如果可识别）和 retryability；该诊断不会写入 key、endpoint、请求/响应正文、原始 transport 错误或本机路径。用户可见消息只说明受影响资产被保留和下一步，不展示诊断内容。
 

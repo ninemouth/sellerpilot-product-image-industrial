@@ -65,6 +65,9 @@ function deriveTransition(kind, value, current) {
   }
   if (kind === "circuit") {
     if (String(value.status || "").toLowerCase() === "setup_required" || value.decision?.requires_setup_update === true) {
+      if (value.decision?.requires_host_policy_update === true) {
+        return makeTransition("blocked", "external_provider_host_policy_blocked", "The host environment blocked the already configured external provider route before a provider request was sent. Allow the same route in the environment or organization policy, then retry without substitution.", false, []);
+      }
       return makeTransition("blocked", "external_provider_setup_required", "The configured external provider is unavailable from this runtime. Restore connectivity during skill installation or update, then retry the same selected provider without substitution.", false, []);
     }
     const blocked = String(value.status || "").toLowerCase() === "blocked" || value.decision?.stop_provider_retries === true;

@@ -179,7 +179,7 @@ try {
   // A host-side egress failure means no request reached the provider. It is not
   // a second user-authorization step and must not consume a billable-provider
   // retry or evidence-delta retry slot.
-  if (providerRequestRecorded && error?.code !== "external_provider_transport_unavailable") recordProviderAttempt("failed", true);
+  if (providerRequestRecorded && !isExternalProviderSetupFailure(error?.code)) recordProviderAttempt("failed", true);
   throwCli(JSON.stringify(publicFailure(error)));
 }
 
@@ -378,9 +378,11 @@ function runCurl(curlArgs, label, options = {}) {
       const detail = Buffer.concat(stderr).toString("utf8").trim() || Buffer.concat(stdout).toString("utf8").trim();
       const errorCode = signal
         ? "cancelled"
-        : isExternalProviderTransportFailure(detail)
-          ? "external_provider_transport_unavailable"
-          : "provider_request_failed";
+        : isExternalProviderHostPolicyBlock(detail)
+          ? "external_provider_host_policy_blocked"
+          : isExternalProviderTransportFailure(detail)
+            ? "external_provider_transport_unavailable"
+            : "provider_request_failed";
       reject(new RuntimeError(errorCode, `${label}: ${detail || `curl exited with ${code}`}`));
     });
     const onSignal = () => child.kill("SIGTERM");
@@ -390,12 +392,21 @@ function runCurl(curlArgs, label, options = {}) {
 }
 
 function isExternalProviderTransportFailure(detail) {
-  // Some hosts report unavailable external egress as curl's "Bad access".
-  // Third-party provider execution is authorized by its configured setup; this
-  // is a runtime connectivity failure, not a request for another user consent.
-  // Keep the detector narrow so provider, credential, TLS, and other network
-  // failures retain their existing classifications.
-  return /\bBad access\b/i.test(String(detail || ""));
+  // Keep this narrow so provider, credential, TLS, and host-policy failures
+  // retain their own classifications.
+  return /(?:could not resolve host|failed to connect|connection timed out|network is unreachable)/i.test(String(detail || ""));
+}
+
+function isExternalProviderHostPolicyBlock(detail) {
+  // Some execution hosts expose outbound-data policy denial through curl-like
+  // text (including "Bad access"). The configured route is already authorized
+  // by the skill; this status means the host/tenant prevented the upload before
+  // the provider could receive it. Do not turn it into a consent prompt.
+  return /\bBad access\b|(?:outbound|egress|external).{0,80}(?:policy|blocked|denied|not allowed)|(?:policy|tenant).{0,80}(?:outbound|egress|external|upload)|(?:private|reference|data|image).{0,120}(?:untrusted|external|third[ -]?party).{0,120}(?:policy|blocked|denied|not allowed|destination)/i.test(String(detail || ""));
+}
+
+function isExternalProviderSetupFailure(code) {
+  return new Set(["external_provider_transport_unavailable", "external_provider_host_policy_blocked"]).has(String(code || ""));
 }
 
 function parseJsonPayload(text, label) {
@@ -542,6 +553,8 @@ function publicFailure(error) {
   const code = error?.code || "generation_failed";
   const message = code === "configuration_required"
     ? "ThinkAI requires a configured API key before generation can start."
+    : code === "external_provider_host_policy_blocked"
+      ? "This environment has not allowed the already configured external image provider for this reference-image request. No provider request was sent; the affected asset and retry budget were preserved. Do not switch providers or create a local draft as a final image. The environment or organization must allow the same selected provider route before retrying."
     : code === "external_provider_transport_unavailable"
       ? "The configured external image provider could not be reached from this runtime. No provider request was sent; preserve the affected asset and restore provider connectivity through skill setup or update before retrying the same route."
     : code === "provider_evidence_delta_required"
@@ -569,7 +582,7 @@ function writeProviderFailureDiagnostic(error) {
     provider: providerName,
     model,
     role: runRole || null,
-    stage: preflight ? "provider_ledger_preflight" : code === "provider_request_failed" ? "provider_request" : code === "external_provider_transport_unavailable" ? "external_provider_transport" : code === "invalid_image_payload" ? "asset_validation" : code === "configuration_required" ? "configuration" : code,
+    stage: preflight ? "provider_ledger_preflight" : code === "provider_request_failed" ? "provider_request" : code === "external_provider_host_policy_blocked" ? "external_provider_host_policy" : code === "external_provider_transport_unavailable" ? "external_provider_transport" : code === "invalid_image_payload" ? "asset_validation" : code === "configuration_required" ? "configuration" : code,
     error_code: code,
     provider_request_recorded: providerRequestRecorded,
     provider_request_started: providerRequestStarted,

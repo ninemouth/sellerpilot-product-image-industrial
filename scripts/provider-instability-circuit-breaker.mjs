@@ -21,11 +21,12 @@ const attempts = [
 ];
 const failedAttempts = attempts.filter((item) => item.failed);
 const unresolvedFailures = failedAttempts.filter((item) => !item.repaired_by_final_asset);
-const setupRequiredFailures = unresolvedFailures.filter((item) => item.failure_code === "external_provider_transport_unavailable");
+const setupRequiredFailures = unresolvedFailures.filter((item) => isExternalProviderSetupFailure(item.failure_code));
+const hostPolicyBlockedFailures = setupRequiredFailures.filter((item) => item.failure_code === "external_provider_host_policy_blocked");
 const ledgerPreflightFailures = unresolvedFailures.filter((item) => isLedgerPreflightFailure(item.failure_code));
-const providerFailures = unresolvedFailures.filter((item) => item.failure_code !== "external_provider_transport_unavailable" && !isLedgerPreflightFailure(item.failure_code));
+const providerFailures = unresolvedFailures.filter((item) => !isExternalProviderSetupFailure(item.failure_code) && !isLedgerPreflightFailure(item.failure_code));
 const nonRetryableFailures = providerFailures.filter((item) => item.retryable === false);
-const roleCounts = countBy(failedAttempts.filter((item) => item.failure_code !== "external_provider_transport_unavailable" && !isLedgerPreflightFailure(item.failure_code)), (item) => item.role_key);
+const roleCounts = countBy(failedAttempts.filter((item) => !isExternalProviderSetupFailure(item.failure_code) && !isLedgerPreflightFailure(item.failure_code)), (item) => item.role_key);
 const repeatedRoles = Object.entries(roleCounts)
   .filter(([, count]) => count >= maxFailuresPerRole)
   .map(([role_key, failed_attempts]) => ({ role_key, failed_attempts }));
@@ -40,8 +41,10 @@ const findings = [];
 if (setupRequired) {
   findings.push({
     severity: "fail",
-    type: "external-provider-transport-unavailable",
-    message: `The configured external provider could not be reached for ${setupRequiredFailures.map((item) => item.role_key).join(", ")}. No provider request reached the remote service; restore external-provider connectivity during skill installation or update, then retry the same selected provider.`,
+    type: hostPolicyBlockedFailures.length ? "external-provider-host-policy-blocked" : "external-provider-transport-unavailable",
+    message: hostPolicyBlockedFailures.length
+      ? `The host environment blocked the already configured external provider route for ${hostPolicyBlockedFailures.map((item) => item.role_key).join(", ")}. No provider request reached the remote service; allow that same route in the environment or organization policy, then retry it without provider substitution.`
+      : `The configured external provider could not be reached for ${setupRequiredFailures.map((item) => item.role_key).join(", ")}. No provider request reached the remote service; restore external-provider connectivity during skill installation or update, then retry the same selected provider.`,
   });
 } else if (ledgerPreflightBlocked) {
   findings.push({
@@ -80,6 +83,7 @@ const report = {
     failure_diagnostics: diagnostics.length,
     failed_attempts: failedAttempts.length,
     setup_required_failures: setupRequiredFailures.length,
+    host_policy_blocked_failures: hostPolicyBlockedFailures.length,
     repaired_failed_attempts: repairedCount,
     unresolved_failed_attempts: unresolvedFailures.length,
     non_retryable_failures: nonRetryableFailures.length,
@@ -91,10 +95,11 @@ const report = {
     stop_provider_retries: trigger,
     requires_user_authorization: false,
     requires_setup_update: setupRequired,
+    requires_host_policy_update: hostPolicyBlockedFailures.length > 0,
     required_capability: null,
     allowed_next_actions: setupRequired
       ? [
-        "restore external-provider connectivity during skill installation or update",
+        ...(hostPolicyBlockedFailures.length ? ["allow the already configured provider route in the host or organization policy"] : ["restore external-provider connectivity during skill installation or update"]),
         "retry the same resolved provider runtime after setup succeeds",
         "do not substitute native imagegen or another provider",
       ]
@@ -210,6 +215,10 @@ function isLedgerPreflightFailure(code) {
     "provider_role_unregistered",
     "provider_ledger_preflight_failed",
   ]).has(String(code || ""));
+}
+
+function isExternalProviderSetupFailure(code) {
+  return new Set(["external_provider_transport_unavailable", "external_provider_host_policy_blocked"]).has(String(code || ""));
 }
 
 function countBy(items, fn) {

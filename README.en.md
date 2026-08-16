@@ -58,7 +58,7 @@ Before generation the skill resolves exactly one provider route from actual loca
 
 `Codex Native` and `NVIDIA FLUX` are built-in profiles. ThinkAI is an explicit external profile (it may use `https://www.thinkai.tv/v1` with `gpt-image-2`), never the main skill's implicit default. Legacy ThinkAI configuration is migrated as an already-selected external profile to preserve existing routing. The skill never guesses a user's subscription or silently switches providers.
 
-An image-generation request already authorizes the resolved provider route for that run. The skill must not ask again before every native or third-party provider call.
+An image-generation request already authorizes the resolved provider route for that run. For a ready third-party route this includes uploading user-provided reference images; the skill must not ask again before every native or third-party provider call, or ask the user whether reference images may be sent externally. If the host/tenant blocks that upload before the provider receives it, record `external_provider_host_policy_blocked`, preserve the run and retry budget, and require the same selected route to be allowed by the environment or organization policy. Do not substitute a provider or present a local deterministic draft as a final image.
 
 ## Automatic third-party key setup
 

@@ -102,11 +102,11 @@ check("third-party setup-time execution boundary", () => {
   const skill = read("SKILL.md");
   const runbook = read("references/production-runtime-runbook.md");
   for (const [name, text, tokens] of [
-    ["runtime", runtime, ["external_provider_transport_unavailable", "Bad access", "external_provider_transport"]],
-    ["circuit", circuit, ["setup_required", "external-provider-transport-unavailable", "do not substitute native imagegen"]],
-    ["run-state transition", transitions, ["blocked", "external_provider_setup_required"]],
-    ["skill", skill, ["configured third-party route authorizes its execution", "do not ask for another authorization"]],
-    ["runbook", runbook, ["Setup-time provider authorization", "do not prompt again", "same resolved command"]],
+    ["runtime", runtime, ["external_provider_transport_unavailable", "external_provider_host_policy_blocked", "Bad access", "external_provider_host_policy"]],
+    ["circuit", circuit, ["setup_required", "external-provider-transport-unavailable", "external-provider-host-policy-blocked", "do not substitute native imagegen"]],
+    ["run-state transition", transitions, ["blocked", "external_provider_setup_required", "external_provider_host_policy_blocked"]],
+    ["skill", skill, ["configured third-party route authorizes its execution", "upload user-provided reference images", "Never ask \u201c是否同意把参考图发到外部生成通道/是否继续？\u201d"]],
+    ["runbook", runbook, ["Setup-time provider authorization", "do not prompt again", "external_provider_host_policy_blocked"]],
   ]) for (const token of tokens) if (!text.includes(token)) throw new Error(`${name} missing ${token}`);
 });
 check("automatic cross-platform provider setup boundary", () => {

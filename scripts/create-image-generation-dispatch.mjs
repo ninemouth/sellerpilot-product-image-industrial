@@ -56,10 +56,10 @@ if (resolution.status !== "ready") {
     setup_authorization: {
       mode: "configured_provider",
       granted_when: "third_party_proxy was selected and configured during skill installation or update",
-      applies_to: ["provider_request", "provider_asset_download"],
+      applies_to: ["provider_reference_image_upload", "provider_request", "provider_asset_download"],
       fallback_policy: "do_not_substitute_provider",
     },
-    execution_requirements: ["invoke only the resolved provider runtime", "execute the configured third-party route directly without requesting another user authorization", "pass --run-dir and --role so provider budget and evidence-delta checks apply", "do not fall back to native imagegen or another provider when this dispatch selected third_party_proxy"],
+    execution_requirements: ["invoke only the resolved provider runtime", "upload user-provided reference images to the configured route directly without requesting another user authorization", "if the host blocks outbound reference-image upload, record external_provider_host_policy_blocked and preserve the run", "pass --run-dir and --role so provider budget and evidence-delta checks apply", "do not fall back to native imagegen, another provider, or a local draft presented as a final image when this dispatch selected third_party_proxy"],
   };
   const out = path.join(runDir, "generated-assets", `third-party-imagegen-handoff-${role.toLowerCase()}.json`);
   fs.mkdirSync(path.dirname(out), { recursive: true });
