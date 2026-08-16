@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { skillRootFrom } from "./lib/skill-paths.mjs";
+import { relativeContractPath } from "./lib/portable-path.mjs";
 
 const skillRoot = skillRootFrom(import.meta.url);
 const compiler = path.join(skillRoot, "scripts", "compile-production-plan.mjs");
@@ -46,6 +47,7 @@ assert(roleGeneration.loop.retry_requires_evidence_delta === true, "provider ret
 assert(plan.tasks.find((task) => task.id === "final-delivery").loop.name === "delivery_closure", "delivery must use a non-generation closure loop");
 assert(plan.tasks.some((task) => task.id === "review-workspace"), "quality production contract must compile a review workspace before delivery");
 assert(dag.tasks.every((task) => task.execution_class), "all DAG tasks need execution classes");
+assert(relativeContractPath("C:\\sellerpilot\\run", "C:\\sellerpilot\\run\\generated-assets\\progress-img-05.json", path.win32) === "generated-assets/progress-img-05.json", "JSON artifact paths must use POSIX separators on Windows");
 
 const amazonDefaultDir = path.join(temp, "amazon-defaults");
 run(skillRoot, ["scripts/compile-production-plan.mjs", "--run-dir", amazonDefaultDir, "--platform", "Amazon", "--category", "bag"]);
@@ -187,10 +189,8 @@ const deniedConfig = path.join(temp, "network-denied-provider.json");
 fs.writeFileSync(deniedConfig, JSON.stringify({ third_party: { name: "Denied Network Fixture", base_url: "https://provider.example/v1", model: "fixture-image", api_key: "fixture-key" } }, null, 2));
 const fakeCurlDir = path.join(temp, "network-denied-bin");
 fs.mkdirSync(fakeCurlDir, { recursive: true });
-const fakeCurl = path.join(fakeCurlDir, "curl");
-fs.writeFileSync(fakeCurl, "#!/usr/bin/env node\nprocess.stderr.write('curl: (7) Failed to connect: Bad access\\n');\nprocess.exit(7);\n");
-fs.chmodSync(fakeCurl, 0o755);
-const networkDeniedRuntime = spawnSync(process.execPath, [path.join(skillRoot, "scripts", "thinkai-image-runtime.mjs"), "--run-dir", networkDeniedRun, "--role", "IMG-01", "--prompt", "provider transport fixture", "--output-dir", path.join(networkDeniedRun, "generated-assets", "IMG-01"), "--config", deniedConfig], { cwd: skillRoot, encoding: "utf8", env: { ...process.env, PATH: `${fakeCurlDir}${path.delimiter}${process.env.PATH || ""}` } });
+const fakeCurl = createCurlFailureFixture(fakeCurlDir, "network-denied", "Bad access");
+const networkDeniedRuntime = spawnSync(process.execPath, [path.join(skillRoot, "scripts", "thinkai-image-runtime.mjs"), "--run-dir", networkDeniedRun, "--role", "IMG-01", "--prompt", "provider transport fixture", "--output-dir", path.join(networkDeniedRun, "generated-assets", "IMG-01"), "--config", deniedConfig, "--curl-bin", process.execPath, "--curl-prefix-arg", fakeCurl], { cwd: skillRoot, encoding: "utf8" });
 assert(networkDeniedRuntime.status !== 0, "unavailable external provider transport must fail closed");
 const networkDeniedDiagnostic = readJson(path.join(networkDeniedRun, "runtime", "provider-failure-diagnostic-img-01.json"));
 assert(networkDeniedDiagnostic.stage === "external_provider_host_policy" && networkDeniedDiagnostic.error_code === "external_provider_host_policy_blocked" && networkDeniedDiagnostic.retryable === false && networkDeniedDiagnostic.provider_request_started === true, "host policy must be classified separately from provider failure after the resolved runtime is invoked");
@@ -208,10 +208,8 @@ const transportUnavailableRun = path.join(temp, "provider-transport-unavailable-
 run(skillRoot, [compiler, "--run-dir", transportUnavailableRun, "--platform", "Amazon", "--category", "bag"]);
 const transportUnavailableCurlDir = path.join(temp, "transport-unavailable-bin");
 fs.mkdirSync(transportUnavailableCurlDir, { recursive: true });
-const transportUnavailableCurl = path.join(transportUnavailableCurlDir, "curl");
-fs.writeFileSync(transportUnavailableCurl, "#!/usr/bin/env node\nprocess.stderr.write('curl: (7) Failed to connect: Network is unreachable\\n');\nprocess.exit(7);\n");
-fs.chmodSync(transportUnavailableCurl, 0o755);
-const transportUnavailableRuntime = spawnSync(process.execPath, [path.join(skillRoot, "scripts", "thinkai-image-runtime.mjs"), "--run-dir", transportUnavailableRun, "--role", "IMG-01", "--prompt", "provider transport unavailable fixture", "--output-dir", path.join(transportUnavailableRun, "generated-assets", "IMG-01"), "--config", deniedConfig], { cwd: skillRoot, encoding: "utf8", env: { ...process.env, PATH: `${transportUnavailableCurlDir}${path.delimiter}${process.env.PATH || ""}` } });
+const transportUnavailableCurl = createCurlFailureFixture(transportUnavailableCurlDir, "transport-unavailable", "Network is unreachable");
+const transportUnavailableRuntime = spawnSync(process.execPath, [path.join(skillRoot, "scripts", "thinkai-image-runtime.mjs"), "--run-dir", transportUnavailableRun, "--role", "IMG-01", "--prompt", "provider transport unavailable fixture", "--output-dir", path.join(transportUnavailableRun, "generated-assets", "IMG-01"), "--config", deniedConfig, "--curl-bin", process.execPath, "--curl-prefix-arg", transportUnavailableCurl], { cwd: skillRoot, encoding: "utf8" });
 assert(transportUnavailableRuntime.status !== 0, "unavailable external provider transport must fail closed");
 const transportUnavailableDiagnostic = readJson(path.join(transportUnavailableRun, "runtime", "provider-failure-diagnostic-img-01.json"));
 assert(transportUnavailableDiagnostic.stage === "external_provider_transport" && transportUnavailableDiagnostic.error_code === "external_provider_transport_unavailable" && transportUnavailableDiagnostic.retryable === false, "ordinary transport failure must remain distinct from host-policy blocks and provider failure");
@@ -277,10 +275,15 @@ assert(reuseState.loop.last_decision === "approved_asset_reuse_recorded", "asset
 const bad = spawnSync(process.execPath, [compiler, "--run-dir", path.join(temp, "bad"), "--platform", "Amazon", "--category", "bag", "--mode", "not-a-mode"], { cwd: skillRoot, encoding: "utf8" });
 assert(bad.status !== 0, "compiler must reject unknown mode");
 
-console.log(JSON.stringify({ status: "pass", checks: 65, run_dir: runDir }, null, 2));
+console.log(JSON.stringify({ status: "pass", checks: 66, run_dir: runDir }, null, 2));
 
 function readJson(file) { return JSON.parse(fs.readFileSync(file, "utf8")); }
 function assert(condition, message) { if (!condition) throw new Error(message); }
+function createCurlFailureFixture(dir, name, detail) {
+  const file = path.join(dir, `${name}.mjs`);
+  fs.writeFileSync(file, `process.stderr.write(${JSON.stringify(`curl: (7) Failed to connect: ${detail}\\n`)});\nprocess.exit(7);\n`);
+  return file;
+}
 function run(cwd, args) {
   const result = spawnSync(process.execPath, args, { cwd, encoding: "utf8" });
   if (result.status !== 0) throw new Error(result.stderr || result.stdout || `command failed: ${args.join(" ")}`);

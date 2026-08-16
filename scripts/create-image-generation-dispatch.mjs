@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { skillRootFrom } from "./lib/skill-paths.mjs";
+import { relativeContractPath } from "./lib/portable-path.mjs";
 
 const args = parseArgs(process.argv);
 if (args.help || !args["run-dir"] || !args.role || !args.prompt) usage();
@@ -42,16 +43,16 @@ if (resolution.status !== "ready") {
     created_at: new Date().toISOString(),
     run_id: readJson(path.join(runDir, "run-state.json"))?.run_id || null,
     role,
-    provider_resolution: path.relative(runDir, resolution.run_report || path.join(runDir, "runtime", "image-provider-resolution.json")),
+    provider_resolution: relativeRunPath(resolution.run_report || path.join(runDir, "runtime", "image-provider-resolution.json")),
     provider: { id: resolution.provider?.id, name: resolution.provider?.name, base_url: resolution.provider?.base_url, model: resolution.provider?.model, runtime_script: resolution.provider?.runtime_script },
-    generation_spec: generationSpec?.status === "ready" ? path.relative(runDir, generationSpecPath) : null,
+    generation_spec: generationSpec?.status === "ready" ? relativeRunPath(generationSpecPath) : null,
     requested_size: requestedSize,
-    progress_file: path.relative(runDir, progressFile),
+    progress_file: relativeRunPath(progressFile),
     provider_timeout_seconds: providerTimeoutSeconds,
     meaningful_progress_timeout_seconds: positiveInteger(efficiencyPlan?.progress_update_policy?.provider_meaningful_progress_stale_seconds),
     prompt: args.prompt,
-    source_images: images.map((file) => path.relative(runDir, file)),
-    output_dir: path.relative(runDir, path.dirname(outputPath())),
+    source_images: images.map(relativeRunPath),
+    output_dir: relativeRunPath(path.dirname(outputPath())),
     execution_capabilities: ["outbound_network"],
     setup_authorization: {
       mode: "configured_provider",
@@ -69,6 +70,7 @@ if (resolution.status !== "ready") {
 } else fail(`Unsupported resolved provider mode: ${resolution.selected_mode}`);
 
 function outputPath() { return path.resolve(args["output-path"] || path.join(runDir, "generated-assets", role, "image.png")); }
+function relativeRunPath(file) { return relativeContractPath(runDir, file); }
 function normalizeRole(value) { const match = String(value || "").match(/(?:IMG|POSTER|DETAIL)[-_ ]?(\d{1,2})/i); return match ? `IMG-${match[1].padStart(2, "0")}` : null; }
 function parseArgs(argv) { const result = { image: [] }; for (let i = 2; i < argv.length; i += 1) { if (!argv[i].startsWith("--")) continue; const key = argv[i].slice(2); const value = argv[i + 1]; if (key === "image") { if (!value || value.startsWith("--")) fail("--image requires a path"); result.image.push(value); i += 1; } else if (!value || value.startsWith("--")) result[key] = true; else { result[key] = value; i += 1; } } return result; }
 function parseJson(value) { try { return JSON.parse(String(value || "").trim()); } catch { return null; } }

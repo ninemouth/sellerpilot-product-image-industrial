@@ -20,15 +20,15 @@ class RuntimeError extends Error {
 }
 
 function parseArgs(argv) {
-  const args = { image: [] };
+  const args = { image: [], "curl-prefix-arg": [] };
   for (let i = 2; i < argv.length; i += 1) {
     const arg = argv[i];
     if (!arg.startsWith("--")) continue;
     const key = arg.slice(2);
     const next = argv[i + 1];
-    if (key === "image") {
+    if (key === "image" || key === "curl-prefix-arg") {
       if (!next || next.startsWith("--")) usage();
-      args.image.push(next);
+      args[key].push(next);
       i += 1;
     } else if (!next || next.startsWith("--")) {
       args[key] = true;
@@ -55,6 +55,8 @@ Options:
   --model MODEL                 Override model. Default: gpt-image-2.
   --api-key-env NAME            Key environment variable. Default: THINKAI_IMAGE_API_KEY.
   --provider-resolution FILE    Optional resolver output; preserves a non-default third-party route.
+  --curl-bin PATH                Explicit curl executable. Default: curl.
+  --curl-prefix-arg VALUE        Leading argument for --curl-bin. Repeat when needed.
   --progress-file /abs/progress.json  Write run-scoped execution status and heartbeats.
   --request-timeout-seconds N   Request deadline. Default: 1800; does not lower image quality.
   --download-timeout-seconds N  Per-image download deadline. Default: 900.
@@ -81,6 +83,8 @@ const runRole = args.role ? String(args.role) : "";
 const requestTimeoutSeconds = positiveNumber(args["request-timeout-seconds"], DEFAULT_REQUEST_TIMEOUT_SECONDS);
 const downloadTimeoutSeconds = positiveNumber(args["download-timeout-seconds"], DEFAULT_DOWNLOAD_TIMEOUT_SECONDS);
 const heartbeatSeconds = positiveNumber(args["heartbeat-seconds"], DEFAULT_HEARTBEAT_SECONDS);
+const curlBin = String(args["curl-bin"] || "curl");
+const curlPrefixArgs = args["curl-prefix-arg"];
 let providerRequestRecorded = false;
 let providerRequestStarted = false;
 
@@ -360,7 +364,7 @@ async function requestJsonWithCurl({ url, apiKey, body, label, timeoutSeconds })
 
 function runCurl(curlArgs, label, options = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn("curl", curlArgs, { stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(curlBin, [...curlPrefixArgs, ...curlArgs], { stdio: ["ignore", "pipe", "pipe"] });
     const stdout = [];
     const stderr = [];
     let firstByteRecorded = false;
