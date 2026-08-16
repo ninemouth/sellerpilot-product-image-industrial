@@ -107,6 +107,7 @@ if (fs.existsSync(dest) && !args["no-backup"]) {
 fs.mkdirSync(dest, { recursive: true });
 console.log(includeDiagnostics ? `Syncing ${source} -> ${dest}` : "Syncing development skill to installed Codex skill.");
 copyTree(source, dest, { deleteExtra: true, excludes: syncExcludes });
+const removedRuntimeArtifacts = purgeInstalledRuntimeArtifacts(dest);
 
 console.log("Verifying source and installed skill are identical...");
 const differences = compareTrees(source, dest, syncExcludes);
@@ -144,6 +145,7 @@ const safeSummary = {
   package_manager: publicPackageManager(packageManager),
   canvas_preparation: publicCanvasPreparation(canvasPreparationReport),
   image_provider_configuration: publicProviderConfiguration(providerConfigurationReport),
+  installed_runtime_artifacts_removed: removedRuntimeArtifacts,
   user_message: "SellerPilot product image skill was verified and synced.",
 };
 if (includeDiagnostics) {
@@ -193,6 +195,22 @@ function copyTree(src, target, { deleteExtra, excludes }) {
       fs.rmSync(path.join(target, entry.name), { recursive: true, force: true });
     }
   }
+}
+
+function purgeInstalledRuntimeArtifacts(installedSkill) {
+  // `work/` is intentionally excluded from the distributable skill because it
+  // contains development-only diagnostics. Exclusion alone does not remove
+  // files copied by older releases, so prune every runtime artifact after the
+  // installed-skill backup has been made. Keep the explanatory README only.
+  const workDir = path.join(installedSkill, "work");
+  if (!fs.existsSync(workDir)) return 0;
+  let removed = 0;
+  for (const entry of fs.readdirSync(workDir, { withFileTypes: true })) {
+    if (entry.name === "README.md") continue;
+    fs.rmSync(path.join(workDir, entry.name), { recursive: true, force: true });
+    removed += 1;
+  }
+  return removed;
 }
 
 function compareTrees(left, right, excludes, relative = "") {

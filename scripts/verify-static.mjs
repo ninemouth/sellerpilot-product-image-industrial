@@ -118,6 +118,12 @@ check("automatic cross-platform provider setup boundary", () => {
   for (const token of ["third_party_proxy", "configuration_required", "--no-prompt", "secure_local_input_pending"]) if (!ensure.includes(token)) throw new Error(`automatic provider setup missing ${token}`);
   for (const token of ["darwin", "win32", "UseSystemPasswordChar", "zenity", "key_output: \"never_printed\""]) if (!dialog.includes(token)) throw new Error(`interactive provider dialog missing ${token}`);
 });
+check("installed runtime-artifact cleanup boundary", () => {
+  const installer = read("scripts/sync-to-codex-skill.mjs");
+  for (const token of ["purgeInstalledRuntimeArtifacts", "installed_runtime_artifacts_removed", "work/", "README.md"]) {
+    if (!installer.includes(token)) throw new Error(`sync installer missing stale runtime-artifact cleanup token ${token}`);
+  }
+});
 check("decision-first canvas review boundary", () => {
   const canvas = read("assets/tldraw-review-workspace/src/main.jsx");
   const parser = read("scripts/parse-canvas-annotations.mjs");
