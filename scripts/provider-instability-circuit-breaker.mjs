@@ -21,17 +21,27 @@ const attempts = [
 ];
 const failedAttempts = attempts.filter((item) => item.failed);
 const unresolvedFailures = failedAttempts.filter((item) => !item.repaired_by_final_asset);
-const nonRetryableFailures = unresolvedFailures.filter((item) => item.retryable === false);
-const roleCounts = countBy(failedAttempts, (item) => item.role_key);
+const authorizationRequiredFailures = unresolvedFailures.filter((item) => item.failure_code === "outbound_network_authorization_required");
+const providerFailures = unresolvedFailures.filter((item) => item.failure_code !== "outbound_network_authorization_required");
+const nonRetryableFailures = providerFailures.filter((item) => item.retryable === false);
+const roleCounts = countBy(failedAttempts.filter((item) => item.failure_code !== "outbound_network_authorization_required"), (item) => item.role_key);
 const repeatedRoles = Object.entries(roleCounts)
   .filter(([, count]) => count >= maxFailuresPerRole)
   .map(([role_key, failed_attempts]) => ({ role_key, failed_attempts }));
 const repairedCount = failedAttempts.length - unresolvedFailures.length;
-const trigger = nonRetryableFailures.length > 0 || (unresolvedFailures.length > 0 && (repeatedRoles.length > 0 || failedAttempts.length >= maxTotalFailures));
-const status = trigger ? "blocked" : failedAttempts.length ? "pass_with_warnings" : "pass";
+const providerCircuitOpen = nonRetryableFailures.length > 0 || (providerFailures.length > 0 && (repeatedRoles.length > 0 || providerFailures.length >= maxTotalFailures));
+const authorizationRequired = authorizationRequiredFailures.length > 0;
+const trigger = authorizationRequired || providerCircuitOpen;
+const status = authorizationRequired ? "authorization_required" : providerCircuitOpen ? "blocked" : failedAttempts.length ? "pass_with_warnings" : "pass";
 const findings = [];
 
-if (trigger) {
+if (authorizationRequired) {
+  findings.push({
+    severity: "fail",
+    type: "outbound-network-authorization-required",
+    message: `Provider execution is paused for outbound-network authorization on ${authorizationRequiredFailures.map((item) => item.role_key).join(", ")}. No provider request reached the remote service; preserve assets and retry the same selected provider only after authorization.`,
+  });
+} else if (providerCircuitOpen) {
   findings.push({
     severity: "fail",
     type: nonRetryableFailures.length ? "provider-non-retryable-refusal" : "provider-instability-circuit-breaker-triggered",
@@ -61,6 +71,7 @@ const report = {
     progress_files: progressFiles.length,
     failure_diagnostics: diagnostics.length,
     failed_attempts: failedAttempts.length,
+    authorization_required_failures: authorizationRequiredFailures.length,
     repaired_failed_attempts: repairedCount,
     unresolved_failed_attempts: unresolvedFailures.length,
     non_retryable_failures: nonRetryableFailures.length,
@@ -69,7 +80,15 @@ const report = {
   },
   decision: {
     stop_provider_retries: trigger,
-    allowed_next_actions: trigger
+    requires_user_authorization: authorizationRequired,
+    required_capability: authorizationRequired ? "outbound_network" : null,
+    allowed_next_actions: authorizationRequired
+      ? [
+        "request authorization for outbound network access to the selected external image provider",
+        "retry the same resolved provider runtime after authorization",
+        "do not substitute native imagegen or another provider",
+      ]
+      : trigger
       ? [
         "review approved generated assets",
         "derive from approved assets when policy allows",
@@ -86,7 +105,7 @@ fs.writeFileSync(path.join(outDir, "provider-instability-circuit-breaker-report.
 fs.writeFileSync(path.join(outDir, "provider-instability-circuit-breaker-report.md"), toMarkdown(report));
 syncRunState();
 console.log(JSON.stringify({ status, failed_attempts: failedAttempts.length, unresolved_failed_attempts: unresolvedFailures.length, outDir }, null, 2));
-if (status === "blocked") process.exitCode = 1;
+if (trigger) process.exitCode = 1;
 
 function syncRunState() {
   if (!fs.existsSync(path.join(runDir, "run-state.json"))) return;

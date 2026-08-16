@@ -163,6 +163,29 @@ assert(nonRetryableCircuit.status !== 0, "a non-retryable provider configuration
 const nonRetryableCircuitReport = readJson(path.join(missingKeyRun, "qa", "provider-instability-circuit-breaker-report.json"));
 assert(nonRetryableCircuitReport.summary.non_retryable_failures === 1 && nonRetryableCircuitReport.decision.stop_provider_retries === true, "provider circuit must expose the non-retryable stop decision");
 
+const networkDeniedRun = path.join(temp, "provider-network-denied-run");
+run(skillRoot, [compiler, "--run-dir", networkDeniedRun, "--platform", "Amazon", "--category", "bag"]);
+const deniedConfig = path.join(temp, "network-denied-provider.json");
+fs.writeFileSync(deniedConfig, JSON.stringify({ third_party: { name: "Denied Network Fixture", base_url: "https://provider.example/v1", model: "fixture-image", api_key: "fixture-key" } }, null, 2));
+const fakeCurlDir = path.join(temp, "network-denied-bin");
+fs.mkdirSync(fakeCurlDir, { recursive: true });
+const fakeCurl = path.join(fakeCurlDir, "curl");
+fs.writeFileSync(fakeCurl, "#!/usr/bin/env node\nprocess.stderr.write('curl: (7) Failed to connect: Bad access\\n');\nprocess.exit(7);\n");
+fs.chmodSync(fakeCurl, 0o755);
+const networkDeniedRuntime = spawnSync(process.execPath, [path.join(skillRoot, "scripts", "thinkai-image-runtime.mjs"), "--run-dir", networkDeniedRun, "--role", "IMG-01", "--prompt", "provider network authorization fixture", "--output-dir", path.join(networkDeniedRun, "generated-assets", "IMG-01"), "--config", deniedConfig], { cwd: skillRoot, encoding: "utf8", env: { ...process.env, PATH: `${fakeCurlDir}${path.delimiter}${process.env.PATH || ""}` } });
+assert(networkDeniedRuntime.status !== 0, "host outbound-network denial must fail closed");
+const networkDeniedDiagnostic = readJson(path.join(networkDeniedRun, "runtime", "provider-failure-diagnostic-img-01.json"));
+assert(networkDeniedDiagnostic.stage === "execution_authorization" && networkDeniedDiagnostic.error_code === "outbound_network_authorization_required" && networkDeniedDiagnostic.retryable === false, "host outbound-network denial must be classified separately from provider failure");
+assert(!JSON.stringify(networkDeniedDiagnostic).includes("provider.example") && !JSON.stringify(networkDeniedDiagnostic).includes("Bad access"), "network authorization diagnostics must not expose endpoint or raw transport detail");
+const networkDeniedLedger = fs.readFileSync(path.join(networkDeniedRun, "telemetry", "cost-ledger.jsonl"), "utf8").trim().split("\n").map(JSON.parse);
+assert(networkDeniedLedger.length === 1 && networkDeniedLedger[0].status === "requested", "host outbound-network denial must not consume a provider failure attempt");
+const authorizationCircuit = spawnSync(process.execPath, [path.join(skillRoot, "scripts", "provider-instability-circuit-breaker.mjs"), "--run-dir", networkDeniedRun], { cwd: skillRoot, encoding: "utf8" });
+assert(authorizationCircuit.status !== 0, "network authorization requirement must pause the provider path");
+const authorizationCircuitReport = readJson(path.join(networkDeniedRun, "qa", "provider-instability-circuit-breaker-report.json"));
+assert(authorizationCircuitReport.status === "authorization_required" && authorizationCircuitReport.decision.requires_user_authorization === true && authorizationCircuitReport.decision.required_capability === "outbound_network", "network authorization must pause rather than open a provider-instability circuit");
+const networkDeniedState = readJson(path.join(networkDeniedRun, "run-state.json"));
+assert(networkDeniedState.status === "paused_for_human_decision" && networkDeniedState.loop.last_decision === "outbound_network_authorization_required", "network authorization requirement must project to a resumable human pause");
+
 const controllerJobs = path.join(temp, "controller-jobs.json");
 fs.writeFileSync(controllerJobs, JSON.stringify({ jobs: [
   { id: "IMG-01", anchor: true, prompt: "anchor" },
@@ -194,7 +217,7 @@ const thirdPartyConfig = path.join(temp, "third-party-provider.json");
 fs.writeFileSync(thirdPartyConfig, JSON.stringify({ provider_mode: "third_party_proxy", third_party: { enabled: true, name: "Fixture Provider", base_url: "https://provider.example/v1", model: "fixture-image", api_key_env: "FIXTURE_IMAGE_API_KEY", api_key: "fixture-key" } }, null, 2));
 run(skillRoot, ["scripts/create-image-generation-dispatch.mjs", "--run-dir", runDir, "--role", "IMG-05", "--prompt", "third party dispatch", "--provider-config", thirdPartyConfig]);
 const thirdPartyHandoff = readJson(path.join(runDir, "generated-assets", "third-party-imagegen-handoff-img-05.json"));
-assert(thirdPartyHandoff.provider.model === "fixture-image" && thirdPartyHandoff.execution_requirements.some((item) => item.includes("--run-dir and --role")), "unified dispatch must select the configured third-party runtime without native fallback");
+assert(thirdPartyHandoff.provider.model === "fixture-image" && thirdPartyHandoff.execution_capabilities.includes("outbound_network") && thirdPartyHandoff.authorization_boundary.fallback_policy === "do_not_substitute_provider" && thirdPartyHandoff.execution_requirements.some((item) => item.includes("--run-dir and --role")), "unified dispatch must select the configured third-party runtime with an explicit outbound-network boundary and without native fallback");
 const nativeManifest = path.join(runDir, "export", "final-images-manifest.json");
 fs.mkdirSync(path.dirname(nativeManifest), { recursive: true });
 fs.writeFileSync(nativeManifest, JSON.stringify({ run_dir: runDir, image_dir: path.join(runDir, "final-images"), images: [{ id: "IMG-03", file: "IMG-03-native.png", lineage: { source_type: "provider_generated", provider: "native_codex", generated_asset_path: "generated-assets/IMG-03/image.png" } }] }, null, 2));

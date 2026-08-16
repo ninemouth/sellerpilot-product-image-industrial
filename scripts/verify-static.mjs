@@ -35,7 +35,7 @@ check("platform overrides invariants", () => {
 });
 check("third-party dispatch boundary", () => {
   const dispatch = read("scripts/create-image-generation-dispatch.mjs");
-  for (const token of ["resolve-image-provider.mjs", "third_party_proxy", "create-native-imagegen-handoff.mjs", "runtime_script"]) if (!dispatch.includes(token)) throw new Error(`dispatch missing ${token}`);
+  for (const token of ["resolve-image-provider.mjs", "third_party_proxy", "create-native-imagegen-handoff.mjs", "runtime_script", "outbound_network", "do_not_substitute_provider"]) if (!dispatch.includes(token)) throw new Error(`dispatch missing ${token}`);
 });
 check("cross-platform module path boundary", () => {
   const forbidden = ["new URL(\"..\", import.meta.url)", ".pathname"].join("");
@@ -61,6 +61,20 @@ check("provider route precedes generation boundary", () => {
   const skill = read("SKILL.md");
   if (!compiler.includes('id: "provider-resolution"') || !compiler.includes('depends_on: ["provider-resolution"]')) throw new Error("generation spec must depend on provider resolution");
   if (!skill.includes("Treat its `selected_mode` as the sole execution authority")) throw new Error("skill must require provider-mode resolution before generation");
+});
+check("third-party outbound-network authorization boundary", () => {
+  const runtime = read("scripts/thinkai-image-runtime.mjs");
+  const circuit = read("scripts/provider-instability-circuit-breaker.mjs");
+  const transitions = read("scripts/run-state-transition.mjs");
+  const skill = read("SKILL.md");
+  const runbook = read("references/production-runtime-runbook.md");
+  for (const [name, text, tokens] of [
+    ["runtime", runtime, ["outbound_network_authorization_required", "Bad access", "execution_authorization"]],
+    ["circuit", circuit, ["authorization_required", "outbound-network-authorization-required", "do not substitute native imagegen"]],
+    ["run-state transition", transitions, ["paused_for_human_decision", "outbound_network_authorization_required"]],
+    ["skill", skill, ["outbound-network-authorized execution mode", "Gamma"]],
+    ["runbook", runbook, ["External provider execution permission", "sandbox_permissions: \"require_escalated\"", "same resolved command"]],
+  ]) for (const token of tokens) if (!text.includes(token)) throw new Error(`${name} missing ${token}`);
 });
 check("automatic cross-platform provider setup boundary", () => {
   const installer = read("scripts/sync-to-codex-skill.mjs");

@@ -172,7 +172,11 @@ try {
 } catch (error) {
   writeProviderFailureDiagnostic(error);
   writeProgress("failed", { failure: publicFailure(error) });
-  recordProviderAttempt("failed", true);
+  // A host-side outbound-network denial means no request reached the provider.
+  // Do not consume a billable-provider retry or evidence-delta retry slot: after
+  // the host grants the capability, the identical resolved call is the first
+  // real provider attempt, not a provider fallback candidate.
+  if (error?.code !== "outbound_network_authorization_required") recordProviderAttempt("failed", true);
   throwCli(JSON.stringify(publicFailure(error)));
 }
 
@@ -356,12 +360,24 @@ function runCurl(curlArgs, label, options = {}) {
     child.on("close", (code, signal) => {
       if (code === 0) return resolve(Buffer.concat(stdout));
       const detail = Buffer.concat(stderr).toString("utf8").trim() || Buffer.concat(stdout).toString("utf8").trim();
-      reject(new RuntimeError(signal ? "cancelled" : "provider_request_failed", `${label}: ${detail || `curl exited with ${code}`}`));
+      const errorCode = signal
+        ? "cancelled"
+        : isOutboundNetworkAuthorizationFailure(detail)
+          ? "outbound_network_authorization_required"
+          : "provider_request_failed";
+      reject(new RuntimeError(errorCode, `${label}: ${detail || `curl exited with ${code}`}`));
     });
     const onSignal = () => child.kill("SIGTERM");
     process.once("SIGINT", onSignal);
     child.once("close", () => process.removeListener("SIGINT", onSignal));
   });
+}
+
+function isOutboundNetworkAuthorizationFailure(detail) {
+  // Codex's restricted execution layer reports its denied egress connection as
+  // curl's "Bad access" error. Keep the detector deliberately narrow so real
+  // provider, credential, TLS, and network failures remain provider failures.
+  return /\bBad access\b/i.test(String(detail || ""));
 }
 
 function parseJsonPayload(text, label) {
@@ -504,6 +520,8 @@ function publicFailure(error) {
   const code = error?.code || "generation_failed";
   const message = code === "configuration_required"
     ? "ThinkAI requires a configured API key before generation can start."
+    : code === "outbound_network_authorization_required"
+      ? "This generation needs authorization to connect to its external image provider. The affected asset was preserved; approve provider network access and retry the same selected provider."
     : code === "cancelled"
       ? "Generation was cancelled; completed assets remain available for recovery."
       : "Image generation could not complete. The run state was preserved so only affected assets need retrying.";
@@ -522,7 +540,7 @@ function writeProviderFailureDiagnostic(error) {
     provider: providerName,
     model,
     role: runRole || null,
-    stage: code === "provider_request_failed" ? "provider_request" : code === "invalid_image_payload" ? "asset_validation" : code === "configuration_required" ? "configuration" : code,
+    stage: code === "provider_request_failed" ? "provider_request" : code === "outbound_network_authorization_required" ? "execution_authorization" : code === "invalid_image_payload" ? "asset_validation" : code === "configuration_required" ? "configuration" : code,
     error_code: code,
     http_status: statusMatch ? Number(statusMatch[1]) : null,
     curl_exit_code: curlExitMatch ? Number(curlExitMatch[1]) : null,

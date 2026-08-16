@@ -41,13 +41,19 @@ if (resolution.status !== "ready") {
     prompt: args.prompt,
     source_images: images.map((file) => path.relative(runDir, file)),
     output_dir: path.relative(runDir, path.dirname(outputPath())),
-    execution_requirements: ["invoke only the resolved OpenAI-compatible runtime", "pass --run-dir and --role so provider budget and evidence-delta checks apply", "do not fall back to native imagegen when this dispatch selected third_party_proxy"],
+    execution_capabilities: ["outbound_network"],
+    authorization_boundary: {
+      required_capability: "outbound_network",
+      applies_to: ["provider_request", "provider_asset_download"],
+      fallback_policy: "do_not_substitute_provider",
+    },
+    execution_requirements: ["invoke only the resolved OpenAI-compatible runtime", "run the runtime through a host execution call authorized for outbound network access", "pass --run-dir and --role so provider budget and evidence-delta checks apply", "do not fall back to native imagegen or another provider when this dispatch selected third_party_proxy"],
   };
   const out = path.join(runDir, "generated-assets", `third-party-imagegen-handoff-${role.toLowerCase()}.json`);
   fs.mkdirSync(path.dirname(out), { recursive: true });
   fs.writeFileSync(out, `${JSON.stringify(handoff, null, 2)}\n`);
   const command = [resolution.provider.runtime_script, "--run-dir", runDir, "--role", role, "--prompt", args.prompt, "--output-dir", path.dirname(outputPath()), "--base-url", resolution.provider.base_url, "--model", resolution.provider.model, "--api-key-env", resolution.provider.api_key_env, "--provider-resolution", resolution.run_report, ...images.flatMap((file) => ["--image", file])];
-  console.log(JSON.stringify({ status: "ready", selected_mode: "third_party_proxy", role, resolution: resolution.run_report, handoff: out, runtime_command: command, next_action: "Execute the resolved runtime command. It records requested/succeeded/failed provider ledger events itself." }, null, 2));
+  console.log(JSON.stringify({ status: "ready", selected_mode: "third_party_proxy", role, resolution: resolution.run_report, handoff: out, runtime_command: command, required_execution_capabilities: ["outbound_network"], next_action: "Execute the resolved runtime command with the host's outbound-network authorization. It records requested/succeeded/failed provider ledger events itself; do not substitute another provider if authorization is unavailable." }, null, 2));
 } else fail(`Unsupported resolved provider mode: ${resolution.selected_mode}`);
 
 function outputPath() { return path.resolve(args["output-path"] || path.join(runDir, "generated-assets", role, "image.png")); }

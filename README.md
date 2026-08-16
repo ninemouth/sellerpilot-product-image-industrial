@@ -371,7 +371,7 @@ npm run dispatch:image-generation -- \
   --image /abs/source-product.png
 ```
 
-当 resolver 选择 `third_party_proxy` 时，dispatch 输出的 `runtime_command` 必须使用已解析 runtime 执行；它会自动写入 requested/succeeded/failed 成本账本事件。用户一旦请求正式生图，即默认授权 resolver 所选的 native 或第三方执行路径，运行中不应再次请求授权。缺少 key 时只会返回 `configuration_required` 技术暂停，不会回退到 native 或切换未授权 provider。
+当 resolver 选择 `third_party_proxy` 时，dispatch 输出的 `runtime_command` 必须使用已解析 runtime 执行，并从第一次调用起使用宿主已授权的外网访问能力；请求本身与可能返回的远程图片下载都需要该能力。它会自动写入 requested/succeeded/failed 成本账本事件。用户一旦请求正式生图，即默认授权 resolver 所选的 native 或第三方执行路径；如果当前宿主仍需为外部 provider 连接请求能力，应先请求该能力，而不是先在受限环境中失败。缺少 key 时只会返回 `configuration_required` 技术暂停；外网访问未获授权时只暂停受影响图片并重试同一已解析 runtime，绝不会回退到 native、Gamma 或其他未选择 provider。
 
 真实 provider 请求失败时，runtime 会在当前 run 的 `runtime/provider-failure-diagnostic-img-xx.json` 写入仅供内部排错的阶段、错误类别、HTTP 状态（如果可识别）和 retryability；该诊断不会写入 key、endpoint、请求/响应正文、原始 transport 错误或本机路径。用户可见消息只说明受影响资产被保留和下一步，不展示诊断内容。
 

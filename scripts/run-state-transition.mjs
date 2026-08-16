@@ -64,6 +64,9 @@ function deriveTransition(kind, value, current) {
     return makeTransition("delivery_ready", "final_delivery_repair_required", "Final delivery gate requires closure work; do not regenerate without a root-cause finding.", false, []);
   }
   if (kind === "circuit") {
+    if (String(value.status || "").toLowerCase() === "authorization_required" || value.decision?.requires_user_authorization === true) {
+      return makeTransition("paused_for_human_decision", "outbound_network_authorization_required", "Provider generation needs authorization for outbound network access. Retry the same selected provider after authorization; do not substitute a different provider.", false, []);
+    }
     const blocked = String(value.status || "").toLowerCase() === "blocked" || value.decision?.stop_provider_retries === true;
     return blocked
       ? makeTransition("blocked", "blocked_provider_circuit_open", "Provider instability circuit is open; automatic provider retries are stopped.", false, [])

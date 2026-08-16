@@ -21,6 +21,14 @@ The resolver checks the shared SellerPilot provider configuration and the local 
 - `third_party_proxy`: use the resolved OpenAI-compatible `base_url`, model, and key environment variable through the runtime below.
 - `configuration_required`: pause only because the required local key is absent. This is a technical configuration requirement, not a need for renewed generation authorization. The default ThinkAI endpoint and `gpt-image-2` model are already known unless the user explicitly requests a different endpoint/model.
 
+### External provider execution permission
+
+`third_party_proxy` is an outbound HTTPS execution boundary. The runtime sends the generation/edit request to the resolved provider and, when the response contains a remote image URL, downloads that output as a second outbound request. Run the resolved runtime command with the host's outbound-network authorization from the first attempt; do not use a restricted terminal once as a probe and then interpret its connection denial as a provider failure.
+
+In Codex environments whose terminal call exposes an execution-permission parameter, request outbound network access on the runtime call itself (for example, `sandbox_permissions: "require_escalated"`) and give the approval dialog a plain-language reason such as: “Need to connect to the selected external image provider to generate the requested product image.” This is an execution-host requirement, not an API-key or provider configuration change.
+
+If authorization is unavailable or declined, preserve the run and surface only that the selected external image provider needs network access. Do not retry it unprivileged, consume provider retry budget, or switch to Gamma, native imagegen, or another provider. After authorization, rerun the same resolved command; that is the first real provider attempt.
+
 Configure the third-party profile once, without exposing the key:
 
 ```bash
