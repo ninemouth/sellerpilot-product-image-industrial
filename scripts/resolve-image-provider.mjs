@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import crypto from "node:crypto";
 import { skillRootFrom } from "./lib/skill-paths.mjs";
 import { normalizeProviderCapabilities } from "./lib/provider-capabilities.mjs";
 import { findProfile, isThirdPartyProfile, normalizeExternalProfile, readProviderRegistry } from "./lib/provider-profile-registry.mjs";
@@ -32,6 +33,18 @@ const providerConfigPath = path.resolve(args.config || path.join(codexHome, "sel
 const codexConfigPath = path.resolve(args["codex-config"] || path.join(codexHome, "config.toml"));
 const requestedMode = String(args.provider || "auto").trim();
 if (!MODES.has(requestedMode)) fail(`Unsupported provider mode: ${requestedMode}`);
+const runReportPath = args["run-dir"] ? path.join(path.resolve(args["run-dir"]), "runtime", "image-provider-resolution.json") : null;
+if (runReportPath && fs.existsSync(runReportPath) && !args.force) {
+  const pinned = readJson(runReportPath);
+  if (pinned?.schema_version !== "sellerpilot.image_provider_resolution.v2" || !pinned.resolution_digest) fail("Pinned provider resolution is missing or incompatible; repair the run artifact instead of silently rerouting it.");
+  const expectedDigest = routeDigest(pinned);
+  if (pinned.resolution_digest !== expectedDigest) fail("Pinned provider resolution digest mismatch; repair the run artifact instead of silently rerouting it.");
+  pinRunState(path.resolve(args["run-dir"]), pinned, runReportPath);
+  const result = { ...pinned, run_report: runReportPath, reused_pinned: true };
+  console.log(JSON.stringify(result, null, 2));
+  if (pinned.status !== "ready") process.exitCode = 1;
+  process.exit();
+}
 
 const registryState = readProviderRegistry(providerConfigPath);
 const detected = detectThirdParty(readCodexConfig(codexConfigPath));
@@ -87,12 +100,14 @@ const resolution = {
       : "Use the listed runtime with the resolved profile, base URL, model, and key environment variable."
     : `Configure an API key for the selected external profile (${thirdParty.label}) before generation.`,
 };
+resolution.resolution_digest = routeDigest(resolution);
 
 if (args["run-dir"]) {
-  const out = path.join(path.resolve(args["run-dir"]), "runtime", "image-provider-resolution.json");
+  const out = runReportPath;
   fs.mkdirSync(path.dirname(out), { recursive: true });
-  fs.writeFileSync(out, JSON.stringify(resolution, null, 2));
+  fs.writeFileSync(out, `${JSON.stringify(resolution, null, 2)}\n`);
   resolution.run_report = out;
+  pinRunState(path.resolve(args["run-dir"]), resolution, out);
 }
 console.log(JSON.stringify(resolution, null, 2));
 if (status !== "ready") process.exitCode = 1;
@@ -157,6 +172,36 @@ function readCodexConfig(file) {
   }
   return { top, providers };
 }
+
+function pinRunState(runDir, value, reportPath) {
+  const statePath = path.join(runDir, "run-state.json");
+  const state = readJson(statePath);
+  if (!state || state.schema_version !== "sellerpilot.run_state.v1") return;
+  state.provider_resolution = {
+    path: path.relative(runDir, reportPath).split(path.sep).join("/"),
+    digest: value.resolution_digest,
+    status: value.status,
+    selected_mode: value.selected_mode,
+    profile_id: value.profile?.id || null,
+    pinned_at: value.resolved_at,
+  };
+  state.updated_at = new Date().toISOString();
+  fs.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}\n`);
+}
+
+function routeDigest(value) {
+  return crypto.createHash("sha256").update(JSON.stringify({
+    schema_version: value?.schema_version,
+    requested_mode: value?.requested_mode,
+    requested_profile_id: value?.requested_profile_id,
+    selected_mode: value?.selected_mode,
+    status: value?.status,
+    profile: value?.profile ? { id: value.profile.id, kind: value.profile.kind, source: value.profile.source } : null,
+    provider: value?.provider || null,
+  })).digest("hex");
+}
+
+function readJson(file) { try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return null; } }
 
 function slug(value) { return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""); }
 function stripSlash(value) { return String(value || "").trim().replace(/\/+$/, ""); }

@@ -135,7 +135,7 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
 
 Use this before heavy planning or generation. It writes `planning/production-efficiency-plan.json`, keeps compact image-set planning, records triggered vs skipped work, sets pre-generation/research/QA budgets, and initializes `generated-assets/generation-progress.json`. This is the guard against quality production drifting into full industrial audit mode.
 
-### Loop Engineering plan compiler (Phase 1)
+### Normalized task, plan compiler, and executable DAG
 
 For development and new control-plane integrations, compile task facts into the canonical policy, run state, and run-local DAG before dispatching work. Do not hand-author a standard production `tasks.json`:
 
@@ -148,7 +148,9 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
   --has-source-image true
 ```
 
-The compiler writes `run-state.json`, `planning/compiled-production-plan.json`, and `orchestration/tasks.json`. Explicit `--image-count` / `--locale` win; otherwise it applies the matching platform default and records the source under `goal.input_resolution`. It always compiles `generation-spec` before any provider-generation node, and mode contracts compile the required overview/review workspace as final-delivery dependencies. It classifies every task as a deterministic pre-gate, agent planning, provider generation, delivery closure, or human decision. In this migration phase, only deterministic tasks may execute through the generic orchestrator; provider, agent, and human-boundary tasks must pause rather than being treated as completed. See `docs/loop-engineering-reconstruction.md` for the full migration plan and loop budget rules.
+The compiler writes `planning/normalized-task.json`, `run-state.json`, `planning/compiled-production-plan.json`, `orchestration/tasks.json`, `orchestration/dispatcher-registry.json`, and `orchestration/generation-jobs.json`. Explicit `--image-count` / `--locale` win; otherwise it applies the matching platform default and records the source under `goal.input_resolution`. Brief, mode, efficiency, provider request, and compiler decisions reuse the same normalized facts and digest.
+
+It resolves `generation-spec` before any provider node, validates quality-critical prerequisite ancestry, and compiles artifact integrity, overview/review workspace, and final delivery as closure dependencies. Deterministic and delivery tasks run their commands. Agent tasks write a minimal context pack and pause as `awaiting_agent` until declared artifacts exist. Provider tasks run the generation controller; native imagegen pauses for a host callback, while a ready pinned third-party route executes its configured runtime. Human decisions pause explicitly. None of those structured waits may be reported as completion.
 
 ```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/production-orchestrator.mjs \
@@ -158,7 +160,21 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
   --concurrency 4
 ```
 
-Use this when independent pre-generation work should run as a real DAG instead of a written plan. The task file may include source preflight, AI visual text read, platform profile load, provider resolve, brief assumptions, compact copy/visual notes, and post-export workspace preparation. Tasks declare `depends_on`, `inputs`, `outputs`, and `command`; the orchestrator writes `orchestration/production-orchestrator-state.json`, reuses unchanged outputs by task hash, honors `orchestration/cancel`, and leaves identity, physical-truth, prompt, anchor-QA, and final-delivery gates as explicit convergence points.
+Use this when production should run as a real DAG instead of a written plan. Tasks declare dependencies, evidence inputs/outputs, execution class, dispatcher, context rules, and a cache key. The orchestrator writes `orchestration/production-orchestrator-state.json`, task handoffs/context packs, `telemetry/phase-events.jsonl`, and `telemetry/agent-context-ledger.jsonl`; it reuses outputs only when task, dependency, contract/platform, normalized-input, and dispatcher hashes still match. It honors `orchestration/cancel` and keeps truth locks, prompt, anchor QA, and final delivery as explicit convergence points.
+
+When the host provides actual model usage, record it without changing the quality schema:
+
+```bash
+npm run telemetry:record-agent-usage -- \
+  --run-dir /abs/run \
+  --task-id prompt-layer \
+  --input-tokens 4200 \
+  --output-tokens 950 \
+  --cached-input-tokens 1800 \
+  --latency-ms 8200
+```
+
+For a custom non-provider phase, write a measured span with `npm run telemetry:record-phase-span -- ...`. `production-phase-tracer.mjs` prefers explicit events and labels legacy file-mtime reconstruction as estimate-only.
 
 ```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/brief-intake-gate.mjs \
@@ -274,11 +290,11 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
 Use the commerce design research planner when sales intent, click appeal, dwell time, category differentiation, or bestseller pattern learning matters. It creates `research/commerce-design-research-plan.json` and `.md` with a bounded query plan, reference budget, extraction framework, pass criteria, and blueprint fields that must be updated before visual director and copy strategy.
 
 ```bash
-node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/build-source-image-set.mjs \
-  --images "/abs/front.png,/abs/detail.png,/abs/side.png" \
-  --out-dir /abs/run \
-  --category "女包"
+npm run prepare:source-references -- \
+  --run-dir /abs/run
 ```
+
+This is the canonical source-reference preflight for compiled runs. It reads `planning/normalized-task.json`, fingerprints every source, preserves a byte-identical run-local original for analysis, inspects dimensions/format/alpha, and creates a high-quality upload derivative only when a source exceeds its applicable byte/dimension limit or needs format normalization. It writes `source-preflight/reference-assets-manifest.json` and `source-reference-index.json`. Do not use `build-source-image-set.mjs` as the compiled DAG producer and do not re-encode all sources by default.
 
 ```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/create-run-skeleton.mjs \
@@ -294,6 +310,8 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
   --input /abs/source.png \
   --out-dir /abs/run/source-enhanced
 ```
+
+Run aesthetic enhancement only for a source that actually needs cleanup. It is separate from provider upload preparation; the unmodified `analysis_path` remains the product-evidence authority.
 
 ```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/normalize-source-product-asset.mjs \
@@ -312,7 +330,24 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
   --ocr-mode auto
 ```
 
-Use this after source enhancement and before identity lock. It creates `source-product-understanding.json` with image metadata, AI-visual-text-first policy, conditional OCR status, text-derived fact candidates when OCR runs, and fields for Codex visual product recognition. Prefer Codex visual text recognition first. If `--text-visibility` is omitted, OCR is skipped until Codex completes the visual text precheck. Pass `--text-visibility no` when visual inspection confidently sees no text, `--text-visibility yes` when text is visible, and `--text-visibility uncertain` when text may exist or is too small/blurred. Complete the AI visual read plus conditional OCR fallback before generation whenever visible text, size, installation, function, compatibility, material, warnings, or labels affect the product.
+For a compiled multi-reference run, the `source-understanding` agent inspects every manifest `analysis_path`, not only a primary image. It writes full `source-product-understanding.json`, complete `source-reference-annotations.json`, and compact `source-evidence-summary.json`. Prefer Codex visual text recognition first. If the single-image helper is used, `--text-visibility` may be `no`, `yes`, or `uncertain`; OCR remains a fallback for small, uncertain, spec-heavy, or risk-bearing text.
+
+```bash
+npm run qa:source-evidence-summary -- --run-dir /abs/run
+```
+
+This gate blocks incomplete per-source visual coverage, unresolved conflicts, competitor/unknown source routing, missing identity facts, embedded image data/path repetition, and a compact summary over 12 KB. Identity, blueprint, and prompt work must not start before it passes.
+
+Reference selection happens after each role prompt is final:
+
+```bash
+npm run select:source-references -- \
+  --run-dir /abs/run \
+  --role IMG-03 \
+  --prompt "macro hardware and zipper detail"
+```
+
+It combines annotations, compact routing, prompt intent, and pinned provider capabilities; writes `generated-assets/reference-selection-img-03.json`; and returns only the strongest one or two prepared, user-owned references. NVIDIA FLUX and any profile with `reference_images.max_count=1` receive one. Dispatch and provider runtimes recheck count/per-image/total bytes so direct calls cannot bypass the contract.
 
 ```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/source-product-understanding-gate.mjs \

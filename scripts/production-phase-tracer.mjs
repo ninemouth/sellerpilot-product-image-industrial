@@ -16,7 +16,10 @@ const assetReuse = readJsonSafe(path.join(runDir, "generated-assets", "asset-reu
 const manifest = readJsonSafe(path.join(runDir, "export", "final-images-manifest.json")) || null;
 const finalGate = readJsonSafe(path.join(runDir, "qa", "final-delivery-gate-report.json")) || null;
 const overview = readJsonSafe(path.join(runDir, "overview", "delivery-overview-report.json")) || null;
-const phaseSpans = collectPhaseSpans(runDir);
+const phaseEvents = readJsonLines(path.join(runDir, "telemetry", "phase-events.jsonl"));
+const agentContextEvents = readJsonLines(path.join(runDir, "telemetry", "agent-context-ledger.jsonl"));
+const explicitPhaseSpans = collectExplicitPhaseSpans(phaseEvents);
+const phaseSpans = explicitPhaseSpans.length ? explicitPhaseSpans : collectPhaseSpans(runDir);
 const jobMetrics = childJobs.map(jobMetricsFromProgress);
 const completedJobs = jobMetrics.filter((job) => job.status === "completed");
 const reusedJobs = jobMetrics.filter((job) => job.status === "reused_approved_asset" || job.source_type === "asset_reuse");
@@ -27,6 +30,7 @@ const findings = [];
 if (!childJobs.length && !manifest) {
   findings.push(finding("warn", "no-runtime-or-final-evidence", "No per-job progress files or final manifest were found."));
 }
+if (!explicitPhaseSpans.length) findings.push(finding("warn", "explicit-phase-spans-missing", "No explicit phase span events were found. File-mtime spans are retained only as labeled legacy estimates and must not be treated as measured SLA evidence."));
 if (childJobs.length && normalize(progress.status) === "not_started") {
   findings.push(finding("fail", "main-progress-stale", `Main generation-progress.json is not_started while ${childJobs.length} per-job progress file(s) exist.`));
 }
@@ -62,6 +66,7 @@ const report = {
     provider_response_ms: stats(providerJobs(jobMetrics).map((job) => job.provider_response_ms).filter(isNumber)),
     download_ms: stats(providerJobs(jobMetrics).map((job) => job.download_ms).filter(isNumber)),
     phase_duration_ms: Object.fromEntries(phaseSpans.map((phase) => [phase.phase, phase.duration_ms])),
+    agent_context: summarizeAgentContext(agentContextEvents),
   },
   findings,
 };
@@ -79,7 +84,7 @@ console.log(JSON.stringify({
 
 function collectPhaseSpans(root) {
   const definitions = [
-    ["source_preflight_ms", () => ["source-original", "source-enhanced", "source-normalized", "source-understanding", "source-image-set-manifest.json"].flatMap((entry) => collectFiles(path.join(root, entry)))],
+    ["source_preflight_ms", () => ["source-preflight", "source-original", "source-prepared", "source-enhanced", "source-normalized", "source-understanding", "source-image-set-manifest.json"].flatMap((entry) => collectFiles(path.join(root, entry)))],
     ["planning_ms", () => ["mode", "planning", "brief-intake", "strategy", "research", "blueprint", "layout-drafts", "prompt-pack", "generation-spec"].flatMap((entry) => collectFiles(path.join(root, entry)))],
     ["provider_runtime_ms", () => collectProviderRuntimeFiles(root)],
     ["asset_reuse_ms", () => collectAssetReuseFiles(root)],
@@ -97,8 +102,61 @@ function collectPhaseSpans(root) {
       started_at: span.started_at,
       ended_at: span.ended_at,
       duration_ms: span.duration_ms,
+      source: "legacy_file_mtime_estimate",
+      measurement_quality: "estimate_only",
     };
   });
+}
+
+function collectExplicitPhaseSpans(events) {
+  const grouped = new Map();
+  for (const event of events) {
+    const started = parseDate(event.started_at);
+    const ended = parseDate(event.ended_at);
+    if (!event.phase || !started || !ended || ended < started) continue;
+    if (!grouped.has(event.phase)) grouped.set(event.phase, []);
+    grouped.get(event.phase).push({ started, ended, event });
+  }
+  return [...grouped.entries()].map(([phase, spans]) => {
+    const intervals = spans.map((item) => [item.started.getTime(), item.ended.getTime()]).sort((a, b) => a[0] - b[0]);
+    const merged = [];
+    for (const interval of intervals) {
+      const last = merged[merged.length - 1];
+      if (!last || interval[0] > last[1]) merged.push([...interval]);
+      else last[1] = Math.max(last[1], interval[1]);
+    }
+    return {
+      phase,
+      files: 0,
+      event_count: spans.length,
+      started_at: new Date(Math.min(...intervals.map((item) => item[0]))).toISOString(),
+      ended_at: new Date(Math.max(...intervals.map((item) => item[1]))).toISOString(),
+      duration_ms: merged.reduce((sum, item) => sum + item[1] - item[0], 0),
+      input_bytes: spans.reduce((sum, item) => sum + Number(item.event.input_bytes || 0), 0),
+      output_bytes: spans.reduce((sum, item) => sum + Number(item.event.output_bytes || 0), 0),
+      source: "explicit_span_events",
+      measurement_quality: "measured",
+    };
+  }).sort((a, b) => String(a.started_at).localeCompare(String(b.started_at)));
+}
+
+function summarizeAgentContext(events) {
+  const tasks = new Map();
+  for (const event of events) {
+    if (!event.task_id) continue;
+    const current = tasks.get(event.task_id) || {};
+    tasks.set(event.task_id, { ...current, ...event, context_bytes: event.context_bytes ?? current.context_bytes, estimated_input_tokens: event.estimated_input_tokens ?? current.estimated_input_tokens });
+  }
+  const values = [...tasks.values()];
+  return {
+    task_count: values.length,
+    context_bytes: values.reduce((sum, item) => sum + Number(item.context_bytes || 0), 0),
+    estimated_input_tokens: values.reduce((sum, item) => sum + Number(item.estimated_input_tokens || 0), 0),
+    actual_input_tokens: values.reduce((sum, item) => sum + Number(item.actual_input_tokens || 0), 0),
+    actual_output_tokens: values.reduce((sum, item) => sum + Number(item.actual_output_tokens || 0), 0),
+    cached_tokens: values.reduce((sum, item) => sum + Number(item.cached_tokens || 0), 0),
+    actual_usage_task_count: values.filter((item) => Number.isFinite(item.actual_input_tokens) || Number.isFinite(item.actual_output_tokens)).length,
+  };
 }
 
 function collectProviderRuntimeFiles(root) {
@@ -283,6 +341,13 @@ function readJsonSafe(file) {
   try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return null; }
 }
 
+function readJsonLines(file) {
+  if (!fs.existsSync(file)) return [];
+  return fs.readFileSync(file, "utf8").split(/\r?\n/).filter(Boolean).flatMap((line) => {
+    try { return [JSON.parse(line)]; } catch { return []; }
+  });
+}
+
 function finding(severity, type, message) {
   return { severity, type, message };
 }
@@ -305,7 +370,13 @@ function toMarkdown(report) {
     `- Download p50/p95: ${formatMetric(report.metrics.download_ms.p50)} / ${formatMetric(report.metrics.download_ms.p95)}`,
     "",
     "## Phase Spans",
-    ...report.phase_spans.map((phase) => `- ${phase.phase}: ${formatMetric(phase.duration_ms)} (${phase.files} files)`),
+    ...report.phase_spans.map((phase) => `- ${phase.phase}: ${formatMetric(phase.duration_ms)} (${phase.source}; ${phase.event_count ?? phase.files} samples)`),
+    "",
+    "## Agent Context",
+    `- Tasks: ${report.metrics.agent_context.task_count}`,
+    `- Context bytes: ${report.metrics.agent_context.context_bytes}`,
+    `- Estimated input tokens: ${report.metrics.agent_context.estimated_input_tokens}`,
+    `- Actual input/output tokens: ${report.metrics.agent_context.actual_input_tokens} / ${report.metrics.agent_context.actual_output_tokens}`,
     "",
     "## Findings",
     ...(report.findings.length ? report.findings.map((item) => `- [${item.severity}] ${item.type}: ${item.message}`) : ["- None"]),

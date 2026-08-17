@@ -19,24 +19,24 @@ Quality production mode runs the full quality-critical path without generating t
 2. Select production mode with `production-mode-router.mjs`.
 3. Write `planning/production-efficiency-plan.json` with triggered work, skipped work, time budgets, and the progress update policy.
 4. Run Brief Intake Gate. Ask only high-value questions; otherwise record assumptions and continue.
-5. Build a transparent/card-safe source product asset for card and infographic layouts when user source imagery will be placed on white cards.
-6. Build Source Product Understanding with AI visual text reading first, run OCR only when visual text is visible/uncertain/important, then create Product Identity Lock before visual planning.
-6. Trigger physical truth, geometry, micro-detail, product URL reading, live platform research, or market research only when the product/request contains those risk signals.
-7. Create strategy direction options when the user request is rough/open, then continue with the harness-selected option if the user has no preference.
-8. Build compact image-set planning: source facts, identity/physical locks, platform baseline/triggered research, buyer question per image, Visual Director shot matrix, copy intent, prompt layers, and QA criteria.
-9. Run prompt-layer planning and copy strategy checks before image generation.
-10. Generate an anchor batch through Codex-native `imagegen` / `image_gen`: main identity/hero, highest-risk scene or scale shot, and one detail when identity risk is high.
-11. QA the anchor batch for identity, physical truth, scene realism, copy, and visual direction.
-12. Continue only missing/approved remaining assets after anchor QA passes.
-13. Run relevant final gates only: identity, geometry/physics when triggered, copy, marketing, export, overview, final delivery.
-14. For generated multi-image final sets, run `post-generation-tldraw-launcher.mjs` after export and overview so the final handoff includes a ready tldraw URL or a blocked startup reason.
+5. Run reference preflight: preserve immutable analysis originals and create provider upload derivatives only when bytes/dimensions/format require them.
+6. Deep-read every original, write full plus per-source annotations and compact evidence, pass the compact-evidence gate, then create Product Identity Lock.
+7. Build a transparent/card-safe product asset only when card/infographic composition needs it.
+8. Trigger physical truth, geometry, micro-detail, URL/live research, or market research only when signals require them.
+9. Create direction options for rough/open requests; otherwise continue with the harness default.
+10. Build compact image-set planning with identity/truth locks, platform context, buyer question, shot matrix, copy, prompt layers, and QA criteria.
+11. Pass prompt/copy gates, then generate anchors with role-specific reference selection (normally 1–2, subject to provider cap).
+12. QA anchors for identity, physical truth, scene realism, copy, and direction.
+13. Continue only missing/approved roles after anchor pass.
+14. Run relevant identity/physics/copy/marketing/export/overview/final gates.
+15. Start tldraw after export/overview and return a ready URL or blocked reason.
 
 ## Fast Loop
 
 1. Resolve skill root and load local rules.
 2. Run Brief Intake Gate. Ask only high-value questions; otherwise record assumptions and continue.
-3. Preflight source images and enhance if needed.
-4. Build a compact Product Fact Sheet and Product Identity Lock.
+3. Preflight sources, preserving originals and preparing upload variants only if needed.
+4. Deep-read every reference; keep full evidence, pass compact evidence, and build Product Identity Lock.
 5. Run targeted platform/category research only when the baseline profile is stale, unclear, platform/category fit is conversion-critical, or the user requests marketing enhancement.
 6. Run compact Product Feature Analysis and Audience Positioning Analysis:
    - confirmed visual traits and feature evidence
@@ -58,7 +58,7 @@ Quality production mode runs the full quality-critical path without generating t
    - required scene assets listed
    - no internal-facing final copy
    - no repeated detail crops
-10. Generate an anchor batch through Codex-native `imagegen` / `image_gen` when available, using source image references when possible.
+10. Generate anchors through the pinned provider, selecting only the strongest 1–2 user-owned references for each role.
 11. Run a focused anchor QA against identity, scene direction, role diversity, and obvious platform mismatch.
 12. Continue only missing/failed assets after anchor QA passes. Reuse approved assets; do not regenerate the full set.
 13. Compose final layouts.
@@ -85,11 +85,13 @@ Fast mode should not create the full industrial run skeleton, every research art
 
 For image sets with more than three outputs, avoid serially generating the full set before checking quality.
 
-Default anchor batch:
+Risk-adaptive anchor batch (bounded by the production contract):
 
-- one main identity/hero image
-- one highest-risk scene or scale image
-- one detail/texture image when identity risk is high
+- fast/low-risk: one main identity/hero image
+- normal quality: two anchors, including the highest-risk scene or scale role
+- high identity, physical-truth, or surface-material risk: up to three anchors, adding a detail/texture/material-transfer role
+
+The compiler records both `anchor_limit` and `anchor_selection_reason` in `orchestration/generation-jobs.json`; the controller must not silently collapse a high-risk three-anchor plan to two. After approval, remaining independent roles still use at most two concurrent provider calls.
 
 Continue only after anchor QA decides:
 

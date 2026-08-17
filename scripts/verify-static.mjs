@@ -15,8 +15,41 @@ check("skill progressive disclosure budget", () => {
   const skill = read("SKILL.md");
   const lines = skill.split("\n").length;
   if (lines > 500) throw new Error(`SKILL.md must remain under 500 lines, got ${lines}`);
+  const fixedEntryBytes = Buffer.byteLength(skill) + Buffer.byteLength(read("AGENTS.md"));
+  if (fixedEntryBytes > 30_000) throw new Error(`fixed SKILL.md + AGENTS.md context must remain under 30 KB, got ${fixedEntryBytes} bytes`);
   if (!skill.includes("production-runtime-runbook.md")) throw new Error("SKILL.md must route exact runtime operations to the on-demand runbook");
+  if (!skill.includes("quality-critical-contract.md")) throw new Error("SKILL.md must route detailed quality constraints to the trigger-loaded contract");
   if (!fs.existsSync(path.join(skillRoot, "references", "production-runtime-runbook.md"))) throw new Error("production runtime runbook is missing");
+  const qualityContract = read("references/quality-critical-contract.md");
+  for (const token of ["Ozon ordinary categories", "platform preference memory", "store-wide style", "commerce design research planner", "surface material", "Final Delivery Gate"]) if (!qualityContract.includes(token)) throw new Error(`trigger-loaded quality contract missing ${token}`);
+});
+check("compiled dispatcher and context-budget boundary", () => {
+  const compiler = read("scripts/compile-production-plan.mjs");
+  const orchestrator = read("scripts/production-orchestrator.mjs");
+  const controller = read("scripts/generation-execution-controller.mjs");
+  for (const token of ["planning/normalized-task.json", "dispatcher-registry.json", "generation-jobs.json", "production-artifact-integrity-gate", "requires_before_generation", "requires_before_delivery"]) if (!compiler.includes(token)) throw new Error(`compiler missing ${token}`);
+  for (const token of ["artifact_handoff", "generation_controller", "agent-context-ledger.jsonl", "phase-events.jsonl", "cache_context", "hashDeclaredOutputs", "hashPath", "context_cache_hit"]) if (!orchestrator.includes(token)) throw new Error(`orchestrator missing ${token}`);
+  for (const token of ["anchor_limit", "Math.min(3", "awaiting_native_host", "Math.min(2", "mapWithConcurrency"]) if (!controller.includes(token)) throw new Error(`generation controller missing ${token}`);
+});
+check("control-plane benchmark safety boundary", () => {
+  const benchmark = read("scripts/benchmark-control-plane.mjs");
+  for (const token of ["provider_generation_calls: 0", '"--provider", "native_codex"', '"--no-auto-start"', "fs.rmSync(temp", "first_dag_advance", "tldraw_reuse"]) if (!benchmark.includes(token)) throw new Error(`control-plane benchmark missing ${token}`);
+});
+check("provider pin and explicit telemetry boundary", () => {
+  const resolver = read("scripts/resolve-image-provider.mjs");
+  const runtime = read("scripts/thinkai-image-runtime.mjs");
+  const tracer = read("scripts/production-phase-tracer.mjs");
+  for (const token of ["reused_pinned", "resolution_digest", "Pinned provider resolution digest mismatch"]) if (!resolver.includes(token)) throw new Error(`provider resolver missing ${token}`);
+  for (const token of ["usage_source", "cost_source", "provider_request", "provider_runtime", "download"]) if (!runtime.includes(token)) throw new Error(`provider runtime missing ${token}`);
+  for (const token of ["explicit_span_events", "legacy_file_mtime_estimate", "estimate_only", "actual_input_tokens", "actual_output_tokens"]) if (!tracer.includes(token)) throw new Error(`phase tracer missing ${token}`);
+});
+check("tldraw lightweight workspace boundary", () => {
+  const creator = read("scripts/create-tldraw-review-workspace.mjs");
+  const registrar = read("scripts/register-tldraw-review-session.mjs");
+  const template = read("scripts/lib/tldraw-template.mjs");
+  for (const token of ["copyTldrawAppTemplate", "linkOrCopyFile", "source_fingerprint"]) if (!`${creator}\n${registrar}\n${template}`.includes(token)) throw new Error(`tldraw workspace boundary missing ${token}`);
+  if (!template.includes('"src"') || /^\s*"node_modules"\s*,?$/m.test(template)) throw new Error("tldraw template allowlist must include src and exclude node_modules");
+  if (!registrar.includes("assets_reused")) throw new Error("tldraw session registration must reuse unchanged assets");
 });
 for (const file of ["contracts/production-contract.json", "contracts/platform-overrides.json", "contracts/integration-suite-registry.json", "schemas/production-contract.schema.json", "schemas/run-state.schema.json", "schemas/platform-overrides.schema.json"]) check(file, () => JSON.parse(read(file)));
 check("production contract invariants", () => {
@@ -105,7 +138,7 @@ check("third-party setup-time execution boundary", () => {
     ["runtime", runtime, ["external_provider_transport_unavailable", "external_provider_host_policy_blocked", "Bad access", "external_provider_host_policy"]],
     ["circuit", circuit, ["setup_required", "external-provider-transport-unavailable", "external-provider-host-policy-blocked", "do not substitute native imagegen"]],
     ["run-state transition", transitions, ["blocked", "external_provider_setup_required", "external_provider_host_policy_blocked"]],
-    ["skill", skill, ["configured third-party route authorizes its execution", "upload user-provided reference images", "Never ask \u201c是否同意把参考图发到外部生成通道/是否继续？\u201d"]],
+    ["skill", skill, ["A ready configured route already covers reference upload", "never ask again whether to send references", "never needs a second upload-consent prompt"]],
     ["runbook", runbook, ["Setup-time provider authorization", "do not prompt again", "external_provider_host_policy_blocked"]],
   ]) for (const token of tokens) if (!text.includes(token)) throw new Error(`${name} missing ${token}`);
 });

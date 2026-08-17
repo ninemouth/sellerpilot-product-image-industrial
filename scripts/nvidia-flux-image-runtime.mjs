@@ -7,6 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { skillRootFrom } from "./lib/skill-paths.mjs";
+import { normalizeReferenceLimits } from "./lib/source-reference-policy.mjs";
 
 const DEFAULT_BASE_URL = "https://ai.api.nvidia.com/v1/genai";
 const DEFAULT_MODEL = "black-forest-labs/flux.2-klein-4b";
@@ -30,10 +31,18 @@ const apiKey = String(config.api_key || process.env[apiKeyEnv] || "").trim();
 const size = parseSize(args.size);
 const runDir = args["run-dir"] ? path.resolve(args["run-dir"]) : "";
 const role = String(args.role || "");
+const referenceLimits = normalizeReferenceLimits({ ...(config.capabilities?.reference_images || {}), max_count: 1 });
 
 if (!SUPPORTED_MODELS.has(model)) fail(`Unsupported NVIDIA FLUX model: ${model}.`);
 if (runDir && !role) fail("--role is required when --run-dir is provided.");
-for (const file of images) if (!fs.statSync(file, { throwIfNoEntry: false })?.isFile()) fail(`Source image not found: ${file}`);
+let totalReferenceBytes = 0;
+for (const file of images) {
+  const stat = fs.statSync(file, { throwIfNoEntry: false });
+  if (!stat?.isFile()) fail(`Source image not found: ${file}`);
+  if (stat.size > referenceLimits.max_per_image_bytes) fail(`Source image exceeds the provider per-image byte limit: ${file}`);
+  totalReferenceBytes += stat.size;
+}
+if (totalReferenceBytes > referenceLimits.max_total_bytes) fail("Selected source images exceed the provider total byte limit.");
 if (images.length > 1) fail("NVIDIA FLUX adapter accepts one source image per request.");
 if (["black-forest-labs/flux.1-dev", "black-forest-labs/flux.1-schnell"].includes(model) && images.length) fail(`${model} does not accept an ordinary source-image edit in this adapter; use FLUX.1-Kontext-dev or FLUX.2-klein-4b.`);
 

@@ -5,6 +5,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { skillRootFrom } from "./lib/skill-paths.mjs";
 import { relativeContractPath } from "./lib/portable-path.mjs";
+import { providerReferenceLimits } from "./lib/source-reference-policy.mjs";
 
 const args = parseArgs(process.argv);
 if (args.help || !args["run-dir"] || !args.role || !args.prompt) usage();
@@ -20,17 +21,33 @@ const requestedSize = String(args.size || generationSpec?.requested_size || "").
 const efficiencyPlan = readJson(path.join(runDir, "planning", "production-efficiency-plan.json")) || {};
 const providerTimeoutSeconds = positiveInteger(args["request-timeout-seconds"] || efficiencyPlan?.progress_update_policy?.provider_request_timeout_seconds) || 900;
 const progressFile = path.join(runDir, "generated-assets", `progress-${role.toLowerCase()}.json`);
-const resolverArgs = [path.join(skillRoot, "scripts", "resolve-image-provider.mjs"), "--run-dir", runDir];
-for (const [flag, key] of [["--provider", "provider"], ["--profile", "profile"], ["--config", "provider-config"], ["--codex-config", "codex-config"]]) if (args[key]) resolverArgs.push(flag, args[key]);
-const resolved = spawnSync(process.execPath, resolverArgs, { cwd: runDir, encoding: "utf8" });
-const resolution = parseJson(resolved.stdout);
+const pinnedResolutionPath = path.join(runDir, "runtime", "image-provider-resolution.json");
+const routeOverrides = ["provider", "profile", "provider-config", "codex-config"].filter((key) => args[key]);
+if (fs.existsSync(pinnedResolutionPath) && routeOverrides.length) fail(`This run already has a pinned provider route; per-role route overrides are forbidden (${routeOverrides.join(", ")}). Compile a new run for a different route.`);
+let resolution = fs.existsSync(pinnedResolutionPath) ? readJson(pinnedResolutionPath) : null;
+if (!resolution) {
+  const resolverArgs = [path.join(skillRoot, "scripts", "resolve-image-provider.mjs"), "--run-dir", runDir];
+  const normalizedProvider = readJson(path.join(runDir, "planning", "normalized-task.json"))?.provider_request || {};
+  const routeArgs = {
+    provider: args.provider || normalizedProvider.mode,
+    profile: args.profile || normalizedProvider.profile_id,
+    "provider-config": args["provider-config"] || normalizedProvider.provider_config,
+    "codex-config": args["codex-config"] || normalizedProvider.codex_config,
+  };
+  for (const [flag, key] of [["--provider", "provider"], ["--profile", "profile"], ["--config", "provider-config"], ["--codex-config", "codex-config"]]) if (routeArgs[key] && !(key === "provider" && routeArgs[key] === "auto")) resolverArgs.push(flag, routeArgs[key]);
+  const resolved = spawnSync(process.execPath, resolverArgs, { cwd: runDir, encoding: "utf8" });
+  resolution = parseJson(resolved.stdout);
+}
 if (!resolution) fail("Image provider resolution produced no readable result.");
+resolution.run_report = pinnedResolutionPath;
+validatePinnedResolution(resolution);
+if (resolution.status === "ready") validateReferenceImages(images, resolution);
 if (resolution.status !== "ready") {
   console.log(JSON.stringify({ status: resolution.status, selected_mode: resolution.selected_mode, provider: resolution.provider, next_action: resolution.next_action }, null, 2));
   process.exitCode = 1;
 } else if (resolution.selected_mode === "native_codex") {
   const nativeArgs = [path.join(skillRoot, "scripts", "create-native-imagegen-handoff.mjs"), "--run-dir", runDir, "--role", role, "--prompt", args.prompt, "--output-path", outputPath()];
-  if (images[0]) nativeArgs.push("--image", images[0]);
+  for (const image of images) nativeArgs.push("--image", image);
   if (args["source-hash"]) nativeArgs.push("--source-hash", args["source-hash"]);
   const native = spawnSync(process.execPath, nativeArgs, { cwd: runDir, encoding: "utf8" });
   if (native.status !== 0) { process.stderr.write(native.stderr || native.stdout || "Native dispatch handoff failed.\n"); process.exit(native.status || 1); }
@@ -75,6 +92,23 @@ function normalizeRole(value) { const match = String(value || "").match(/(?:IMG|
 function parseArgs(argv) { const result = { image: [] }; for (let i = 2; i < argv.length; i += 1) { if (!argv[i].startsWith("--")) continue; const key = argv[i].slice(2); const value = argv[i + 1]; if (key === "image") { if (!value || value.startsWith("--")) fail("--image requires a path"); result.image.push(value); i += 1; } else if (!value || value.startsWith("--")) result[key] = true; else { result[key] = value; i += 1; } } return result; }
 function parseJson(value) { try { return JSON.parse(String(value || "").trim()); } catch { return null; } }
 function readJson(file) { try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return null; } }
+function validatePinnedResolution(value) {
+  if (!value.resolution_digest) fail("Pinned provider resolution has no digest.");
+  const state = readJson(path.join(runDir, "run-state.json"));
+  if (state?.provider_resolution?.digest && state.provider_resolution.digest !== value.resolution_digest) fail("Pinned provider resolution does not match run-state.json.");
+}
+function validateReferenceImages(files, providerResolution) {
+  const limits = providerReferenceLimits(providerResolution);
+  if (files.length > limits.max_count) fail(`Reference selection produced ${files.length} images, but this provider route allows at most ${limits.max_count}. Select role-specific references before dispatch.`);
+  let totalBytes = 0;
+  for (const file of files) {
+    if (!fs.existsSync(file) || !fs.statSync(file).isFile()) fail(`Selected reference image is missing: ${file}`);
+    const bytes = fs.statSync(file).size;
+    if (bytes > limits.max_per_image_bytes) fail(`Selected reference image exceeds the provider per-image byte limit (${bytes} > ${limits.max_per_image_bytes}). Run source reference preparation first.`);
+    totalBytes += bytes;
+  }
+  if (totalBytes > limits.max_total_bytes) fail(`Selected reference images exceed the provider total byte limit (${totalBytes} > ${limits.max_total_bytes}). Reduce the role-specific selection.`);
+}
 function positiveInteger(value) { const parsed = Number(value); return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : null; }
 function fail(message) { console.error(message); process.exit(2); }
 function usage() { console.error("Usage: node scripts/create-image-generation-dispatch.mjs --run-dir /abs/run --role IMG-01 --prompt '<final prompt>' [--image /abs/source.png] [--generation-spec /abs/run/generation-spec/generation-spec.json] [--size WxH] [--provider auto|native_codex|third_party_proxy] [--profile PROFILE_ID] [--provider-config /abs/image-provider.json] [--codex-config /abs/config.toml] [--output-path /abs/run/generated-assets/IMG-01/image.png]"); process.exit(2); }

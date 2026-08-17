@@ -13,7 +13,8 @@ if (!role) fail("role must be IMG-01 style.");
 const state = readJson(path.join(runDir, "run-state.json"));
 if (state?.schema_version !== "sellerpilot.run_state.v1") fail("run-state.json is missing or incompatible; compile a production plan first.");
 const prompt = String(args.prompt);
-const sourceHash = String(args["source-hash"] || sourceFingerprint(args.image));
+const images = args.image.map((item) => path.resolve(item));
+const sourceHash = String(args["source-hash"] || sourceFingerprint(images));
 const handoffId = crypto.createHash("sha256").update(JSON.stringify({ run_id: state.run_id, role, prompt, sourceHash, created_at: new Date().toISOString() })).digest("hex").slice(0, 20);
 const out = args.out ? path.resolve(args.out) : path.join(runDir, "generated-assets", `native-imagegen-handoff-${role.toLowerCase()}.json`);
 const record = spawnSync(process.execPath, [path.join(skillRootFrom(import.meta.url), "scripts", "record-provider-call.mjs"), "--run-dir", runDir, "--role", role, "--status", "requested", "--prompt-hash", prompt, "--source-hash", sourceHash, "--provider", "native_codex", "--model", "imagegen", "--triggering-gate", args["triggering-gate"] || "generation_dispatch"], { cwd: runDir, encoding: "utf8" });
@@ -30,7 +31,8 @@ const handoff = {
   prompt_hash: sha(prompt),
   source_evidence: sourceHash,
   source_hash: sha(sourceHash),
-  source_image: args.image ? path.relative(runDir, path.resolve(args.image)) : null,
+  source_image: images[0] ? relativeRunPath(images[0]) : null,
+  source_images: images.map(relativeRunPath),
   output_path: args["output-path"] ? path.relative(runDir, path.resolve(args["output-path"])) : null,
   execution_requirements: ["invoke the host native imagegen/image_gen tool with this prompt and source references", "save the real output file", "call record-native-imagegen-result.mjs with --handoff and host execution evidence id"],
   preflight_ledger: JSON.parse(record.stdout),
@@ -40,9 +42,10 @@ fs.writeFileSync(out, `${JSON.stringify(handoff, null, 2)}\n`);
 console.log(JSON.stringify({ status: "ready", handoff: out, handoff_id: handoffId, role, next_action: "invoke native imagegen then record its real output with --handoff" }, null, 2));
 
 function sha(value) { return crypto.createHash("sha256").update(String(value)).digest("hex"); }
-function sourceFingerprint(image) { if (!image) return ""; const file = path.resolve(image); return fs.existsSync(file) ? sha(fs.readFileSync(file)) : file; }
+function sourceFingerprint(images) { return sha((images || []).map((file) => fs.existsSync(file) ? `${file}:${sha(fs.readFileSync(file))}` : `${file}:missing`).join("|")); }
+function relativeRunPath(file) { return path.relative(runDir, file).split(path.sep).join("/"); }
 function normalizeRole(value) { const match = String(value || "").match(/(?:IMG|POSTER|DETAIL)[-_ ]?(\d{1,2})/i); return match ? `IMG-${match[1].padStart(2, "0")}` : null; }
 function readJson(file) { try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return null; } }
-function parseArgs(argv) { const result = {}; for (let i = 2; i < argv.length; i += 1) { if (!argv[i].startsWith("--")) continue; const key = argv[i].slice(2); const value = argv[i + 1]; if (!value || value.startsWith("--")) result[key] = true; else { result[key] = value; i += 1; } } return result; }
+function parseArgs(argv) { const result = { image: [] }; for (let i = 2; i < argv.length; i += 1) { if (!argv[i].startsWith("--")) continue; const key = argv[i].slice(2); const value = argv[i + 1]; if (key === "image") { if (!value || value.startsWith("--")) fail("--image requires a path"); result.image.push(value); i += 1; } else if (!value || value.startsWith("--")) result[key] = true; else { result[key] = value; i += 1; } } return result; }
 function fail(message) { console.error(message); process.exit(2); }
-function usage() { console.error("Usage: node scripts/create-native-imagegen-handoff.mjs --run-dir /abs/run --role IMG-01 --prompt '<final prompt>' [--image /abs/source.png] [--source-hash value] [--output-path /abs/run/generated-assets/IMG-01/image.png]"); process.exit(2); }
+function usage() { console.error("Usage: node scripts/create-native-imagegen-handoff.mjs --run-dir /abs/run --role IMG-01 --prompt '<final prompt>' [--image /abs/source.png ...] [--source-hash value] [--output-path /abs/run/generated-assets/IMG-01/image.png]"); process.exit(2); }

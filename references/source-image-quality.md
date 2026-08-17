@@ -2,16 +2,21 @@
 
 Run source-image preflight before source product understanding, product fact extraction, and scene generation.
 
-If multiple source images are provided, first build a source image set manifest:
+For every source-backed compiled run, prepare the reference manifest first:
 
 ```bash
-node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/build-source-image-set.mjs \
-  --images "/abs/front.png,/abs/detail.png,/abs/side.png" \
-  --out-dir /abs/run \
-  --category "商品类目"
+npm run prepare:source-references -- \
+  --run-dir /abs/run
 ```
 
-Use `references/multi-source-image-fusion.md` to classify each image role and fuse complementary evidence into the Product Identity Lock.
+The command reads `planning/normalized-task.json` and writes `source-preflight/reference-assets-manifest.json` plus `source-reference-index.json`. It never modifies the user's files. Each input receives:
+
+- a byte-identical run-local `analysis_path` under `source-original/`;
+- a `provider_path`, which reuses that original when it already fits;
+- a high-quality derivative under `source-prepared/` only when bytes, dimensions, or format require it;
+- before/after bytes, dimensions, format, hash, alpha/lossy status, and preparation reason.
+
+Standard references default to an 8 MB/4096 px preparation threshold and a 6 MB target. Detail/logo/canonical material references retain a higher 12 MB/6144 px threshold and 10 MB target. Provider capabilities still impose the final request boundary. These defaults are quality-preserving upload controls, not permission to upscale or discard originals.
 
 ## Required Checks
 
@@ -39,9 +44,9 @@ source-enhanced.png
 source-quality-report.json
 ```
 
-Use the enhanced image for product parsing, deterministic layouts, and GPT built-in image generation references. Do not treat enhancement as proof of new product facts.
+Use the analysis original for deep product understanding and visible-text reading. Use an enhanced image only when visual quality needs deterministic cleanup; use the prepared provider variant for provider upload. Do not treat enhancement or compression as proof of new product facts.
 
-When multiple source images exist, enhance each user-owned source image, but keep role labels and evidence boundaries separate. Do not merge conflicting images into one invented product.
+Do not enhance or re-encode every source by default. When multiple source images exist, inspect every original, selectively enhance only images that need it, keep role labels/evidence boundaries separate, and do not merge conflicting images into one invented product.
 
 ## Source Asset Normalization
 
@@ -75,7 +80,7 @@ Fail or send to visual review when:
 
 ## Source Product Understanding
 
-After enhancement, run source product understanding. The image may contain text, labels, tags, packaging, dimensions, warnings, installation callouts, model names, or scale cues that are product facts, not decorative pixels.
+After reference preflight, run source product understanding against every manifest `analysis_path`. The images may contain text, labels, tags, packaging, dimensions, warnings, installation callouts, model names, or scale cues that are product facts, not decorative pixels.
 
 ```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/create-source-product-understanding.mjs \

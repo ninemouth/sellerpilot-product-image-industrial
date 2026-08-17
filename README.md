@@ -13,6 +13,12 @@
 
 ## 最新更新
 
+2026-08-17 参考图证据链与请求载荷优化：
+
+- **按需压缩，不动原图**：所有参考图先记录 hash、bytes、尺寸、格式和 alpha；小且兼容的图片直接复用，不再默认转 PNG。只有超字节/尺寸阈值或格式不兼容时才生成高质量 provider 上传副本，深度理解始终读取 byte-identical run-local 原图。
+- **多图逐张深读，文本语义压缩**：每张参考图都有 ownership/role/unique contribution/conflict annotation；完整审计证据保留给身份与 QA，普通规划和 prompt 节点读取低于 12 KB 的 compact evidence summary，减少反复视觉解析和上下文 token。
+- **按成图角色晚绑定参考图**：主图、细节、侧面、内里、包装、场景等分别选择最相关的 1–2 张，NVIDIA/单图 runtime 只选 1 张；竞品和未确认归属的图片不会进入产品生成请求。dispatch/runtime 同时强制数量、单图字节和总字节上限。
+
 2026-08-16 Provider profile、长等待治理与 QA 可观测性升级：
 
 - **内置 profile 与外部 profile 分离**：`Codex Native`、`NVIDIA FLUX` 为内置 profile；ThinkAI 和任意 OpenAI-compatible 服务都必须作为明确命名的外部 profile 保存，绝不再是主 skill 的隐式默认。
@@ -53,6 +59,7 @@
 - 在正式生产前，为粗略需求给出 2-3 个商业方向；用户不选时，harness 会自动选择一个方向继续。
 - 支持单张正式商品图制作，例如一张主图、场景图、详情图或草稿图；单图会保留 manifest 和 QA，但不会强制生成套图总览或 anchor batch。
 - 从源图中提取商品身份、可见文字、尺寸线索、材料/结构/功能信息，并把这些事实传递到后续图像生成和 QA。
+- 自动判断参考图是否需要压缩，保留无损分析原图，并为每个成图角色只上传最相关的少量参考图；多图理解先压缩为可审计的结构化文本证据，避免每个节点和请求重复携带全部图片。
 - 为 card/信息图/参数图生成透明或白卡安全商品素材，并检查商品底色与 card 背景是否一致。
 - 针对时令、气候、节假日、区域趋势和营销热词创建平台上下文计划。
 - 对 Ozon 普通品类默认执行 `3:4` 竖版商品图比例；Ozon Fresh 食品类等例外按平台 profile 或当前官方证据处理。
@@ -147,7 +154,7 @@ ${SELLERPILOT_IMAGE_SKILL_MEMORY:-$HOME/.codex/sellerpilot-product-image-industr
 
 ### 第三方图片 provider 配置
 
-图片请求尺寸始终由当前 run 的平台 generation spec 决定；provider profile 不得用未验证的通用尺寸白名单替换平台目标。`Codex Native` 与 `NVIDIA FLUX` 是内置 profile。ThinkAI 只是一个可选外部 profile，使用本仓库的 `scripts/thinkai-image-runtime.mjs`，可配置自己的 base URL、模型、key 环境变量和 capabilities。
+图片请求尺寸始终由当前 run 的平台 generation spec 决定；provider profile 不得用未验证的通用尺寸白名单替换平台目标。`Codex Native` 与 `NVIDIA FLUX` 是内置 profile。ThinkAI 只是一个可选外部 profile，通过 `scripts/thinkai-image-runtime.mjs` 执行，可配置 base URL、模型、key 和 capabilities；参考图能力支持 `--reference-max-count`、`--reference-max-per-image-bytes`、`--reference-max-total-bytes`，生产 job 仍默认最多选择 2 张。
 
 ```bash
 export THINKAI_IMAGE_API_KEY="<YOUR_THINKAI_IMAGE_API_KEY>"
@@ -544,11 +551,11 @@ npm run plan:compile -- \
   --scene-requested true
 ```
 
-编译器不会生成图片或调用 provider。它只创建可审计的生产计划，并把每个节点标记为 `deterministic_pre_gate`、`agent_planning`、`provider_generation`、`delivery_closure` 或 `human_decision`。provider 节点在 dispatcher 接入前会保持 blocked，不能因为编译计划而误触发付费生图。
+编译器本身不会生成图片或调用 provider。它会写唯一的 `planning/normalized-task.json`、可审计计划、可执行 dispatcher registry 和 run-local generation jobs，并把每个节点标记为 `deterministic_pre_gate`、`agent_planning`、`provider_generation`、`delivery_closure` 或 `human_decision`。只有显式运行 orchestrator 的 `--execute` 才会执行已绑定命令；agent/native/human 边界会写结构化 handoff 并暂停，不能被误报为完成。
 
 显式传入的 `--image-count` 和 `--locale` 始终优先；未传入时，编译器会采用当前平台覆盖的默认数量和 locale（例如 Amazon 的 7 图套图、Ozon 的 `ru-RU`），并把取值来源写入 `run-state.json.goal.input_resolution`。每个计划都会在 provider generation 前创建 `generation-spec/generation-spec.json`；质量/工业级正式交付还会把 run-scoped tldraw review workspace 编译为 Final Delivery 的前置节点，而不是依赖执行者临场补做。
 
-已具备 command 的确定性节点可由现有 orchestrator 执行；其余节点会在状态机后续阶段接入：
+执行器会按 dispatcher 处理全部 execution class：确定性与 delivery 命令直接运行，agent 节点写最小 context pack 后等待产物，provider 节点进入统一 generation controller，native host 与 human decision 显式暂停：
 
 ```bash
 npm run orchestrate:production -- \
@@ -557,7 +564,7 @@ npm run orchestrate:production -- \
   --execute
 ```
 
-`tasks.json` 由 compiler 生成；每个 task 声明 `id`、`depends_on`、`inputs`、`outputs`、`execution_class`、触发原因和 loop policy。orchestrator 会写 `orchestration/production-orchestrator-state.json`，按依赖并行执行无关的确定性任务，按输入/命令 hash 复用未变化输出，看到 `orchestration/cancel` 时停止。完整设计、阶段边界和验收标准见 [Loop Engineering Reconstruction](docs/loop-engineering-reconstruction.md)。
+`tasks.json` 由 compiler 生成；每个 task 声明 `id`、`depends_on`、`inputs`、`outputs`、`execution_class`、dispatcher、context rules、触发原因和 loop policy。orchestrator 会写 `production-orchestrator-state.json`、task handoff、agent context ledger 和显式 phase spans，按真实 DAG 并行独立任务，并用 normalized facts、contract/platform、输入、依赖与 dispatcher hash 复用未变化输出。看到 `orchestration/cancel` 时停止。完整设计、阶段边界和验收标准见 [Loop Engineering Reconstruction](docs/loop-engineering-reconstruction.md)。
 
 当 QA router 或 watchdog 在 compiled run 中运行时，会自动把结果投影回 `run-state.json`。局部修复前可记录下游失效范围而不删除已批准资产：
 

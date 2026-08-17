@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/production-contract.schema.json",
   "schema_version": "sellerpilot.production_contract.v1",
-  "policy_version": "2026-07-30",
+  "policy_version": "2026-08-17",
   "default_mode": "quality_production",
   "modes": {
     "fast_generation": {
@@ -41,13 +41,39 @@
     }
   },
   "triggers": {
-    "has_source_image": { "requires": ["source_understanding", "identity_lock"] },
-    "visible_copy": { "requires": ["text_layout_proof", "final_visible_text_review"] },
-    "localized_copy": { "requires": ["localized_copy_qa", "final_visible_text_review"] },
-    "scene_requested": { "requires": ["scene_realism_review"] },
-    "physical_function_risk": { "requires": ["physical_truth_lock", "product_physics_gate"] },
-    "surface_material_canonical": { "requires": ["surface_material_lock", "surface_material_transfer_gate"] },
-    "multi_image_set": { "requires": ["anchor_batch", "delivery_overview"] }
+    "has_source_image": {
+      "requires": ["source_reference_preflight", "source_understanding", "source_evidence_summary_gate", "identity_lock"],
+      "requires_before_generation": ["source_reference_preflight", "source_understanding", "source_evidence_summary_gate", "identity_lock"],
+      "requires_before_delivery": ["identity_lock"]
+    },
+    "visible_copy": {
+      "requires": ["text_layout_proof", "final_visible_text_review"],
+      "requires_before_generation": ["text_layout_proof"],
+      "requires_before_delivery": ["final_visible_text_review"]
+    },
+    "localized_copy": {
+      "requires": ["localized_copy_qa", "final_visible_text_review"],
+      "requires_before_generation": ["localized_copy_qa"],
+      "requires_before_delivery": ["final_visible_text_review"]
+    },
+    "scene_requested": {
+      "requires": ["scene_realism_review"],
+      "requires_before_delivery": ["scene_realism_review"]
+    },
+    "physical_function_risk": {
+      "requires": ["physical_truth_lock", "product_physics_gate"],
+      "requires_before_generation": ["physical_truth_lock", "product_physics_gate"],
+      "requires_before_delivery": ["product_physics_gate"]
+    },
+    "surface_material_canonical": {
+      "requires": ["surface_material_lock", "surface_material_transfer_gate"],
+      "requires_before_generation": ["surface_material_lock"],
+      "requires_before_delivery": ["surface_material_transfer_gate"]
+    },
+    "multi_image_set": {
+      "requires": ["anchor_batch", "delivery_overview"],
+      "requires_before_delivery": ["delivery_overview"]
+    }
   },
   "loop_policy": {
     "retry_requires_evidence_delta": true,

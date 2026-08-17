@@ -21,6 +21,11 @@ const capabilities = normalizeProviderCapabilities({
   quality: { default: args["quality-default"], allowed: splitList(args["quality-allowed"]) },
   size: { default: args["size-default"], allowed: splitList(args["size-allowed"]), allow_custom: asBool(args["allow-custom-size"]) },
   response_format: { default: args["response-format-default"], allowed: splitList(args["response-format-allowed"]) },
+  reference_images: {
+    max_count: args["reference-max-count"],
+    max_per_image_bytes: args["reference-max-per-image-bytes"],
+    max_total_bytes: args["reference-max-total-bytes"],
+  },
 });
 if (!apiKey) { console.error(`Missing third-party image API key. Provide --api-key or set ${defaultApiKeyEnv}.`); process.exit(2); }
 const config = {

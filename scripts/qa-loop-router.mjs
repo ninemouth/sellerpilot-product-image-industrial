@@ -65,7 +65,7 @@ function syncRunState() {
 function loadReports(dir) {
   if (!fs.existsSync(dir)) return [];
   return fs.readdirSync(dir)
-    .filter((name) => /-report\.json$/.test(name))
+    .filter((name) => /-report\.json$/.test(name) || ["final-visible-text-review.json", "final-scene-realism-review.json"].includes(name))
     .filter((name) => !/^qa-loop-routing-decision\.json$/.test(name))
     .filter((name) => name !== "final-delivery-gate-report.json")
     .map((name) => {

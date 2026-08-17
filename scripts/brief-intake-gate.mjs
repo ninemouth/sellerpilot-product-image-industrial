@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
+import { mergeArgsWithNormalizedTask, readNormalizedTask } from "./lib/normalized-task.mjs";
 
 function parseArgs(argv) {
   const args = {};
@@ -33,7 +34,8 @@ node scripts/brief-intake-gate.mjs --out-dir /abs/run/brief-intake \\
   process.exit(2);
 }
 
-const args = parseArgs(process.argv);
+let args = parseArgs(process.argv);
+if (args["normalized-task"]) args = mergeArgsWithNormalizedTask(args, readNormalizedTask(args["normalized-task"]));
 if (!args["out-dir"]) usage();
 
 const outDir = path.resolve(args["out-dir"]);

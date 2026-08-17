@@ -6,27 +6,29 @@ SellerPilot will evolve from a documentation-led SOP plus independent scripts in
 
 ## Problem Statement
 
-The current package contains valuable controls but duplicates their policy across `AGENTS.md`, `SKILL.md`, workflow YAML, router code, plans, and gates. Its generic orchestrator requires a manually created task file, so normal production still depends on an agent interpreting a long SOP and deciding which scripts to run. The result is avoidable context cost, inconsistent routing, non-provable parallelism, and retries that can repeat expensive work without a durable state transition.
+The package historically duplicated policy across `AGENTS.md`, `SKILL.md`, workflow YAML, router code, plans, and gates, while the generic orchestrator required a manually created task file. The current reconstruction addresses that bottleneck with one normalized task, one production contract, a compiler-generated executable DAG, class dispatchers, dependency-aware caching, bounded retries, and measured phase/context telemetry. This document records the architecture and its remaining host boundaries.
 
 ## Target Operating Model
 
 ```text
 intent + source evidence
+  -> normalized task facts + digest
   -> contract-driven plan compiler
-  -> run-state + run-local DAG
+  -> run-state + run-local DAG + dispatcher/jobs registry
   -> deterministic pre-gates
   -> bounded anchor / repair loops
   -> final-delivery closure
   -> optional human revision loop
 ```
 
-There are four execution classes:
+There are five execution classes:
 
 | Class | Purpose | May automatically loop? |
 | --- | --- | --- |
 | deterministic_pre_gate | Cheap evidence extraction and validation before a provider call | No; fail or create a precise repair task |
 | agent_planning | Compact reasoning that converts evidence into a blueprint or review decision | Only when its evidence inputs changed |
 | provider_generation | Billable image generation or editing | Only under per-role and run budgets |
+| delivery_closure | Manifest, integrity, overview, review workspace, and final aggregation; never generation | No |
 | human_decision | Product facts, publishing, durable style memory, or subjective direction choices | Never; pause with an explicit decision contract |
 
 ## Non-Negotiable Loop Rules
@@ -45,9 +47,17 @@ There are four execution classes:
 contracts/production-contract.json        # one machine-readable policy source
 schemas/run-state.schema.json             # canonical lifecycle state
 runs/<run-id>/run-state.json              # current state and budget ledger
+runs/<run-id>/planning/normalized-task.json
 runs/<run-id>/planning/compiled-production-plan.json
 runs/<run-id>/orchestration/tasks.json    # generated DAG, not hand-authored
-runs/<run-id>/telemetry/cost-ledger.jsonl # later phase: per-call cost/evidence events
+runs/<run-id>/orchestration/dispatcher-registry.json
+runs/<run-id>/orchestration/generation-jobs.json
+runs/<run-id>/source-preflight/reference-assets-manifest.json
+runs/<run-id>/source-understanding/source-reference-annotations.json
+runs/<run-id>/source-understanding/source-evidence-summary.json
+runs/<run-id>/telemetry/cost-ledger.jsonl
+runs/<run-id>/telemetry/phase-events.jsonl
+runs/<run-id>/telemetry/agent-context-ledger.jsonl
 ```
 
 Existing run artifacts stay as evidence owned by their current scripts. The run state records their role and validity; it does not replace source understanding, lineage, manifests, or QA reports.
@@ -70,20 +80,21 @@ When final images exist but package closure is incomplete, run manifest reconcil
 
 tldraw annotations create structured repair tasks. Product-fact uncertainty, visible watermark authorization, durable store style, provider circuit opening, and subjective commercial direction become `paused_for_human_decision` rather than automatic retries.
 
-## Migration Plan
+## Implemented Reconstruction
 
-### Phase 1 — Contract and plan compiler (this slice)
+### Phase 1 — Contract and plan compiler
 
 - Add a canonical production contract and run-state schema.
 - Add `compile-production-plan.mjs`, which creates a run-local state, compact plan, and dependency DAG from normalized task facts.
 - Add a fast dedicated verifier for contract/compiler invariants.
-- Do not alter provider execution, final delivery semantics, or current run artifacts.
+- Preserve provider execution, final delivery semantics, and current run artifacts while compiling their dependencies.
 
 **Acceptance:** a normal run no longer needs a hand-authored `tasks.json`; all compiled tasks have an execution class, trigger reason, dependencies, and a bounded loop policy.
 
-### Phase 2 — State transitions and deterministic dispatch
+### Phase 2 — State transitions and class dispatch
 
-- Make deterministic pre-gates executable from the compiled DAG.
+- Make deterministic pre-gates and delivery closure executable from the compiled DAG.
+- Bind agent planning to artifact handoffs/context packs and provider generation to the unified controller.
 - Add `advance-run-state` and artifact invalidation helpers.
 - Make anchor approval, provider circuit breaker, QA router, and watchdog write contract-validated state transitions.
 
@@ -91,13 +102,14 @@ tldraw annotations create structured repair tasks. Product-fact uncertainty, vis
 
 Current implementation status: `run-state-transition.mjs` projects QA, watchdog, delivery, generation-controller, circuit-breaker, and approved-asset-reuse reports into canonical state. `invalidate-run-artifacts.mjs` records the smallest downstream invalidation set without deleting approved assets. `qa-loop-router.mjs`, `runtime-watchdog.mjs`, `final-delivery-gate.mjs`, `generation-execution-controller.mjs`, `provider-instability-circuit-breaker.mjs`, and `record-asset-reuse.mjs` automatically project to run state when a compiled run is present.
 
-### Phase 3 — Cost ledger and bounded provider loop
+### Phase 3 — Cost/context ledger and bounded provider loop
 
-- Centralize provider-call dispatch and record role, prompt/source hashes, attempts, timing, tokens when available, estimated cost, and state transition.
+- Centralize provider-call dispatch and record role, prompt/source hashes, attempts, explicit phase timing, tokens/cost when reported, context bytes, and state transition.
 - Enforce per-run and per-role budgets before provider calls.
 - Require evidence delta before retry.
+- Preserve full-resolution source evidence, compact it for ordinary agent context, and late-bind only role-relevant prepared references at provider dispatch.
 
-**Acceptance:** `provider_attempts_per_delivered_image`, anchor reject rate, and cost/token per final role are measurable.
+**Acceptance:** `provider_attempts_per_delivered_image`, anchor reject rate, measured provider/download phases, and cost/token per final role or agent task are attributable when the runtime reports them.
 
 Current implementation status: `record-provider-call.mjs` writes `telemetry/cost-ledger.jsonl`, updates per-role attempts and aggregate cost/token fields, enforces the run and role attempt budgets, and rejects a retry whose provider/prompt/source evidence fingerprint is unchanged. The native adapter `record-native-imagegen-result.mjs` records hash-bound native Codex outputs in that same ledger, so native and third-party calls use the same budget/evidence contract. `native-imagegen-ledger-gate.mjs` closes the bypass: a final manifest claiming `native_codex` must match both its native output evidence and a successful ledger event before delivery can pass.
 
@@ -155,13 +167,14 @@ npm run qa:native-imagegen-ledger -- --run-dir /abs/run
 - No full-set regeneration for a single-role repair.
 - Every final role has a lineage and cost/evidence record.
 - Token and provider spend are attributable to a state transition, not just a script invocation.
+- No generation role uploads every reference by default; each selection is source-ID/byte/capability auditable.
 
-## Deliberately Remaining Migration Work
+## Deliberately Remaining Boundaries
 
 1. The copied platform workflow lists have been removed. Historical run metadata still needs a versioned importer if it stored only an opaque legacy workflow ID instead of platform/category facts; until then, the compact compatibility pointers preserve the explicit platform override and route defaults.
 2. Native Codex image generation now uses a two-stage delivery-gated handoff: `create-native-imagegen-handoff.mjs` records budget/evidence preflight and binds prompt/source/role, then `record-native-imagegen-result.mjs --handoff` binds the true output hash and host evidence ID. A local Node script still cannot intercept the host-native `imagegen` tool call itself; the next host integration should invoke those two actions automatically, removing the remaining conversational handoff.
-3. The legacy verifier can now run bounded filtered probes with cleanup, but its individual checks are still located in one large compatibility file. The next extraction should move canvas and provider-mock probes into independently owned suite files without changing their fixtures.
-4. Agent-planning tasks intentionally pause until real source/brief/prompt evidence is bound. That is a truth boundary, not an execution failure; a later UI/host binder can make these handoffs structured instead of conversational.
+3. The legacy verifier can run bounded filtered probes with cleanup, but many fixtures still live in one large compatibility file. Extraction into smaller suite-owned modules is maintainability work, not a production-quality bypass.
+4. Agent-planning tasks intentionally pause until a host/agent produces their declared evidence. The run-local handoff and context pack are structured; automatic invocation remains a host integration boundary.
 
 ## Closure Assessment
 

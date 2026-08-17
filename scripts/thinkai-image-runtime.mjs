@@ -87,6 +87,9 @@ const curlBin = String(args["curl-bin"] || "curl");
 const curlPrefixArgs = args["curl-prefix-arg"];
 let providerRequestRecorded = false;
 let providerRequestStarted = false;
+let providerRequestStartedAt = 0;
+let providerResponseReceivedAt = 0;
+let downloadStartedAt = 0;
 
 if (!Number.isInteger(count) || count < 1) {
   throwCli("n must be a positive integer.");
@@ -110,7 +113,7 @@ const quality = resolveCapabilityValue({ requested: args.quality, capability: ca
 const responseFormat = resolveCapabilityValue({ requested: args["response-format"], capability: capabilities.response_format, label: "response_format" });
 
 try {
-  validateInputs(imagePaths, args.mask);
+  validateInputs(imagePaths, args.mask, capabilities.reference_images);
   const request = isEdit
     ? buildEditRequest({ model, prompt: args.prompt, imagePaths, maskPath: args.mask ? path.resolve(args.mask) : "", size, quality, responseFormat, count })
     : buildGenerationRequest({ model, prompt: args.prompt, size, quality, responseFormat, count });
@@ -147,15 +150,18 @@ try {
   providerRequestRecorded = true;
 
   providerRequestStarted = true;
+  providerRequestStartedAt = Date.now();
   writeProgress("generating", { endpoint: request.endpoint, progress_event: "request_started" });
   const generation = isEdit
     ? executeEdit({ baseUrl, apiKey, request, requestTimeoutSeconds })
     : executeGeneration({ baseUrl, apiKey, request, requestTimeoutSeconds });
   const response = await withHeartbeat("generating", () => generation);
+  providerResponseReceivedAt = Date.now();
   writeProgress("generating", { endpoint: request.endpoint, progress_event: "response_received" });
   writeJson(path.join(outputDir, "response.json"), response);
 
   writeProgress("downloading", { response_items: Array.isArray(response.data) ? response.data.length : 0, progress_event: "download_started" });
+  downloadStartedAt = Date.now();
   const assets = await withHeartbeat("downloading", () => writeImagesFromResponse(response, outputDir, downloadTimeoutSeconds));
   const summary = {
     status: "generated",
@@ -175,7 +181,9 @@ try {
   };
   writeJson(path.join(outputDir, "summary.json"), summary);
   writeProgress("completed", { completed_images: assets, summary_path: path.join(outputDir, "summary.json"), progress_event: "asset_verified" });
-  recordProviderAttempt("succeeded");
+  const providerMetrics = providerUsageMetrics(response, providerRequestStartedAt, Date.now());
+  recordProviderAttempt("succeeded", false, providerMetrics);
+  recordRuntimePhaseSpans("completed", Date.now());
   console.log(JSON.stringify(summary, null, 2));
 } catch (error) {
   writeProviderFailureDiagnostic(error);
@@ -183,11 +191,12 @@ try {
   // A host-side egress failure means no request reached the provider. It is not
   // a second user-authorization step and must not consume a billable-provider
   // retry or evidence-delta retry slot.
-  if (providerRequestRecorded && !isExternalProviderSetupFailure(error?.code)) recordProviderAttempt("failed", true);
+  if (providerRequestRecorded && !isExternalProviderSetupFailure(error?.code)) recordProviderAttempt("failed", true, { latency_ms: providerRequestStartedAt ? Date.now() - providerRequestStartedAt : 0, usage_source: "unavailable", cost_source: "unavailable" });
+  recordRuntimePhaseSpans("failed", Date.now());
   throwCli(JSON.stringify(publicFailure(error)));
 }
 
-function recordProviderAttempt(status, suppressFailure = false) {
+function recordProviderAttempt(status, suppressFailure = false, metrics = {}) {
   if (!runDir) return;
   const recorder = path.join(skillRoot, "scripts", "record-provider-call.mjs");
   const sourceHash = imagePaths.map((file) => {
@@ -203,6 +212,9 @@ function recordProviderAttempt(status, suppressFailure = false) {
     "--model", model,
     "--triggering-gate", "thinkai-image-runtime",
   ];
+  for (const [flag, value] of [["--input-tokens", metrics.input_tokens], ["--output-tokens", metrics.output_tokens], ["--cached-tokens", metrics.cached_tokens], ["--cost-estimate", metrics.cost_estimate], ["--latency-ms", metrics.latency_ms], ["--usage-source", metrics.usage_source], ["--cost-source", metrics.cost_source]]) {
+    if (value !== undefined && value !== null && value !== "") recorderArgs.push(flag, String(value));
+  }
   if (sourceHash) recorderArgs.splice(9, 0, "--source-hash", sourceHash);
   const result = spawnSync(process.execPath, recorderArgs, { cwd: skillRoot, encoding: "utf8" });
   if (result.status !== 0 && !suppressFailure) {
@@ -211,6 +223,38 @@ function recordProviderAttempt(status, suppressFailure = false) {
     throw new RuntimeError(classifyProviderLedgerFailure(reason), reason);
   }
 }
+
+function providerUsageMetrics(response, startedAt, endedAt) {
+  const usage = response?.usage || response?.meta?.usage || {};
+  const inputTokens = firstFinite(usage.input_tokens, usage.prompt_tokens, usage.inputTokens);
+  const outputTokens = firstFinite(usage.output_tokens, usage.completion_tokens, usage.outputTokens);
+  const cachedTokens = firstFinite(usage.cached_tokens, usage.input_tokens_details?.cached_tokens, usage.prompt_tokens_details?.cached_tokens);
+  const reportedCost = firstFinite(response?.cost, response?.meta?.cost, usage.cost, usage.cost_estimate);
+  return {
+    input_tokens: inputTokens,
+    output_tokens: outputTokens,
+    cached_tokens: cachedTokens,
+    cost_estimate: reportedCost,
+    latency_ms: startedAt ? Math.max(0, endedAt - startedAt) : 0,
+    usage_source: inputTokens || outputTokens || cachedTokens ? "provider_response" : "unavailable",
+    cost_source: reportedCost ? "provider_response" : "unavailable",
+  };
+}
+
+function recordRuntimePhaseSpans(status, endedAt) {
+  if (!runDir || !providerRequestStartedAt) return;
+  const file = path.join(runDir, "telemetry", "phase-events.jsonl");
+  const write = (phase, started, ended) => {
+    if (!started || !ended || ended < started) return;
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.appendFileSync(file, `${JSON.stringify({ schema_version: "sellerpilot.phase_event.v1", event: "runtime_span", task_id: runRole || null, phase, status, started_at: new Date(started).toISOString(), ended_at: new Date(ended).toISOString(), duration_ms: ended - started })}\n`);
+  };
+  write("provider_runtime_ms", providerRequestStartedAt, endedAt);
+  write("provider_request_ms", providerRequestStartedAt, providerResponseReceivedAt || endedAt);
+  if (downloadStartedAt) write("download_ms", downloadStartedAt, endedAt);
+}
+
+function firstFinite(...values) { for (const value of values) { const number = Number(value); if (Number.isFinite(number) && number >= 0) return number; } return 0; }
 
 function classifyProviderLedgerFailure(reason) {
   const value = String(reason || "");
@@ -246,11 +290,16 @@ function loadRuntimeConfig(configArg, resolutionArg) {
   return {};
 }
 
-function validateInputs(paths, maskPath) {
+function validateInputs(paths, maskPath, limits) {
+  if (paths.length > limits.max_count) throw new Error(`Reference selection produced ${paths.length} images; provider capability allows ${limits.max_count}.`);
+  let totalBytes = 0;
   for (const item of paths) {
     const stat = fs.existsSync(item) ? fs.statSync(item) : null;
     if (!stat?.isFile()) throw new Error(`Source image not found: ${item}`);
+    if (stat.size > limits.max_per_image_bytes) throw new Error(`Source image exceeds provider per-image byte limit: ${item}`);
+    totalBytes += stat.size;
   }
+  if (totalBytes > limits.max_total_bytes) throw new Error(`Selected source images exceed provider total byte limit (${totalBytes} > ${limits.max_total_bytes}).`);
   if (maskPath) {
     const resolved = path.resolve(maskPath);
     const stat = fs.existsSync(resolved) ? fs.statSync(resolved) : null;

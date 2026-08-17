@@ -35,11 +35,14 @@ assert(contractDoc.schema_version === "sellerpilot.production_contract.v1", "con
 assert(state.schema_version === "sellerpilot.run_state.v1", "run state was not created");
 assert(state.mode === "quality_production", "six-image run should compile to quality production");
 assert(state.triggers.localized_copy === true && state.triggers.surface_material_canonical === true, "locale and material triggers should persist");
+const normalizedTask = readJson(path.join(runDir, "planning", "normalized-task.json"));
+assert(normalizedTask.facts.has_source_image === true && normalizedTask.content_digest, "compiler must persist one digest-bound normalized task with source identity facts");
 assert(state.goal.platform_override.required_ratio === "3:4", "compiler should apply Ozon platform delta without cloning a workflow");
 assert(plan.tasks.some((task) => task.id === "anchor-generation"), "multi-image plan needs anchor generation");
 assert(plan.tasks.some((task) => task.id === "generation-spec"), "every compiled plan must resolve a generation spec before provider generation");
 assert(plan.tasks.some((task) => task.id === "localized-copy-qa"), "localized plan needs localized copy QA");
 assert(plan.tasks.some((task) => task.id === "surface-material-transfer-gate"), "canonical material plan needs transfer gate");
+assert(plan.budget.max_anchor_assets === 3 && plan.budget.anchor_selection_reason.includes("high_risk"), "high-risk source/material/scene production should retain three quality anchors");
 const roleGeneration = plan.tasks.find((task) => task.id === "role-generation");
 assert(roleGeneration.depends_on.includes("anchor-qa"), "remaining roles must wait for anchor QA");
 assert(plan.tasks.find((task) => task.id === "anchor-generation").depends_on.includes("generation-spec"), "anchor generation must wait for the resolved platform generation spec");
@@ -47,6 +50,14 @@ assert(roleGeneration.loop.retry_requires_evidence_delta === true, "provider ret
 assert(plan.tasks.find((task) => task.id === "final-delivery").loop.name === "delivery_closure", "delivery must use a non-generation closure loop");
 assert(plan.tasks.some((task) => task.id === "review-workspace"), "quality production contract must compile a review workspace before delivery");
 assert(dag.tasks.every((task) => task.execution_class), "all DAG tasks need execution classes");
+assert(dag.tasks.every((task) => task.dispatcher?.strategy), "all DAG tasks need an executable dispatcher binding");
+assert(fs.existsSync(path.join(runDir, "orchestration", "generation-jobs.json")) && fs.existsSync(path.join(runDir, "orchestration", "dispatcher-registry.json")), "compiler must emit generation jobs and the execution-class registry");
+const surfaceGate = plan.tasks.find((task) => task.id === "surface-material-transfer-gate");
+assert(surfaceGate.depends_on.includes("surface-material-visual-review") && plan.tasks.find((task) => task.id === "compact-blueprint").depends_on.includes("surface-material-lock"), "pre-generation material lock and post-generation material visual gate must be phase ordered");
+run(skillRoot, ["scripts/production-efficiency-plan.mjs", "--run-dir", runDir, "--mode", state.mode, "--normalized-task", path.join(runDir, "planning", "normalized-task.json")]);
+const efficiencyPlan = readJson(path.join(runDir, "planning", "production-efficiency-plan.json"));
+const parallelTaskIds = efficiencyPlan.parallelizable_groups.flatMap((group) => group.tasks);
+assert(parallelTaskIds.includes("efficiency-plan") && parallelTaskIds.includes("source-reference-preflight") && parallelTaskIds.includes("generation-spec") && parallelTaskIds.includes("image-set-export-gate") && !parallelTaskIds.includes("platform-context") && !parallelTaskIds.includes("delivery-overview") && efficiencyPlan.orchestration_contract.planning_table_is_not_scheduler_evidence === true, "efficiency plan must describe only actual compiler DAG waves and must not present phantom or sequential delivery tasks as parallel scheduling evidence");
 assert(relativeContractPath("C:\\sellerpilot\\run", "C:\\sellerpilot\\run\\generated-assets\\progress-img-05.json", path.win32) === "generated-assets/progress-img-05.json", "JSON artifact paths must use POSIX separators on Windows");
 
 const amazonDefaultDir = path.join(temp, "amazon-defaults");
@@ -56,6 +67,10 @@ const amazonDefaultPlan = readJson(path.join(amazonDefaultDir, "planning", "comp
 assert(amazonDefaultState.goal.image_count === 7 && amazonDefaultState.goal.input_resolution.image_count_source === "platform_default", "compiler must apply Amazon default image count before mode routing");
 assert(amazonDefaultState.mode === "quality_production" && amazonDefaultPlan.tasks.some((task) => task.id === "anchor-generation"), "Amazon default gallery must retain multi-image anchor controls");
 assert(amazonDefaultPlan.tasks.some((task) => task.id === "delivery-overview"), "mode contract must compile a delivery overview for platform-default multi-image runs");
+const standaloneNormalizedDir = path.join(temp, "standalone-normalized");
+run(skillRoot, ["scripts/normalize-production-task.mjs", "--run-dir", standaloneNormalizedDir, "--platform", "Amazon", "--category", "bag"]);
+const standaloneNormalized = readJson(path.join(standaloneNormalizedDir, "planning", "normalized-task.json"));
+assert(standaloneNormalized.request.image_count === 7 && standaloneNormalized.input_resolution.image_count_source === "platform_default" && standaloneNormalized.platform_override.matched === true, "standalone normalization must apply the same platform defaults as the compiler");
 
 const ozonDefaultDir = path.join(temp, "ozon-defaults");
 run(skillRoot, ["scripts/compile-production-plan.mjs", "--run-dir", ozonDefaultDir, "--platform", "Ozon", "--category", "bag"]);
@@ -81,6 +96,12 @@ const incompleteContractPath = path.join(temp, "incomplete-contract.json");
 fs.writeFileSync(incompleteContractPath, JSON.stringify(incompleteContract, null, 2));
 const incomplete = spawnSync(process.execPath, [compiler, "--contract", incompleteContractPath, "--run-dir", path.join(temp, "incomplete-contract-run"), "--platform", "Amazon", "--category", "bag", "--visible-copy", "true"], { cwd: skillRoot, encoding: "utf8" });
 assert(incomplete.status !== 0 && /missing-compiled-gate/.test(incomplete.stderr), "compiler must reject a contract requirement that has no DAG task coverage");
+const invalidPhaseContract = JSON.parse(fs.readFileSync(contract, "utf8"));
+invalidPhaseContract.triggers.surface_material_canonical.requires_before_generation.push("surface_material_transfer_gate");
+const invalidPhaseContractPath = path.join(temp, "invalid-phase-contract.json");
+fs.writeFileSync(invalidPhaseContractPath, JSON.stringify(invalidPhaseContract, null, 2));
+const invalidPhase = spawnSync(process.execPath, [compiler, "--contract", invalidPhaseContractPath, "--run-dir", path.join(temp, "invalid-phase-run"), "--platform", "Amazon", "--category", "printed bag", "--surface-material-canonical", "true"], { cwd: skillRoot, encoding: "utf8" });
+assert(invalidPhase.status !== 0 && /ancestor of provider task/.test(invalidPhase.stderr), "compiler must reject a post-generation visual gate declared as a pre-generation ancestor");
 
 const tiktokDir = path.join(temp, "tiktok");
 run(skillRoot, ["scripts/compile-production-plan.mjs", "--run-dir", tiktokDir, "--platform", "TikTok Shop", "--category", "travel bag", "--image-count", "5", "--competitor-reference", "true"]);
@@ -112,16 +133,32 @@ assert(orchestrator.status === 0, "external boundary should pause rather than fa
 const boundaryState = readJson(path.join(boundaryDir, "orchestration", "production-orchestrator-state.json"));
 assert(boundaryState.status === "paused", "orchestrator must mark external generation boundary as paused");
 assert(boundaryState.tasks.find((task) => task.id === "deterministic").status === "completed", "deterministic predecessor should execute");
-assert(boundaryState.tasks.find((task) => task.id === "provider-boundary").status === "paused", "provider task must not be falsely completed");
+assert(boundaryState.tasks.find((task) => task.id === "provider-boundary").status === "awaiting_provider_or_native_host", "provider task must use a structured provider/native-host wait instead of false completion");
+assert(fs.existsSync(path.join(boundaryDir, "orchestration", "handoffs", "provider-boundary.json")), "unbound provider work must leave a resumable handoff");
+
+const contextRun = path.join(temp, "context-telemetry-run");
+const contextSource = path.join(temp, "context-main.png");
+fs.writeFileSync(contextSource, Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zr4sAAAAASUVORK5CYII=", "base64"));
+run(skillRoot, [compiler, "--run-dir", contextRun, "--platform", "Amazon", "--category", "bag", "--image-count", "3", "--source-image", contextSource]);
+run(skillRoot, ["scripts/production-orchestrator.mjs", "--run-dir", contextRun, "--tasks", path.join(contextRun, "orchestration", "tasks.json"), "--execute"]);
+const contextState = readJson(path.join(contextRun, "orchestration", "production-orchestrator-state.json"));
+assert(contextState.status === "paused" && contextState.tasks.find((task) => task.id === "source-understanding").status === "awaiting_agent", "agent planning must pause through its structured artifact handoff");
+const contextPack = readJson(path.join(contextRun, "orchestration", "context-packs", "source-understanding.json"));
+assert(contextPack.rule_ids.includes("source-product-understanding") && contextPack.evidence.length, "agent context pack must contain only declared rule IDs and dependency evidence");
+run(skillRoot, ["scripts/record-agent-usage.mjs", "--run-dir", contextRun, "--task", "source-understanding", "--input-tokens", "321", "--output-tokens", "87", "--cached-tokens", "40"]);
+run(skillRoot, ["scripts/production-phase-tracer.mjs", "--run-dir", contextRun]);
+const contextTrace = readJson(path.join(contextRun, "telemetry", "phase-trace.json"));
+assert(contextTrace.phase_spans.every((span) => span.source === "explicit_span_events" && span.measurement_quality === "measured"), "phase tracer must prefer explicit task spans over file mtime reconstruction");
+assert(contextTrace.metrics.agent_context.actual_input_tokens === 321 && contextTrace.metrics.agent_context.actual_output_tokens === 87, "phase trace must aggregate host-reported planning token usage");
 
 const unboundDir = path.join(temp, "unbound-boundary");
 fs.mkdirSync(path.join(unboundDir, "orchestration"), { recursive: true });
 const unboundTasks = path.join(unboundDir, "orchestration", "tasks.json");
 fs.writeFileSync(unboundTasks, JSON.stringify({ tasks: [{ id: "requires-binding", phase: "planning", execution_class: "deterministic_pre_gate", outputs: ["qa/unbound.json"], command: [] }] }, null, 2));
 const unbound = spawnSync(process.execPath, [path.join(skillRoot, "scripts", "production-orchestrator.mjs"), "--run-dir", unboundDir, "--tasks", unboundTasks, "--execute"], { cwd: skillRoot, encoding: "utf8" });
-assert(unbound.status === 0, "an unbound compiled task should pause instead of being falsely marked complete");
+assert(unbound.status !== 0, "an unbound deterministic task must fail closed instead of being falsely marked complete");
 const unboundState = readJson(path.join(unboundDir, "orchestration", "production-orchestrator-state.json"));
-assert(unboundState.status === "paused" && unboundState.tasks[0].status === "paused", "orchestrator must not treat a missing task binding as successful work");
+assert(unboundState.status === "failed" && unboundState.tasks[0].status === "failed", "orchestrator must distinguish a broken deterministic binding from an external wait");
 
 const qaDir = path.join(runDir, "qa");
 fs.mkdirSync(qaDir, { recursive: true });
@@ -219,12 +256,15 @@ assert(transportUnavailableLedger.length === 1 && transportUnavailableLedger[0].
 const controllerJobs = path.join(temp, "controller-jobs.json");
 fs.writeFileSync(controllerJobs, JSON.stringify({ jobs: [
   { id: "IMG-01", anchor: true, prompt: "anchor" },
-  { id: "IMG-02", prompt: "remaining" },
+  { id: "IMG-02", anchor: true, prompt: "anchor two" },
+  { id: "IMG-03", anchor: true, prompt: "anchor three" },
+  { id: "IMG-04", prompt: "remaining" },
 ] }, null, 2));
 run(skillRoot, ["scripts/generation-execution-controller.mjs", "--run-dir", runDir, "--jobs", controllerJobs]);
 const controllerState = readJson(path.join(runDir, "generated-assets", "execution-controller-state.json"));
 const afterController = readJson(path.join(runDir, "run-state.json"));
 assert(controllerState.status === "anchor_ready", "generation controller should begin with a capped anchor batch");
+assert(controllerState.anchor_limit === 3 && controllerState.anchor_job_ids.length === 3, "generation controller must honor the compiler's risk-adaptive three-anchor budget");
 assert(afterController.loop.last_decision === "anchor_ready", "generation controller should project anchor state into run-state");
 
 const nativeImage = path.join(runDir, "generated-assets", "IMG-03", "image.png");
@@ -245,10 +285,29 @@ run(skillRoot, ["scripts/accept-native-imagegen-host-callback.mjs", "--callback"
 assert(readJson(path.join(runDir, "runtime", "native-imagegen-host-callback-img-04.json")).status === "recorded", "host callback must record through the validated native handoff path");
 const thirdPartyConfig = path.join(temp, "third-party-provider.json");
 fs.writeFileSync(thirdPartyConfig, JSON.stringify({ provider_mode: "third_party_proxy", third_party: { enabled: true, name: "Fixture Provider", base_url: "https://provider.example/v1", model: "fixture-image", api_key_env: "FIXTURE_IMAGE_API_KEY", api_key: "fixture-key" } }, null, 2));
-run(skillRoot, ["scripts/resolve-generation-spec.mjs", "--out-dir", path.join(runDir, "generation-spec"), "--platform", "Ozon", "--category", "bag"]);
-run(skillRoot, ["scripts/create-image-generation-dispatch.mjs", "--run-dir", runDir, "--role", "IMG-05", "--prompt", "third party dispatch", "--provider-config", thirdPartyConfig]);
-const thirdPartyHandoff = readJson(path.join(runDir, "generated-assets", "third-party-imagegen-handoff-img-05.json"));
-assert(thirdPartyHandoff.provider.model === "fixture-image" && thirdPartyHandoff.requested_size === "1920x2560" && thirdPartyHandoff.progress_file === "generated-assets/progress-img-05.json" && thirdPartyHandoff.provider_timeout_seconds === 900 && thirdPartyHandoff.execution_capabilities.includes("outbound_network") && thirdPartyHandoff.setup_authorization.mode === "configured_provider" && thirdPartyHandoff.setup_authorization.applies_to.includes("provider_reference_image_upload") && thirdPartyHandoff.setup_authorization.fallback_policy === "do_not_substitute_provider" && thirdPartyHandoff.execution_requirements.some((item) => item.includes("reference images to the configured route directly without requesting another user authorization")) && thirdPartyHandoff.execution_requirements.some((item) => item.includes("external_provider_host_policy_blocked")) && thirdPartyHandoff.execution_requirements.some((item) => item.includes("--run-dir and --role")), "unified dispatch must treat reference-image upload as configured-provider execution, preserve host policy blocks, and avoid native fallback");
+const routeDrift = spawnSync(process.execPath, [path.join(skillRoot, "scripts", "create-image-generation-dispatch.mjs"), "--run-dir", runDir, "--role", "IMG-05", "--prompt", "route drift", "--provider-config", thirdPartyConfig], { cwd: skillRoot, encoding: "utf8" });
+assert(routeDrift.status !== 0 && /already has a pinned provider route/.test(routeDrift.stderr), "a role must not re-resolve or override the run-pinned provider route");
+const thirdPartyRun = path.join(temp, "third-party-run");
+run(skillRoot, [compiler, "--run-dir", thirdPartyRun, "--platform", "Ozon", "--category", "bag", "--provider", "third_party_proxy", "--provider-config", thirdPartyConfig]);
+run(skillRoot, ["scripts/resolve-generation-spec.mjs", "--out-dir", path.join(thirdPartyRun, "generation-spec"), "--platform", "Ozon", "--category", "bag"]);
+run(skillRoot, ["scripts/create-image-generation-dispatch.mjs", "--run-dir", thirdPartyRun, "--role", "IMG-01", "--prompt", "third party dispatch"]);
+const thirdPartyHandoff = readJson(path.join(thirdPartyRun, "generated-assets", "third-party-imagegen-handoff-img-01.json"));
+assert(thirdPartyHandoff.provider.model === "fixture-image" && thirdPartyHandoff.requested_size === "1920x2560" && thirdPartyHandoff.progress_file === "generated-assets/progress-img-01.json" && thirdPartyHandoff.provider_timeout_seconds === 900 && thirdPartyHandoff.execution_capabilities.includes("outbound_network") && thirdPartyHandoff.setup_authorization.mode === "configured_provider" && thirdPartyHandoff.setup_authorization.applies_to.includes("provider_reference_image_upload") && thirdPartyHandoff.setup_authorization.fallback_policy === "do_not_substitute_provider" && thirdPartyHandoff.execution_requirements.some((item) => item.includes("reference images to the configured route directly without requesting another user authorization")) && thirdPartyHandoff.execution_requirements.some((item) => item.includes("external_provider_host_policy_blocked")) && thirdPartyHandoff.execution_requirements.some((item) => item.includes("--run-dir and --role")), "unified dispatch must treat reference-image upload as configured-provider execution, preserve host policy blocks, and avoid native fallback");
+const pinnedBeforeRecompile = readJson(path.join(thirdPartyRun, "runtime", "image-provider-resolution.json"));
+run(skillRoot, [compiler, "--run-dir", thirdPartyRun, "--platform", "Ozon", "--category", "bag", "--provider", "third_party_proxy", "--provider-config", thirdPartyConfig]);
+const stateAfterRecompile = readJson(path.join(thirdPartyRun, "run-state.json"));
+assert(stateAfterRecompile.provider_resolution?.digest === pinnedBeforeRecompile.resolution_digest, "recompiling a resumable run must preserve its provider route digest even when provider resolution is a cache hit");
+assert(stateAfterRecompile.provider_resolution?.selected_mode === "third_party_proxy", "recompiling a resumable run must preserve the selected provider mode instead of reopening routing");
+const nativeAwaitRun = path.join(temp, "native-await-run");
+run(skillRoot, [compiler, "--run-dir", nativeAwaitRun, "--platform", "Amazon", "--category", "bag", "--image-count", "1", "--provider", "native_codex"]);
+run(skillRoot, ["scripts/resolve-generation-spec.mjs", "--out-dir", path.join(nativeAwaitRun, "generation-spec"), "--platform", "Amazon", "--category", "bag"]);
+const nativeAwaitJobs = path.join(nativeAwaitRun, "orchestration", "native-await-jobs.json");
+fs.writeFileSync(nativeAwaitJobs, JSON.stringify({ anchor_limit: 1, jobs: [{ id: "IMG-01", anchor: true, prompt: "native host boundary", generation_spec: "generation-spec/generation-spec.json", output_dir: "generated-assets/IMG-01" }] }, null, 2));
+run(skillRoot, ["scripts/generation-execution-controller.mjs", "--run-dir", nativeAwaitRun, "--jobs", nativeAwaitJobs, "--execute"]);
+const nativeAwaitState = readJson(path.join(nativeAwaitRun, "generated-assets", "execution-controller-state.json"));
+const nativeAwaitProgress = readJson(path.join(nativeAwaitRun, "generated-assets", "generation-progress.json"));
+assert(nativeAwaitState.status === "anchor_executed_awaiting_external", "native generation must expose the real awaiting-host controller state instead of reporting a false executed success");
+assert(nativeAwaitProgress.pending_images.includes("IMG-01") && !nativeAwaitProgress.failed_images.includes("IMG-01"), "an awaiting native host callback must remain pending and must not consume the failed-image state");
 const nativeManifest = path.join(runDir, "export", "final-images-manifest.json");
 fs.mkdirSync(path.dirname(nativeManifest), { recursive: true });
 fs.writeFileSync(nativeManifest, JSON.stringify({ run_dir: runDir, image_dir: path.join(runDir, "final-images"), images: [{ id: "IMG-03", file: "IMG-03-native.png", lineage: { source_type: "provider_generated", provider: "native_codex", generated_asset_path: "generated-assets/IMG-03/image.png" } }] }, null, 2));
@@ -275,7 +334,7 @@ assert(reuseState.loop.last_decision === "approved_asset_reuse_recorded", "asset
 const bad = spawnSync(process.execPath, [compiler, "--run-dir", path.join(temp, "bad"), "--platform", "Amazon", "--category", "bag", "--mode", "not-a-mode"], { cwd: skillRoot, encoding: "utf8" });
 assert(bad.status !== 0, "compiler must reject unknown mode");
 
-console.log(JSON.stringify({ status: "pass", checks: 66, run_dir: runDir }, null, 2));
+console.log(JSON.stringify({ status: "pass", checks: 92, run_dir: runDir }, null, 2));
 
 function readJson(file) { return JSON.parse(fs.readFileSync(file, "utf8")); }
 function assert(condition, message) { if (!condition) throw new Error(message); }

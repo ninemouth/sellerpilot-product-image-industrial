@@ -43,6 +43,8 @@ const event = {
   output_tokens: finiteNumber(args["output-tokens"]),
   cached_tokens: finiteNumber(args["cached-tokens"]),
   latency_ms: finiteNumber(args["latency-ms"]),
+  usage_source: String(args["usage-source"] || "unavailable"),
+  cost_source: String(args["cost-source"] || "unavailable"),
   triggering_gate: String(args["triggering-gate"] || "generation_dispatch"),
   state_transition: rejection ? "provider_call_blocked" : providerTransition(status),
   rejection_reason: rejection || null,

@@ -55,7 +55,7 @@ Expected: load the baseline platform YAML, then create `research/platform-catego
 Expected: collect and summarize high-performing category patterns without copying competitor assets, layouts, exact copy, model pose, brand style, or unsupported claims. Output `research/bestseller-design-mining.md` and `research/bestseller-patterns.yaml`.
 
 ## Case 15: multiple source product images
-Expected: create `source-image-set-manifest.json`, enhance each user-owned source image, classify roles, fuse complementary evidence into Product Identity Lock, and stop on conflicting product sources.
+Expected: preserve byte-identical analysis originals, conditionally prepare upload derivatives, deeply read and annotate every source, pass the compact evidence gate, and choose only the strongest 1–2 user-owned references per generated role. Do not send competitor/unknown sources or every uploaded image to each provider request; stop on unresolved product conflicts.
 
 ## Case 16: generated image review with A-H regions
 Expected: create `review/review.html` with clickable A-H editable regions and exportable revision feedback whenever actual images are generated.

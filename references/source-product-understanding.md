@@ -2,7 +2,27 @@
 
 Use this after source image quality/enhancement and before Product Identity Lock, Product Physical Truth Lock, geometry lock, shot matrix, copy, or prompt layers.
 
-The source image is not only a photo to clean up. It is product evidence. Codex must understand what the product is, how it is built, what visible text says, and which facts must remain consistent in later generation.
+The source image is not only a photo to clean up. It is product evidence. Codex must understand what the product is, how it is built, what visible text says, which facts must remain consistent, and what unique evidence each reference contributes.
+
+## Multi-reference evidence and semantic compression
+
+When more than one image is supplied, inspect every `analysis_path` in `source-preflight/reference-assets-manifest.json`. The byte-identical original is the analysis authority; `provider_path` exists only to control upload cost/compatibility. Never infer that a competitor or style reference is the user's product.
+
+Write:
+
+- `source-product-understanding.json` for full-fidelity audit evidence, including a complete aggregate `codex_visual_product_read` and one complete `source_reads` row per source ID (`visual_summary`, `observed_facts`, AI-first `visible_text.status/items`, and `uncertainty_notes`);
+- `source-reference-annotations.json` (`sellerpilot.source_reference_annotations.v1`) with complete per-`source_id` membership, confirmed role, unique contribution, confidence, visible-text/micro-detail risk, and resolved conflicts;
+- `source-evidence-summary.json` (`sellerpilot.source_evidence_summary.v1`) as a compact semantic interface for downstream planning/prompt tasks.
+
+The compact summary contains `product_identity.one_sentence`, `must_preserve`, confirmed/forbidden physical truth, verified/uncertain visible text, `per_source_contributions`, role-based `reference_routing`, unknowns, prompt constraints, and QA focus. It routes by `source_id`; it must not embed base64, raw images, or repeat paths, and defaults to a 12 KB ceiling. Downstream tasks use this compact summary for routine context while identity/QA gates retain access to the full audit artifact.
+
+Run the compact evidence gate before identity/prompt work:
+
+```bash
+npm run qa:source-evidence-summary -- --run-dir /abs/run
+```
+
+At provider time, `select-source-references.mjs` combines the per-source annotations, compact routing, final role prompt, and provider capabilities. The default request receives at most two relevant user-owned references; single-reference runtimes receive one. Competitor/unknown-membership images are excluded.
 
 ## Required Read
 

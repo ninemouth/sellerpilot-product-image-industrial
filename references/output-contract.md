@@ -18,6 +18,11 @@ source-normalized/product-cutout-transparent.png  # card/infographic product mas
 source-normalized/product-on-card-safe.png  # fallback when alpha cannot be preserved
 source-normalized/product-normalization-report.json
 planning/production-efficiency-plan.json  # triggered/skipped work and stage budgets
+source-preflight/reference-assets-manifest.json  # source-backed runs: immutable analysis originals plus conditional provider variants
+source-understanding/source-reference-annotations.json  # source-backed runs: complete per-reference visual classification/contribution
+source-understanding/source-evidence-summary.json  # source-backed runs: compact source-ID semantic interface, <=12 KB
+qa/source-evidence-summary-gate-report.json
+generated-assets/reference-selection-img-xx.json  # one per dispatched source-backed role
 blueprint/quality-production-blueprint.json  # compact image-set planning for quality production multi-image finals
 qa/qa-loop-state.json                     # persisted retry signatures and loop guard state
 review-workspace/  # required after generated multi-image final sets; otherwise only when review/revision is requested or needed
@@ -81,7 +86,12 @@ overview/delivery-overview-report.json
 Conditional artifacts:
 
 ```text
-source-image-set-manifest.json
+source-preflight/reference-assets-manifest.json
+source-preflight/source-reference-index.json
+source-understanding/source-reference-annotations.json
+source-understanding/source-evidence-summary.json
+qa/source-evidence-summary-gate-report.json
+generated-assets/reference-selection-img-xx.json
 memory/store-style-draft.md
 memory/store-style-memory.md
 memory/store-style-overlay.json

@@ -6,14 +6,13 @@ Installed capability root:
 ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial
 ```
 
-Always read:
+Fixed entry context is only the selected `SKILL.md` plus this package's `AGENTS.md`. Do not automatically load the orchestrator YAML or every prompt/reference:
 
 ```text
 ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/AGENTS.md
-${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/agents/product-image-orchestrator.yaml
 ```
 
-Do not infer that `AGENTS.md` should exist in the current project or chat working directory.
+Load `agents/product-image-orchestrator.yaml` only for an explicit agent-profile integration or legacy compatibility check. Task handoffs load only the rule IDs and hashed dependency evidence listed in their run-local context pack. Do not infer that `AGENTS.md` should exist in an unrelated project or chat working directory.
 
 For a **new** complete product-image generation run, compile the canonical control plane first. This is the default route and replaces manual reading of a copied platform workflow:
 
@@ -23,7 +22,7 @@ contracts/platform-overrides.json
 scripts/compile-production-plan.mjs
 ```
 
-The compiler creates the run-local DAG and applies marketplace deltas. Read the platform-agnostic master workflow only when you need compatibility context or when a legacy run explicitly records a workflow file:
+The compiler normalizes facts once, creates the run-local DAG/dispatcher registry/generation jobs, and applies marketplace deltas. Read the platform-agnostic master workflow only when you need compatibility context or when a legacy run explicitly records a workflow file:
 
 ```text
 workflows/ecommerce-product-image-generation.yaml

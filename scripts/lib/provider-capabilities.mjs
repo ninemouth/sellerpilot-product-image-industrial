@@ -1,3 +1,5 @@
+import { normalizeReferenceLimits } from "./source-reference-policy.mjs";
+
 const DEFAULT_QUALITY_VALUES = ["auto", "low", "medium", "high"];
 const DEFAULT_RESPONSE_FORMAT_VALUES = ["url", "b64_json"];
 
@@ -15,6 +17,7 @@ export function normalizeProviderCapabilities(value = {}) {
     quality,
     size,
     response_format: responseFormat,
+    reference_images: normalizeReferenceLimits(source.reference_images),
   };
 }
 

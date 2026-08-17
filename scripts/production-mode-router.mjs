@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
+import { mergeArgsWithNormalizedTask, readNormalizedTask } from "./lib/normalized-task.mjs";
 
 function parseArgs(argv) {
   const args = {};
@@ -36,7 +37,9 @@ not full industrial_audit.`);
   process.exit(2);
 }
 
-const args = parseArgs(process.argv);
+let args = parseArgs(process.argv);
+const normalizedTask = args["normalized-task"] ? readNormalizedTask(args["normalized-task"]) : null;
+args = mergeArgsWithNormalizedTask(args, normalizedTask);
 if (!args["out-dir"]) usage();
 
 const outDir = path.resolve(args["out-dir"]);
@@ -45,7 +48,18 @@ fs.mkdirSync(outDir, { recursive: true });
 const userText = String(args["user-text"] || "");
 const imageCount = Number(args["image-count"] || 0);
 const qualityTarget = String(args["quality-target"] || "").toLowerCase();
-const signals = {
+const signals = normalizedTask?.signals ? {
+  explicit_fast: Boolean(normalizedTask.signals.explicit_fast),
+  explicit_high_quality: Boolean(normalizedTask.signals.explicit_high_quality) || qualityTarget === "high",
+  explicit_industrial_audit: Boolean(normalizedTask.signals.industrial_audit),
+  debug_development: asBool(args.debug),
+  revision_requested: Boolean(normalizedTask.signals.revision_requested),
+  has_source_image: Boolean(normalizedTask.signals.has_source_image),
+  scene_requested: Boolean(normalizedTask.signals.scene_requested),
+  physical_function_risk: Boolean(normalizedTask.signals.physical_function_risk),
+  platform_research_needed: Boolean(normalizedTask.signals.platform_research_needed),
+  multi_image_set: Boolean(normalizedTask.signals.multi_image_set),
+} : {
   explicit_fast: asBool(args.fast) || /(快速|先快出|草稿|draft|quick|fast|rough)/i.test(userText),
   explicit_high_quality: qualityTarget === "high" || /(高质量|精修|商业级|成品|final|high quality|premium)/i.test(userText),
   explicit_industrial_audit: asBool(args["industrial-audit"]) || /(工业级|完整流程|审计|迁移|gate report|audit package|可迁移)/i.test(userText),
@@ -69,6 +83,7 @@ const report = {
     image_count: imageCount || null,
     quality_target: qualityTarget || null,
     user_text: userText,
+    normalized_task_digest: normalizedTask?.content_digest || null,
   },
   signals,
   execution_policy: modePolicy(decision.mode, signals),

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
+import { mergeArgsWithNormalizedTask, readNormalizedTask } from "./lib/normalized-task.mjs";
 
 function parseArgs(argv) {
   const args = {};
@@ -36,7 +37,9 @@ and gates while skipping verbose audit artifacts and untriggered research.`);
   process.exit(2);
 }
 
-const args = parseArgs(process.argv);
+let args = parseArgs(process.argv);
+const normalizedTask = args["normalized-task"] ? readNormalizedTask(args["normalized-task"]) : null;
+args = mergeArgsWithNormalizedTask(args, normalizedTask);
 if (!args["run-dir"]) usage();
 
 const runDir = path.resolve(args["run-dir"]);
@@ -44,7 +47,7 @@ const modeReport = args["mode-report"] ? readJson(path.resolve(args["mode-report
 const mode = args.mode || modeReport?.selected_mode || "quality_production";
 const userText = String(args["user-text"] || modeReport?.inputs?.user_text || "");
 const imageCount = Number(args["image-count"] || modeReport?.inputs?.image_count || 0);
-const signals = {
+const signals = normalizedTask?.signals ? { ...normalizedTask.signals } : {
   has_source_image: asBool(args["has-source-image"]) || Boolean(modeReport?.signals?.has_source_image),
   scene_requested: asBool(args["scene-requested"]) || Boolean(modeReport?.signals?.scene_requested) || /(场景|上身|模特|lifestyle|outfit|commute|cafe|street)/i.test(userText),
   platform_research_needed: asBool(args["platform-research-needed"]) || Boolean(modeReport?.signals?.platform_research_needed) || /(趋势|热词|节日|气候|区域|season|holiday|trend|hotword)/i.test(userText),
@@ -53,7 +56,7 @@ const signals = {
   multi_image_set: imageCount > 1 || Boolean(modeReport?.signals?.multi_image_set),
 };
 
-const plan = buildPlan({ mode, imageCount, signals, userText });
+const plan = buildPlan({ mode, imageCount, signals, userText, normalizedTask });
 const outDir = path.join(runDir, "planning");
 const progressDir = path.join(runDir, "generated-assets");
 fs.mkdirSync(outDir, { recursive: true });
@@ -106,6 +109,10 @@ function buildPlan(ctx) {
     mode: ctx.mode,
     image_count: ctx.imageCount || null,
     signals: ctx.signals,
+    normalized_task: {
+      path: ctx.normalizedTask ? "planning/normalized-task.json" : null,
+      content_digest: ctx.normalizedTask?.content_digest || null,
+    },
     quality_contract: {
       compact_image_set_planning_required: ctx.signals.multi_image_set && (!fastMode || ctx.signals.multi_image_set),
       compact_image_set_planning_path: "blueprint/quality-production-blueprint.json",
@@ -140,6 +147,12 @@ function buildPlan(ctx) {
       ],
     },
     budgets: budgetsFor(ctx.mode, ctx.signals),
+    context_budget: {
+      policy: "compact task-specific context packs; preserve complete quality schemas and do not impose a crude generation output-token cap",
+      max_estimated_input_tokens_per_agent_task: auditMode ? 12000 : fastMode ? 3500 : 6500,
+      output_token_policy: "quality-driven; record actual usage when the host reports it",
+      ledger: "telemetry/agent-context-ledger.jsonl",
+    },
     run_shape: runShape(ctx.mode, ctx.signals),
     triggered_work: {
       source_understanding: ctx.signals.has_source_image ? "required" : "planning_only_no_identity_preservation",
@@ -162,18 +175,14 @@ function buildPlan(ctx) {
       "region review HTML unless precise A-H feedback is requested",
       "regeneration of approved assets",
     ],
-    parallelizable_groups: [
-      ["update awareness check", "mode routing", "run skeleton"],
-      ["source image preflight and AI visual text read", "platform YAML baseline load", "brief intake assumptions"],
-      ["compact feature/audience notes", "visual director shot matrix", "copy intent draft"],
-      ["copy strategy QA", "localized copy QA when needed", "marketing metadata QA"],
-      ["export gate", "delivery overview", "post-generation tldraw workspace file creation"],
-    ],
+    parallelizable_groups: actualDagParallelGroups(ctx.signals),
     orchestration_contract: {
       task_file: "orchestration/tasks.json",
       state_file: "orchestration/production-orchestrator-state.json",
       command: "node scripts/production-orchestrator.mjs --run-dir <run-dir> --tasks <run-dir>/orchestration/tasks.json --execute",
-      dependency_policy: "run independent source/platform/provider/brief tasks in parallel, converge only at identity, physical truth, prompt, anchor QA, and final delivery gates",
+      dependency_policy: "run only compiler-emitted independent tasks in parallel; converge at identity/physical/material truth, prompt, anchor QA, QA routing, artifact integrity, and final delivery",
+      scheduler_evidence: "orchestration/production-orchestrator-state.json",
+      planning_table_is_not_scheduler_evidence: true,
       cache_key_policy: "task hash must include command, source inputs, generation spec, prompt/source hash, and explicit cache_key when supplied",
       cancellation_file: "orchestration/cancel",
     },
@@ -208,6 +217,24 @@ function buildPlan(ctx) {
         : "build single-image visual plan before final generation",
     },
   };
+}
+
+function actualDagParallelGroups(signals) {
+  const afterInitial = [signals.has_source_image ? "source-reference-preflight" : null, "generation-spec"].filter(Boolean);
+  const afterGeneration = [
+    !signals.scene_requested ? "marketing-quality-gate" : null,
+    "product-background-card-gate",
+    "image-set-export-gate",
+    signals.has_source_image ? "identity-visual-review" : null,
+    signals.scene_requested ? "scene-realism-review" : null,
+    signals.visible_copy || signals.localized_copy ? "final-visible-text-review" : null,
+    signals.surface_material_canonical ? "surface-material-visual-review" : null,
+  ].filter(Boolean);
+  return [
+    { wave: "initial", tasks: ["efficiency-plan", "brief-intake", "provider-resolution"], converges_at: "generation-spec/source planning" },
+    { wave: "after-initial", tasks: afterInitial, converges_at: "source understanding/prompt contract" },
+    { wave: "after-role-generation", tasks: afterGeneration, converges_at: "qa-loop-routing" },
+  ];
 }
 
 function budgetsFor(mode, signals) {

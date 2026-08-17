@@ -368,7 +368,7 @@ record("automatic image provider contract", () => {
     'DEFAULT_BASE_URL = "https://www.thinkai.tv/v1"',
     'DEFAULT_MODEL = "gpt-image-2"',
     "THINKAI_IMAGE_API_KEY",
-    "spawn(\"curl\"",
+    "spawn(curlBin",
     "progress-file",
     "withHeartbeat",
     "publicFailure",
@@ -512,11 +512,11 @@ record("generation spec and anchor controller smoke", () => {
   fs.writeFileSync(path.join(runDir, "generated-assets", "generation-progress.json"), "{}\n");
   fs.writeFileSync(path.join(runDir, "generated-assets", "anchor-batch-qa-decision.json"), JSON.stringify({ qa_decision: "pending" }));
   const jobsPath = path.join(runDir, "jobs.json");
-  fs.writeFileSync(jobsPath, JSON.stringify({ jobs: [{ id: "IMG-01", anchor: true }, { id: "IMG-02", anchor: true }, { id: "IMG-03", anchor: true }, { id: "IMG-04", anchor: false }] }));
+  fs.writeFileSync(jobsPath, JSON.stringify({ anchor_limit: 3, anchor_selection_reason: "high_risk_fixture", jobs: [{ id: "IMG-01", anchor: true }, { id: "IMG-02", anchor: true }, { id: "IMG-03", anchor: true }, { id: "IMG-04", anchor: false }] }));
   run(process.execPath, ["scripts/generation-execution-controller.mjs", "--run-dir", runDir, "--jobs", jobsPath]);
   const anchorState = readJson(path.join(runDir, "generated-assets", "execution-controller-state.json"));
-  if (anchorState.anchor_job_ids.length !== 2 || !anchorState.demoted_anchor_job_ids.includes("IMG-03")) {
-    throw new Error("Controller must cap anchor batch to two jobs and demote overflow anchors.");
+  if (anchorState.anchor_job_ids.length !== 3 || anchorState.demoted_anchor_job_ids.length !== 0) {
+    throw new Error("Controller must preserve the high-risk three-anchor budget while keeping it capped by the contract.");
   }
   const blocked = spawnSync(process.execPath, ["scripts/generation-execution-controller.mjs", "--run-dir", runDir, "--jobs", jobsPath, "--continue-after-anchor-pass"], { cwd: skillRoot });
   if (blocked.status === 0) throw new Error("Controller must block remaining jobs before anchor approval.");
@@ -721,6 +721,8 @@ record("production orchestrator dag cache smoke", () => {
   fs.mkdirSync(path.join(runDir, "orchestration"), { recursive: true });
   const taskFile = path.join(runDir, "orchestration", "tasks.json");
   const writeTaskScript = "require('fs').writeFileSync(process.argv[1], process.argv[2])";
+  fs.mkdirSync(path.join(runDir, "input-dir"), { recursive: true });
+  fs.writeFileSync(path.join(runDir, "input-dir", "fact.txt"), "fact-v1");
   fs.writeFileSync(taskFile, JSON.stringify({
     tasks: [
       {
@@ -739,7 +741,7 @@ record("production orchestrator dag cache smoke", () => {
         id: "identity-lock",
         phase: "identity",
         depends_on: ["source-preflight", "platform-profile"],
-        inputs: ["source-preflight.txt", "platform.txt"],
+        inputs: ["source-preflight.txt", "platform.txt", "input-dir"],
         outputs: ["identity.txt"],
         command: [process.execPath, "-e", writeTaskScript, path.join(runDir, "identity.txt"), "identity"],
       },
@@ -759,6 +761,20 @@ record("production orchestrator dag cache smoke", () => {
   if (second.status !== "completed" || second.tasks.filter((item) => item.status === "cached").length !== 3) {
     throw new Error("production orchestrator should reuse unchanged task outputs by hash.");
   }
+  fs.writeFileSync(path.join(runDir, "input-dir", "fact.txt"), "fact-v2");
+  run(process.execPath, ["scripts/production-orchestrator.mjs", "--run-dir", runDir, "--tasks", taskFile, "--execute", "--concurrency", "2"]);
+  const third = readJson(path.join(runDir, "orchestration", "production-orchestrator-state.json"));
+  if (third.tasks.find((item) => item.id === "identity-lock")?.status !== "completed" || third.tasks.filter((item) => item.status === "cached").length !== 2) {
+    throw new Error("directory content changes must invalidate only the dependent task instead of producing a stale cache hit.");
+  }
+  fs.writeFileSync(path.join(runDir, "identity.txt"), "externally-mutated-output");
+  run(process.execPath, ["scripts/production-orchestrator.mjs", "--run-dir", runDir, "--tasks", taskFile, "--execute", "--concurrency", "2"]);
+  const fourth = readJson(path.join(runDir, "orchestration", "production-orchestrator-state.json"));
+  if (fourth.tasks.find((item) => item.id === "identity-lock")?.status !== "completed" || fs.readFileSync(path.join(runDir, "identity.txt"), "utf8") !== "identity") {
+    throw new Error("output digest drift must invalidate and rebuild the owning task.");
+  }
+  const phaseEvents = fs.readFileSync(path.join(runDir, "telemetry", "phase-events.jsonl"), "utf8").trim().split("\n").map(JSON.parse);
+  if (!phaseEvents.some((event) => event.cache_hit === true)) throw new Error("cache hits must be recorded as measured phase events.");
 });
 
 record("provider instability, lineage, and personalized text smoke", () => {
@@ -1014,15 +1030,16 @@ record("review workspace UI contract", () => {
   const css = fs.readFileSync(cssPath, "utf8");
   const requiredMain = [
     "Tldraw",
-    "AssetRecordType",
-    "createShapeId",
-    "locked image-floor shapes",
+    "selected-image-floor",
+    "stable-dom-image-floor",
+    "canvasSnapshotsRef.current[selectedImageId]",
+    "editor.loadSnapshot(snapshot)",
     "action-complete-review",
     "COMPLETE_REVIEW_API_URL",
     "__SELLERPILOT_REVIEW_HANDOFF_RESULT__",
     "review_completion.v2",
     "native-tldraw",
-    "compact-field",
+    "thumbnail-nav",
   ];
   for (const token of requiredMain) {
     if (!main.includes(token)) throw new Error(`review workspace main.jsx missing ${token}`);
@@ -1039,8 +1056,8 @@ record("review workspace UI contract", () => {
   if (/className=["']sidebar["']|\.sidebar\b|image-card-layer/.test(`${main}\n${css}`)) {
     throw new Error("review workspace should not restore left sidebar or HTML image-card overlay layer.");
   }
-  if (!/isLocked:\s*true/.test(main) || !/sendToBack/.test(main)) {
-    throw new Error("review workspace must lock imported image shapes and send them behind tldraw annotations.");
+  if (!/className="selected-image-floor"/.test(main) || !/image_floor:\s*"stable-selected-image-review-floor"/.test(main) || !/rendering:\s*"stable-dom-image-floor"/.test(main)) {
+    throw new Error("review workspace must preserve the selected image as a stable DOM floor behind native tldraw annotations.");
   }
   const vite = fs.readFileSync(path.join(skillRoot, "assets", "tldraw-review-workspace", "vite.config.js"), "utf8");
   for (const token of [
@@ -3424,6 +3441,7 @@ record("tldraw workspace smoke", () => {
     if (!fs.existsSync(path.join(outDir, file))) throw new Error(`missing review workspace file ${file}`);
   }
   const manifest = readJson(path.join(outDir, "data", "import-manifest.json"));
+  if (fs.existsSync(path.join(outDir, "node_modules"))) throw new Error("run review workspace must not copy template node_modules");
   if (manifest.protocol?.review_completion_file !== "data/review-completion.json") {
     throw new Error("review workspace manifest should expose review completion file.");
   }

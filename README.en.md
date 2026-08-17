@@ -6,7 +6,7 @@ Industrial-grade product-image production for Codex. This is not a one-shot prom
 
 ## What changed
 
-The current release consolidates the production system around a contract-driven Loop Engineering control plane.
+The current release consolidates the production system around a contract-driven Loop Engineering control plane. Source-backed runs now preserve byte-identical analysis originals, prepare upload derivatives only when byte/dimension/format limits require them, deeply annotate every reference, and expose a compact semantic evidence summary to ordinary downstream tasks. Each generation role selects only the strongest one or two user-owned references (or a provider's lower cap); competitor and unclassified references never enter product-generation requests.
 
 - A single production contract, platform overrides, and a run-local DAG replace copied platform workflows.
 - Provider attempts, retries, QA routes, delivery closure, image lineage, and cost evidence share one run state.

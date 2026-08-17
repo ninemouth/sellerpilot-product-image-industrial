@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { skillRootFrom } from "./lib/skill-paths.mjs";
+import { copyTldrawAppTemplate, linkOrCopyFile } from "./lib/tldraw-template.mjs";
 
 function parseArgs(argv) {
   const args = {};
@@ -50,13 +51,15 @@ for (const required of [
 
 if (!fs.existsSync(path.join(sharedRoot, "package.json"))) {
   fs.mkdirSync(sharedRoot, { recursive: true });
-  fs.cpSync(templateDir, sharedRoot, { recursive: true });
+  copyTldrawAppTemplate(templateDir, sharedRoot);
 }
 
 const manifest = JSON.parse(fs.readFileSync(path.join(workspaceDir, "data", "import-manifest.json"), "utf8"));
 const existingSessionManifestPath = path.join(sessionDir, "data", "import-manifest.json");
+let existingSessionManifest = null;
 if (fs.existsSync(existingSessionManifestPath) && !args["allow-session-reuse"]) {
   const existing = readJson(existingSessionManifestPath);
+  existingSessionManifest = existing;
   const existingWorkspace = existing?.workspace || {};
   const incomingWorkspace = manifest.workspace || {};
   const sameWorkspace = existingWorkspace.workspace_dir
@@ -70,9 +73,17 @@ if (fs.existsSync(existingSessionManifestPath) && !args["allow-session-reuse"]) 
   }
 }
 
-fs.rmSync(sessionDir, { recursive: true, force: true });
+const sameFingerprint = existingSessionManifest?.workspace?.source_fingerprint
+  && existingSessionManifest.workspace.source_fingerprint === manifest?.workspace?.source_fingerprint;
+if (!sameFingerprint) fs.rmSync(sessionDir, { recursive: true, force: true });
 fs.mkdirSync(path.join(sessionDir, "data"), { recursive: true });
-fs.cpSync(path.join(workspaceDir, "public", "imported-images"), path.join(sessionDir, "imported-images"), { recursive: true });
+const sessionImageDir = path.join(sessionDir, "imported-images");
+fs.mkdirSync(sessionImageDir, { recursive: true });
+const assetTransferModes = [];
+for (const entry of fs.readdirSync(path.join(workspaceDir, "public", "imported-images"), { withFileTypes: true })) {
+  if (!entry.isFile()) continue;
+  assetTransferModes.push(linkOrCopyFile(path.join(workspaceDir, "public", "imported-images", entry.name), path.join(sessionImageDir, entry.name)));
+}
 for (const name of ["annotations.json", "canvas-state.json", "generation-tasks.json", "review-completion.json", "review-completion-ready.json"]) {
   const source = path.join(workspaceDir, "data", name);
   if (fs.existsSync(source)) fs.copyFileSync(source, path.join(sessionDir, "data", name));
@@ -116,6 +127,8 @@ console.log(JSON.stringify({
   sharedRoot,
   sessionDir,
   url_path: `/?session=${encodeURIComponent(sessionId)}`,
+  assets_reused: Boolean(sameFingerprint),
+  asset_transfer_modes: assetTransferModes,
 }, null, 2));
 
 function expandHome(value) {

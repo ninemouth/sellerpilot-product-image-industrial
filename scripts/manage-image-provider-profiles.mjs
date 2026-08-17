@@ -77,6 +77,11 @@ const profile = normalizeExternalProfile({
     quality: { default: args["quality-default"] || previous.capabilities?.quality?.default, allowed: splitList(args["quality-allowed"]) || previous.capabilities?.quality?.allowed },
     size: { default: args["size-default"] || previous.capabilities?.size?.default, allowed: splitList(args["size-allowed"]) || previous.capabilities?.size?.allowed, allow_custom: args["allow-custom-size"] ? true : previous.capabilities?.size?.allow_custom },
     response_format: { default: args["response-format-default"] || previous.capabilities?.response_format?.default, allowed: splitList(args["response-format-allowed"]) || previous.capabilities?.response_format?.allowed },
+    reference_images: {
+      max_count: args["reference-max-count"] || previous.capabilities?.reference_images?.max_count,
+      max_per_image_bytes: args["reference-max-per-image-bytes"] || previous.capabilities?.reference_images?.max_per_image_bytes,
+      max_total_bytes: args["reference-max-total-bytes"] || previous.capabilities?.reference_images?.max_total_bytes,
+    },
   }),
 });
 if (!profile.label || !profile.base_url || !profile.model || !profile.api_key_env) fail("External profiles require --label, --base-url, --model, and --api-key-env (or an existing saved value).");
@@ -88,10 +93,10 @@ const registry = writeProviderRegistry(configPath, {
 console.log(JSON.stringify({ status: "upserted", active_profile_id: registry.active_profile_id, profile: publicProfile(findProfile(registry, profile.id)), key_source: apiKey ? (args["api-key-stdin"] ? "stdin" : "argument") : "retained_or_environment" }, null, 2));
 
 function publicRegistry(registry, source) { return { status: "ready", source, active_profile_id: registry.active_profile_id, profiles: registry.profiles.map(publicProfile) }; }
-function publicProfile(profile) { return { id: profile.id, label: profile.label, kind: profile.kind, enabled: profile.enabled !== false, runtime: profile.runtime, base_url: profile.base_url || null, model: profile.model || null, api_key_env: profile.api_key_env || null, has_stored_key: Boolean(profile.api_key) }; }
+function publicProfile(profile) { return { id: profile.id, label: profile.label, kind: profile.kind, enabled: profile.enabled !== false, runtime: profile.runtime, base_url: profile.base_url || null, model: profile.model || null, api_key_env: profile.api_key_env || null, reference_images: profile.capabilities?.reference_images || null, has_stored_key: Boolean(profile.api_key) }; }
 function readApiKey(input) { if (input["api-key"] && input["api-key-stdin"]) fail("Use either --api-key or --api-key-stdin, not both."); return String(input["api-key"] || (input["api-key-stdin"] ? fs.readFileSync(0, "utf8") : "")).trim(); }
 function required(key) { const value = String(args[key] || "").trim(); if (!value) fail(`--${key} is required.`); return value; }
 function splitList(value) { return value ? String(value).split(",").map((item) => item.trim()).filter(Boolean) : null; }
 function parseArgs(argv) { const out = {}; for (let i = 2; i < argv.length; i += 1) { if (!argv[i].startsWith("--")) continue; const key = argv[i].slice(2); const next = argv[i + 1]; if (!next || next.startsWith("--")) out[key] = true; else { out[key] = next; i += 1; } } return out; }
 function fail(message) { console.error(message); process.exit(2); }
-function usage() { console.error("Usage: node scripts/manage-image-provider-profiles.mjs --action list|select|upsert|remove|migrate [--config /abs/image-provider.json] [--id PROFILE_ID] [--label LABEL --runtime openai_images|nvidia_nim_flux --base-url URL --model MODEL --api-key-env NAME --api-key-stdin --set-active]"); process.exit(2); }
+function usage() { console.error("Usage: node scripts/manage-image-provider-profiles.mjs --action list|select|upsert|remove|migrate [--config /abs/image-provider.json] [--id PROFILE_ID] [--label LABEL --runtime openai_images|nvidia_nim_flux --base-url URL --model MODEL --api-key-env NAME --api-key-stdin --set-active] [--reference-max-count 2 --reference-max-per-image-bytes N --reference-max-total-bytes N]"); process.exit(2); }

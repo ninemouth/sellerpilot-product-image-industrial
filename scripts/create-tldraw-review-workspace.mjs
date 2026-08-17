@@ -5,6 +5,7 @@ import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { collectScopedImages, imageScopeUsage } from "./lib/image-scope.mjs";
 import { skillRootFrom } from "./lib/skill-paths.mjs";
+import { copyTldrawAppTemplate, linkOrCopyFile } from "./lib/tldraw-template.mjs";
 
 function parseArgs(argv) {
   const args = {};
@@ -86,12 +87,14 @@ if (canReuseWorkspace) {
 
 fs.rmSync(outDir, { recursive: true, force: true });
 fs.mkdirSync(outDir, { recursive: true });
-fs.cpSync(templateDir, outDir, { recursive: true });
+const copiedTemplateFiles = copyTldrawAppTemplate(templateDir, outDir);
 
 const publicImageDir = path.join(outDir, "public", "imported-images");
 fs.mkdirSync(publicImageDir, { recursive: true });
+fs.mkdirSync(path.join(outDir, "data"), { recursive: true });
 
 const usedCopiedFiles = new Set();
+const assetTransferModes = [];
 const images = sourceImages.map((sourcePath, index) => {
   const ext = path.extname(sourcePath).toLowerCase() || ".png";
   const base = path.basename(sourcePath, ext)
@@ -102,7 +105,7 @@ const images = sourceImages.map((sourcePath, index) => {
   const candidate = base.toUpperCase().startsWith(id) ? `${base}${ext}` : `${id}-${base}${ext}`;
   const file = uniqueFilename(candidate, usedCopiedFiles, index);
   const dest = path.join(publicImageDir, file);
-  fs.copyFileSync(sourcePath, dest);
+  assetTransferModes.push(linkOrCopyFile(sourcePath, dest));
   return {
     id,
     file: path.basename(sourcePath),
@@ -260,6 +263,8 @@ console.log(JSON.stringify({
   autoStart,
   url: autoStartResult?.url || null,
   autoStartResult,
+  copiedTemplateFiles,
+  assetTransferModes,
   next,
 }, null, 2));
 if (autoStart && autoStartResult?.status !== "ready") process.exitCode = 1;
