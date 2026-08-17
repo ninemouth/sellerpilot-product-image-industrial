@@ -20,7 +20,7 @@
     "verify:loop-engineering": "node scripts/verify-loop-engineering.mjs",
     "verify:reference-pipeline": "node scripts/verify-reference-image-pipeline.mjs",
     "benchmark:control-plane": "node scripts/benchmark-control-plane.mjs",
-    "sync": "npm run sync:codex",
+    "sync": "npm run sync:codex --",
     "sync:codex": "node scripts/sync-to-codex-skill.mjs --skill-name sellerpilot-product-image-industrial",
     "sync:aliases": "node scripts/sync-compatibility-aliases.mjs",
     "sync:thinkai": "node scripts/sync-compatibility-aliases.mjs --only sellerpilot-product-image-industrial-thinkai",

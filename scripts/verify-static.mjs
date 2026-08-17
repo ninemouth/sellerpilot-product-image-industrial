@@ -7,6 +7,12 @@ import { skillRootFrom } from "./lib/skill-paths.mjs";
 const skillRoot = skillRootFrom(import.meta.url);
 const checks = [];
 check("package JSON", () => JSON.parse(read("package.json")));
+check("sync alias forwards release arguments", () => {
+  const pkg = JSON.parse(read("package.json"));
+  if (pkg.scripts?.sync !== "npm run sync:codex --") {
+    throw new Error("npm run sync must forward --source, --remote-branch, and other release arguments to sync:codex");
+  }
+});
 check("skill package metadata", () => {
   const result = spawnSync(process.execPath, [path.join(skillRoot, "scripts", "verify-skill-package.mjs")], { encoding: "utf8" });
   if (result.status !== 0) throw new Error(result.stderr || result.stdout || "skill package validation failed");
