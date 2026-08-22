@@ -33,7 +33,8 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
 
 - `current`: continue silently.
 - `update_available`: ask whether to update. Do not enter production planning, source analysis, image generation, QA, or canvas launch until the user chooses. Never overwrite the installed skill without authorization.
-- `unknown_*` or timeout: continue, state that freshness was not confirmed, and do not claim the install is current.
+- `installed_content_mismatch`, `unknown_local_integrity`, or `dirty_source_install`: stop production and repair the installed Skill from a clean reviewed release. These are local provenance failures, not ordinary network uncertainty.
+- `unknown_remote_revision` or timeout: continue, state that remote freshness was not confirmed, and do not claim the install is current.
 
 Update/sync diagnostics are internal. Never expose local absolute paths, usernames, caches, raw remotes, network errors, or credentials in the user-facing message.
 
@@ -49,6 +50,15 @@ Update/sync diagnostics are internal. Never expose local absolute paths, usernam
 Choose the lightest mode that protects final quality. Do not route ordinary final multi-image work to fast mode, and do not expand normal production into a verbose audit package.
 
 ## Provider route and generation boundary
+
+When a Marqel Etsy operation supplies a Web-managed SellerPilot Image configuration, refresh the shared target before resolving the provider route:
+
+```bash
+node ${CODEX_HOME:-$HOME/.codex}/skills/marqel-control-center-auth/scripts/manage-session.mjs sync-config --target-id sellerpilot-image
+node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/sync-marqel-image-config.mjs
+```
+
+The sync adds or updates a named `marqel-sellerpilot-image` provider profile without deleting existing local profiles. It auto-activates only when the local active profile is still `codex-native`; an explicitly selected local external profile remains authoritative. Use `--set-active` only when the operator intentionally wants the Web-managed profile to become active. The API Key is never printed, placed in a run artifact, or sent to a browser page. If the shared target is missing, local Codex provider configuration remains the fallback and the Skill must report the configuration state honestly.
 
 Resolve one provider route per run. Treat its `selected_mode` as the sole execution authority. The resolver pins a digest into `runtime/image-provider-resolution.json` and `run-state.json`; every role reuses it. A per-role config change or silent fallback is forbidden.
 

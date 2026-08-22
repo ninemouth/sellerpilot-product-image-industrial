@@ -13,7 +13,9 @@
     "verify": "npm run verify:static && npm run verify:unit && npm run verify:image-proxy",
     "verify:all": "npm run verify && npm run verify:integration",
     "verify:static": "node scripts/verify-static.mjs",
-    "verify:unit": "node scripts/verify-loop-engineering.mjs && node scripts/verify-reference-image-pipeline.mjs",
+    "verify:unit": "npm run verify:marqel-config && npm run verify:release-integrity && node scripts/verify-loop-engineering.mjs && node scripts/verify-reference-image-pipeline.mjs",
+    "verify:marqel-config": "node --test test/marqel-image-config.test.mjs",
+    "verify:release-integrity": "node --test test/skill-release-integrity.test.mjs",
     "verify:integration": "node scripts/verify-integration.mjs",
     "verify:skill-package": "node scripts/verify-skill-package.mjs",
     "verify:image-proxy": "npm --prefix standalone/image-proxy run verify",
@@ -35,6 +37,7 @@
     "providers:upsert": "node scripts/manage-image-provider-profiles.mjs --action upsert",
     "providers:remove": "node scripts/manage-image-provider-profiles.mjs --action remove",
     "providers:select-interactive": "node scripts/select-image-provider-interactive.mjs",
+    "providers:sync-marqel": "node scripts/sync-marqel-image-config.mjs",
     "ensure:image-provider-configuration": "node scripts/ensure-image-provider-configuration.mjs",
     "check:update": "node scripts/check-skill-update.mjs",
     "route:mode": "node scripts/production-mode-router.mjs",
@@ -85,6 +88,6 @@
   },
   "optionalDependencies": {
     "playwright": "^1.61.1",
-    "sharp": "^0.34.5"
+    "sharp": "^0.35.3"
   }
 }

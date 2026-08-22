@@ -5,6 +5,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { skillRootFrom } from "./lib/skill-paths.mjs";
 import { resolvePackageManager, scriptArgs } from "./lib/package-manager.mjs";
+import { SKILL_SYNC_EXCLUDES, skillContentSha256 } from "./lib/skill-release-integrity.mjs";
 
 function parseArgs(argv) {
   const args = {};
@@ -24,7 +25,7 @@ function parseArgs(argv) {
 
 function usage() {
   console.error(`Usage:
-node scripts/sync-to-codex-skill.mjs [--source /abs/skill] [--dest /abs/codex/skill] [--remote-branch branch] [--package-manager npm|pnpm] [--skip-verify] [--full-verify] [--no-backup] [--no-provider-config-prompt] [--include-diagnostics]
+node scripts/sync-to-codex-skill.mjs [--source /abs/skill] [--dest /abs/codex/skill] [--remote-branch branch] [--package-manager npm|pnpm] [--skip-verify] [--full-verify] [--no-backup] [--no-provider-config-prompt] [--allow-dirty] [--include-diagnostics]
 
 Runs verification by default, backs up the installed skill, copies this project
 to the Codex skill directory, and verifies source/destination content matches.
@@ -65,22 +66,16 @@ const codexHome = process.env.CODEX_HOME || path.join(os.homedir(), ".codex");
 const skillName = String(args["skill-name"] || "sellerpilot-product-image-industrial");
 const dest = path.resolve(args.dest || path.join(codexHome, "skills", skillName));
 const backupRoot = path.resolve(args["backup-root"] || path.join(codexHome, "skill-backups"));
-const syncExcludes = new Set([
-  ".git",
-  "node_modules",
-  "runs",
-  "outputs",
-  "work",
-  "dist",
-  "compatibility-aliases",
-  ".cache",
-  ".DS_Store",
-  ".sellerpilot-skill-release.json",
-  ".thinkai-image-runtime.json",
-]);
+const syncExcludes = new Set(SKILL_SYNC_EXCLUDES);
 
 if (!fs.existsSync(path.join(source, "SKILL.md"))) {
   throw new Error(`Source does not look like a skill folder: ${source}`);
+}
+
+const sourceStatus = gitValue(source, ["status", "--porcelain", "--untracked-files=normal"]);
+const sourceDirty = Boolean(sourceStatus);
+if (sourceDirty && !args["allow-dirty"]) {
+  throw new Error("Refusing to create release metadata from a dirty source tree. Commit the reviewed Skill changes first, or use --allow-dirty only for an explicitly non-release development install.");
 }
 
 const packageManager = resolvePackageManager({ cwd: source, requested: args["package-manager"] });
@@ -115,7 +110,10 @@ if (differences.length) {
   throw new Error(`Installed skill differs from source:\n${differences.slice(0, 40).join("\n")}`);
 }
 
-const releaseMetadata = buildReleaseMetadata({ source, dest });
+const sourceContentSha256 = skillContentSha256(source, syncExcludes);
+const installedContentSha256 = skillContentSha256(dest, syncExcludes);
+if (sourceContentSha256 !== installedContentSha256) throw new Error("Installed Skill content digest differs from the verified source digest.");
+const releaseMetadata = buildReleaseMetadata({ source, dest, contentSha256: installedContentSha256, sourceDirty });
 fs.writeFileSync(path.join(dest, ".sellerpilot-skill-release.json"), JSON.stringify(releaseMetadata, null, 2));
 
 const canvasRoot = path.join(codexHome, "sellerpilot-product-image-industrial", "canvas-service");
@@ -260,12 +258,12 @@ function sameFile(left, right) {
   return fs.readFileSync(left).equals(fs.readFileSync(right));
 }
 
-function buildReleaseMetadata({ source: sourceDir, dest: destDir }) {
+function buildReleaseMetadata({ source: sourceDir, dest: destDir, contentSha256, sourceDirty }) {
   const packageJson = readJson(path.join(sourceDir, "package.json")) || {};
   const existingRelease = readJson(path.join(sourceDir, ".sellerpilot-skill-release.json")) || {};
   const fallbackGitRoot = process.cwd();
   return {
-    schema_version: "sellerpilot.skill_release.v1",
+    schema_version: "sellerpilot.skill_release.v2",
     skill_name: skillName,
     package_version: packageJson.version || "",
     source_path: sourceDir,
@@ -274,6 +272,8 @@ function buildReleaseMetadata({ source: sourceDir, dest: destDir }) {
     local_branch: gitValue(sourceDir, ["rev-parse", "--abbrev-ref", "HEAD"]) || existingRelease.local_branch || gitValue(fallbackGitRoot, ["rev-parse", "--abbrev-ref", "HEAD"]),
     remote_url: gitValue(sourceDir, ["config", "--get", "remote.origin.url"]) || existingRelease.remote_url || gitValue(fallbackGitRoot, ["config", "--get", "remote.origin.url"]) || normalizeGitUrl(packageJson.repository?.url) || "",
     remote_branch: args["remote-branch"] || existingRelease.remote_branch || detectRemoteBranch(sourceDir) || detectRemoteBranch(fallbackGitRoot) || "main",
+    content_sha256: contentSha256,
+    source_dirty: Boolean(sourceDirty),
     synced_at: new Date().toISOString(),
   };
 }
@@ -285,6 +285,8 @@ function publicReleaseMetadata(releaseMetadata) {
     local_commit: releaseMetadata.local_commit,
     local_branch: releaseMetadata.local_branch,
     remote_branch: releaseMetadata.remote_branch,
+    content_sha256: releaseMetadata.content_sha256,
+    source_dirty: releaseMetadata.source_dirty,
     synced_at: releaseMetadata.synced_at,
   };
 }
