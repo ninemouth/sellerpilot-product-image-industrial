@@ -33,7 +33,9 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
 
 - `current`: continue silently.
 - `update_available`: ask whether to update. Do not enter production planning, source analysis, image generation, QA, or canvas launch until the user chooses. Never overwrite the installed skill without authorization.
+- `local_ahead_of_remote`: the installed bytes match a clean local commit, so local work may continue, but do not claim the configured remote distribution is current until that commit is reviewed and pushed.
 - `installed_content_mismatch`, `unknown_local_integrity`, or `dirty_source_install`: stop production and repair the installed Skill from a clean reviewed release. These are local provenance failures, not ordinary network uncertainty.
+- `divergent_revision`: stop and reconcile the local and remote histories. `revision_mismatch` requires review because ancestry could not be proven; do not guess which side is newer.
 - `unknown_remote_revision` or timeout: continue, state that remote freshness was not confirmed, and do not claim the install is current.
 
 Update/sync diagnostics are internal. Never expose local absolute paths, usernames, caches, raw remotes, network errors, or credentials in the user-facing message.

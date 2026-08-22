@@ -54,6 +54,37 @@ test("update checker invalidates a current cache when installed bytes drift", as
   assert.equal(drifted.requires_repair, true);
 });
 
+test("update checker distinguishes a clean local release ahead of the remote", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "sellerpilot-local-ahead-"));
+  const cacheFile = path.join(root, ".cache", "status.json");
+  await fs.writeFile(path.join(root, "package.json"), JSON.stringify({ name: "sellerpilot-product-image-industrial", version: "0.1.0" }));
+  await fs.writeFile(path.join(root, "SKILL.md"), "remote release\n");
+  git(root, ["init"]);
+  git(root, ["add", "package.json", "SKILL.md"]);
+  git(root, ["-c", "user.name=Release Test", "-c", "user.email=release-test@example.invalid", "commit", "-m", "remote release"]);
+  const remoteCommit = git(root, ["rev-parse", "HEAD"]).trim();
+  await fs.writeFile(path.join(root, "SKILL.md"), "local reviewed release\n");
+  git(root, ["add", "SKILL.md"]);
+  git(root, ["-c", "user.name=Release Test", "-c", "user.email=release-test@example.invalid", "commit", "-m", "local release"]);
+  const localCommit = git(root, ["rev-parse", "HEAD"]).trim();
+  await fs.writeFile(path.join(root, ".sellerpilot-skill-release.json"), JSON.stringify({
+    schema_version: "sellerpilot.skill_release.v2",
+    source_path: root,
+    local_commit: localCommit,
+    local_branch: "main",
+    remote_branch: "main",
+    content_sha256: skillContentSha256(root),
+    source_dirty: false,
+  }));
+
+  const report = runChecker(root, cacheFile, remoteCommit, 0);
+  assert.equal(report.status, "local_ahead_of_remote");
+  assert.equal(report.remote.relation, "local_ahead");
+  assert.equal(report.needs_update, false);
+  assert.equal(report.requires_publish, true);
+  assert.equal(report.requires_repair, false);
+});
+
 function runChecker(skillRoot, cacheFile, remoteCommit, cacheTtlHours) {
   const result = spawnSync(process.execPath, [checker,
     "--skill-root", skillRoot,
@@ -63,4 +94,10 @@ function runChecker(skillRoot, cacheFile, remoteCommit, cacheTtlHours) {
   ], { encoding: "utf8" });
   assert.equal(result.status, 0, result.stderr || result.stdout);
   return JSON.parse(result.stdout);
+}
+
+function git(cwd, args) {
+  const result = spawnSync("git", args, { cwd, encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  return result.stdout;
 }

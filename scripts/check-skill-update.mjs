@@ -62,13 +62,16 @@ if (!args.force
 }
 
 const remoteResult = getRemoteRevision({ remote, branch, timeoutMs, override: args["remote-commit"], skip: args["skip-remote"] });
-const status = decideStatus(local, remoteResult);
-const requiresRepair = ["installed_content_mismatch", "unknown_local_integrity", "dirty_source_install"].includes(status);
+const revisionRelation = getRevisionRelation({ skillRoot, sourcePath: release.source_path, localCommit: local.commit, remoteCommit: remoteResult.commit });
+const status = decideStatus(local, remoteResult, revisionRelation);
+const requiresRepair = ["installed_content_mismatch", "unknown_local_integrity", "dirty_source_install", "divergent_revision"].includes(status);
+const requiresPublish = status === "local_ahead_of_remote";
 const report = {
   schema_version: "sellerpilot.skill_update_status.v2",
   status,
-  needs_update: status === "update_available" || requiresRepair,
+  needs_update: ["update_available", "revision_mismatch"].includes(status) || requiresRepair,
   requires_repair: requiresRepair,
+  requires_publish: requiresPublish,
   checked_at: new Date().toISOString(),
   cache_hit: false,
   local: publicLocal(local),
@@ -76,11 +79,14 @@ const report = {
     branch,
     commit: remoteResult.commit,
     status: remoteResult.status,
+    relation: revisionRelation,
     error_summary: publicRemoteErrorSummary(remoteResult),
   },
   user_message: userMessage(status),
   install_hint: status === "update_available"
     ? "Ask whether to update the SellerPilot product image skill before starting production."
+    : status === "revision_mismatch" ? "Review local and remote revisions before changing or using the installation for production."
+    : requiresPublish ? "Push and review the clean local release commit before claiming the remote distribution is current."
     : requiresRepair ? "Repair the installed Skill from a clean reviewed source commit before production." : "",
   non_blocking_policy: requiresRepair
     ? "Installed-content integrity failures block production. Remote-only unknown/timeout states remain non-blocking but cannot be reported as current."
@@ -95,6 +101,7 @@ const report = {
       branch,
       commit: remoteResult.commit,
       status: remoteResult.status,
+      relation: revisionRelation,
       source: remoteResult.source || "",
       error: remoteResult.error || null,
     },
@@ -146,14 +153,31 @@ function getRemoteRevision({ remote: remoteUrl, branch: branchName, timeoutMs: w
   return commit ? { status: "ok", commit, source: "git ls-remote" } : { status: "unknown", commit: "", error: "No remote head returned." };
 }
 
-function decideStatus(local, remoteResult) {
+function decideStatus(local, remoteResult, revisionRelation) {
   if (!local.commit) return "unknown_local_revision";
   if (local.source_dirty) return "dirty_source_install";
   if (local.integrity_status === "mismatch") return "installed_content_mismatch";
   if (local.integrity_status !== "verified") return "unknown_local_integrity";
   if (remoteResult.status !== "ok" || !remoteResult.commit) return "unknown_remote_revision";
   if (local.commit === remoteResult.commit) return "current";
-  return "update_available";
+  if (revisionRelation === "remote_ahead") return "update_available";
+  if (revisionRelation === "local_ahead") return "local_ahead_of_remote";
+  if (revisionRelation === "divergent") return "divergent_revision";
+  return "revision_mismatch";
+}
+
+function getRevisionRelation({ skillRoot: installedRoot, sourcePath, localCommit, remoteCommit }) {
+  if (!localCommit || !remoteCommit) return "unknown";
+  if (localCommit === remoteCommit) return "equal";
+  const candidates = [installedRoot, sourcePath].filter(Boolean);
+  for (const candidate of candidates) {
+    if (!fs.existsSync(path.join(candidate, ".git"))) continue;
+    if (!gitObjectExists(candidate, localCommit) || !gitObjectExists(candidate, remoteCommit)) continue;
+    if (isAncestor(candidate, localCommit, remoteCommit)) return "remote_ahead";
+    if (isAncestor(candidate, remoteCommit, localCommit)) return "local_ahead";
+    return "divergent";
+  }
+  return "unknown";
 }
 
 function makeOutputReport({ report, cacheHit, includeDiagnostics: withDiagnostics }) {
@@ -162,6 +186,7 @@ function makeOutputReport({ report, cacheHit, includeDiagnostics: withDiagnostic
     status: report.status || "unknown_remote_revision",
     needs_update: Boolean(report.needs_update),
     requires_repair: Boolean(report.requires_repair),
+    requires_publish: Boolean(report.requires_publish),
     checked_at: report.checked_at || "",
     cache_hit: Boolean(cacheHit),
     local: publicLocal(report.local || report.diagnostics?.local || {}),
@@ -202,6 +227,7 @@ function publicRemote(remoteReport) {
     branch: safeToken(remoteReport.branch || branch),
     commit: normalizeCommit(remoteReport.commit),
     status: safeToken(remoteReport.status),
+    relation: safeToken(remoteReport.relation),
     error_summary: publicRemoteErrorSummary(remoteReport),
   };
 }
@@ -215,6 +241,9 @@ function publicRemoteErrorSummary(remoteReport) {
 function userMessage(status) {
   if (status === "current") return "Installed SellerPilot product image skill is current.";
   if (status === "update_available") return "A newer SellerPilot product image skill version is available; ask the user whether to update before production.";
+  if (status === "local_ahead_of_remote") return "Installed SellerPilot Skill matches a clean local release that has not yet reached the configured remote branch.";
+  if (status === "divergent_revision") return "Installed and remote SellerPilot revisions have diverged; reconcile and review them before production.";
+  if (status === "revision_mismatch") return "Installed and remote SellerPilot revisions differ, but their ancestry could not be proven; review before changing the installation.";
   if (status === "installed_content_mismatch") return "Installed SellerPilot Skill content does not match its release metadata; repair the installation before production.";
   if (status === "unknown_local_integrity") return "Installed SellerPilot Skill integrity cannot be verified because its release metadata has no content digest; repair or resync before production.";
   if (status === "dirty_source_install") return "Installed SellerPilot Skill was synced from a dirty source tree; replace it with a clean reviewed release before production.";
@@ -233,6 +262,16 @@ function gitValue(root, gitArgs) {
   const result = spawnSync("git", gitArgs, { cwd: root, encoding: "utf8", timeout: 1000 });
   if (result.status !== 0) return "";
   return result.stdout.trim();
+}
+
+function gitObjectExists(root, commit) {
+  const result = spawnSync("git", ["cat-file", "-e", `${commit}^{commit}`], { cwd: root, encoding: "utf8", timeout: 1000 });
+  return result.status === 0;
+}
+
+function isAncestor(root, ancestor, descendant) {
+  const result = spawnSync("git", ["merge-base", "--is-ancestor", ancestor, descendant], { cwd: root, encoding: "utf8", timeout: 1000 });
+  return result.status === 0;
 }
 
 function normalizeGitUrl(value) {
