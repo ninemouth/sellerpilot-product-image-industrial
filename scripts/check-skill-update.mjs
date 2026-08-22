@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { skillRootFrom } from "./lib/skill-paths.mjs";
@@ -38,7 +39,7 @@ locations, raw remote errors, and install/source directories. Use
 const args = parseArgs(process.argv);
 if (args.help) usage();
 
-const skillRoot = path.resolve(args["skill-root"] || skillRootFrom(import.meta.url));
+const skillRoot = path.resolve(args["skill-root"] || resolveDefaultSkillRoot());
 const cacheFile = path.resolve(args["cache-file"] || path.join(skillRoot, ".cache", "skill-update-status.json"));
 const ttlMs = Math.max(0, Number(args["cache-ttl-hours"] ?? 24) * 60 * 60 * 1000);
 const timeoutMs = Math.max(250, Number(args["timeout-ms"] ?? 1500));
@@ -112,6 +113,15 @@ fs.mkdirSync(path.dirname(cacheFile), { recursive: true });
 fs.writeFileSync(cacheFile, JSON.stringify(report, null, 2));
 console.log(JSON.stringify(makeOutputReport({ report, cacheHit: false, includeDiagnostics }), null, 2));
 if (args["fail-on-update"] && (report.needs_update || report.requires_repair)) process.exitCode = 1;
+
+function resolveDefaultSkillRoot() {
+  const scriptRoot = skillRootFrom(import.meta.url);
+  if (fs.existsSync(path.join(scriptRoot, ".sellerpilot-skill-release.json"))) return scriptRoot;
+  const codexHome = process.env.CODEX_HOME || path.join(os.homedir(), ".codex");
+  const installedRoot = path.join(codexHome, "skills", "sellerpilot-product-image-industrial");
+  if (fs.existsSync(path.join(installedRoot, "SKILL.md"))) return installedRoot;
+  return scriptRoot;
+}
 
 function getLocalRevision(root, releaseMeta, packageJson) {
   const releaseCommit = normalizeCommit(releaseMeta.local_commit || releaseMeta.source_commit || releaseMeta.commit);

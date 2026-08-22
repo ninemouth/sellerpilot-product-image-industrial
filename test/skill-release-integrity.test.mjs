@@ -85,6 +85,33 @@ test("update checker distinguishes a clean local release ahead of the remote", a
   assert.equal(report.requires_repair, false);
 });
 
+test("source package command checks the installed Skill under CODEX_HOME by default", async () => {
+  const codexHome = await fs.mkdtemp(path.join(os.tmpdir(), "sellerpilot-codex-home-"));
+  const installedRoot = path.join(codexHome, "skills", "sellerpilot-product-image-industrial");
+  await fs.mkdir(installedRoot, { recursive: true });
+  await fs.writeFile(path.join(installedRoot, "SKILL.md"), "installed release\n");
+  await fs.writeFile(path.join(installedRoot, "package.json"), JSON.stringify({ name: "sellerpilot-product-image-industrial", version: "0.1.0" }));
+  const commit = "b".repeat(40);
+  await fs.writeFile(path.join(installedRoot, ".sellerpilot-skill-release.json"), JSON.stringify({
+    schema_version: "sellerpilot.skill_release.v2",
+    local_commit: commit,
+    local_branch: "main",
+    remote_branch: "main",
+    content_sha256: skillContentSha256(installedRoot),
+    source_dirty: false,
+  }));
+
+  const result = spawnSync(process.execPath, [checker, "--remote-commit", commit, "--cache-ttl-hours", "0"], {
+    encoding: "utf8",
+    env: { ...process.env, CODEX_HOME: codexHome },
+  });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.status, "current");
+  assert.equal(report.local.integrity_status, "verified");
+  assert.equal(report.requires_repair, false);
+});
+
 function runChecker(skillRoot, cacheFile, remoteCommit, cacheTtlHours) {
   const result = spawnSync(process.execPath, [checker,
     "--skill-root", skillRoot,
