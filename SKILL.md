@@ -53,14 +53,28 @@ Choose the lightest mode that protects final quality. Do not route ordinary fina
 
 ## Provider route and generation boundary
 
-When a Marqel Etsy operation supplies a Web-managed SellerPilot Image configuration, refresh the shared target before resolving the provider route:
+First inspect the current Codex runtime capability. This check is authoritative for `auto` routing:
+
+- If the built-in `image_gen` / system `imagegen` capability is available, resolve with `--native-imagegen available` (or `SELLERPILOT_NATIVE_IMAGEGEN_AVAILABLE=1`). Use `native_codex`; do **not** fetch or require a third-party Base URL or API Key, even if a stale external profile remains locally active.
+- Only when built-in `image_gen` is unavailable and the runtime is intentionally using a third-party proxy, resolve with `--provider third_party_proxy --native-imagegen unavailable`. Then, and only then, synchronize the Web-managed `sellerpilot-image` target when that target is the selected proxy source.
+- An explicit `third_party_proxy` selection remains authoritative. `unknown` preserves the existing explicit profile selection and must not be presented as proof that native generation is available.
+
+When the selected route is the Marqel Web-managed third-party proxy, refresh the shared target before resolving the provider route:
+
+For a first-time authorization, the explicit target can be synchronized immediately after the human approval:
+
+```bash
+node ${CODEX_HOME:-$HOME/.codex}/skills/marqel-control-center-auth/scripts/manage-session.mjs device-start --sync-target sellerpilot-image
+```
+
+For an existing valid device session, use the refresh-and-import sequence:
 
 ```bash
 node ${CODEX_HOME:-$HOME/.codex}/skills/marqel-control-center-auth/scripts/manage-session.mjs sync-config --target-id sellerpilot-image
 node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/sync-marqel-image-config.mjs
 ```
 
-The sync adds or updates a named `marqel-sellerpilot-image` provider profile without deleting existing local profiles. It auto-activates only when the local active profile is still `codex-native`; an explicitly selected local external profile remains authoritative. Use `--set-active` only when the operator intentionally wants the Web-managed profile to become active. The API Key is never printed, placed in a run artifact, or sent to a browser page. If the shared target is missing, local Codex provider configuration remains the fallback and the Skill must report the configuration state honestly.
+The sync adds or updates a named `marqel-sellerpilot-image` provider profile without deleting existing local profiles. It auto-activates only when the local active profile is still `codex-native`; an explicitly selected local external profile remains authoritative. Use `--set-active` only when the operator intentionally wants the Web-managed profile to become active. The API Key is never printed, placed in a run artifact, or sent to a browser page. If the shared target is missing, local Codex provider configuration remains the fallback and the Skill must report the configuration state honestly. Never run this Web sync merely because the target exists: native `image_gen` needs neither its Base URL nor its API Key.
 
 Resolve one provider route per run. Treat its `selected_mode` as the sole execution authority. The resolver pins a digest into `runtime/image-provider-resolution.json` and `run-state.json`; every role reuses it. A per-role config change or silent fallback is forbidden.
 

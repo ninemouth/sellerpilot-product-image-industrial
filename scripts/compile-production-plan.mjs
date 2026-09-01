@@ -187,6 +187,7 @@ function compileTasks(ctx) {
   if (providerRequest.profile_id) providerResolutionCommand.push("--profile", providerRequest.profile_id);
   if (providerRequest.provider_config) providerResolutionCommand.push("--config", providerRequest.provider_config);
   if (providerRequest.codex_config) providerResolutionCommand.push("--codex-config", providerRequest.codex_config);
+  if (providerRequest.native_imagegen) providerResolutionCommand.push("--native-imagegen", providerRequest.native_imagegen);
 
   add({
     id: "efficiency-plan",

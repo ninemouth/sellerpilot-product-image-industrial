@@ -8,6 +8,7 @@ import { normalizeProviderCapabilities } from "./lib/provider-capabilities.mjs";
 import { findProfile, isThirdPartyProfile, normalizeExternalProfile, readProviderRegistry } from "./lib/provider-profile-registry.mjs";
 
 const MODES = new Set(["auto", "native_codex", "third_party_proxy"]);
+const NATIVE_CAPABILITIES = new Set(["available", "unavailable", "unknown"]);
 
 function parseArgs(argv) {
   const args = {};
@@ -23,7 +24,7 @@ function parseArgs(argv) {
 
 const args = parseArgs(process.argv);
 if (args.help) {
-  console.error("Usage: node scripts/resolve-image-provider.mjs [--provider auto|native_codex|third_party_proxy] [--profile PROFILE_ID] [--config /abs/image-provider.json] [--codex-config /abs/config.toml] [--run-dir /abs/run]");
+  console.error("Usage: node scripts/resolve-image-provider.mjs [--provider auto|native_codex|third_party_proxy] [--native-imagegen available|unavailable|unknown] [--profile PROFILE_ID] [--config /abs/image-provider.json] [--codex-config /abs/config.toml] [--run-dir /abs/run]");
   process.exit(2);
 }
 
@@ -33,6 +34,7 @@ const providerConfigPath = path.resolve(args.config || path.join(codexHome, "sel
 const codexConfigPath = path.resolve(args["codex-config"] || path.join(codexHome, "config.toml"));
 const requestedMode = String(args.provider || "auto").trim();
 if (!MODES.has(requestedMode)) fail(`Unsupported provider mode: ${requestedMode}`);
+const nativeImagegenCapability = normalizeNativeCapability(args["native-imagegen"] ?? process.env.SELLERPILOT_NATIVE_IMAGEGEN_AVAILABLE);
 const runReportPath = args["run-dir"] ? path.join(path.resolve(args["run-dir"]), "runtime", "image-provider-resolution.json") : null;
 if (runReportPath && fs.existsSync(runReportPath) && !args.force) {
   const pinned = readJson(runReportPath);
@@ -52,6 +54,8 @@ const requestedProfileId = String(args.profile || "").trim();
 let profile = requestedProfileId ? findProfile(registryState.registry, requestedProfileId) : findProfile(registryState.registry);
 if (requestedProfileId && !profile) fail(`Unknown provider profile: ${requestedProfileId}`);
 if (registryState.source === "default" && !requestedProfileId && requestedMode === "auto" && detected.detected) profile = detectedProfile(detected);
+if (requestedMode === "auto" && nativeImagegenCapability === "available") profile = findProfile(registryState.registry, "codex-native");
+if (requestedMode === "auto" && nativeImagegenCapability === "unavailable" && profile?.runtime === "native_codex" && detected.detected) profile = detectedProfile(detected);
 if (requestedMode === "native_codex") profile = findProfile(registryState.registry, "codex-native");
 if (requestedMode === "third_party_proxy" && profile?.runtime === "native_codex") {
   const configuredExternal = registryState.registry.profiles.find((candidate) => candidate.kind === "external" && candidate.enabled !== false);
@@ -65,13 +69,18 @@ const storedKey = String(profile.api_key || "").trim();
 const environmentKey = selectedMode === "third_party_proxy" ? String(process.env[profile.api_key_env] || "").trim() : "";
 const hasKey = Boolean(storedKey || environmentKey);
 const credentialSource = storedKey ? "local_provider_config" : environmentKey ? "environment" : "missing";
-const status = selectedMode === "third_party_proxy" && !hasKey ? "configuration_required" : "ready";
+const status = selectedMode === "third_party_proxy" && !hasKey
+  ? "configuration_required"
+  : selectedMode === "native_codex" && nativeImagegenCapability === "unavailable"
+    ? "capability_unavailable"
+    : "ready";
 const thirdParty = selectedMode === "third_party_proxy" ? normalizeThirdParty(profile) : null;
 const resolution = {
   schema_version: "sellerpilot.image_provider_resolution.v2",
   resolved_at: new Date().toISOString(),
   requested_mode: requestedMode,
   requested_profile_id: requestedProfileId || null,
+  native_imagegen_capability: nativeImagegenCapability,
   selected_mode: selectedMode,
   status,
   credential_source: selectedMode === "third_party_proxy" ? credentialSource : "not_applicable",
@@ -98,7 +107,9 @@ const resolution = {
     ? selectedMode === "native_codex"
       ? "Use the Codex-native imagegen/image_gen execution capability. Do not silently fall back if unavailable."
       : "Use the listed runtime with the resolved profile, base URL, model, and key environment variable."
-    : `Configure an API key for the selected external profile (${thirdParty.label}) before generation.`,
+    : status === "capability_unavailable"
+      ? "The Codex-native image_gen capability is unavailable. Explicitly select and configure a third-party proxy route; do not request a proxy key when native image_gen is available."
+      : `Configure an API key for the selected external profile (${thirdParty.label}) before generation.`,
 };
 resolution.resolution_digest = routeDigest(resolution);
 
@@ -194,6 +205,7 @@ function routeDigest(value) {
     schema_version: value?.schema_version,
     requested_mode: value?.requested_mode,
     requested_profile_id: value?.requested_profile_id,
+    native_imagegen_capability: value?.native_imagegen_capability,
     selected_mode: value?.selected_mode,
     status: value?.status,
     profile: value?.profile ? { id: value.profile.id, kind: value.profile.kind, source: value.profile.source } : null,
@@ -205,4 +217,10 @@ function readJson(file) { try { return JSON.parse(fs.readFileSync(file, "utf8"))
 
 function slug(value) { return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""); }
 function stripSlash(value) { return String(value || "").trim().replace(/\/+$/, ""); }
+function normalizeNativeCapability(value) {
+  const normalized = String(value ?? "unknown").trim().toLowerCase();
+  const mapped = new Map([["1", "available"], ["true", "available"], ["yes", "available"], ["0", "unavailable"], ["false", "unavailable"], ["no", "unavailable"], ["", "unknown"]]).get(normalized) || normalized;
+  if (!NATIVE_CAPABILITIES.has(mapped)) fail(`Unsupported native image_gen capability: ${value}`);
+  return mapped;
+}
 function fail(message) { console.error(message); process.exit(2); }

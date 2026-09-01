@@ -62,6 +62,7 @@ export function normalizeProductionTask({ args = {}, runDir = "", platformOverri
       profile_id: String(args.profile || ""),
       provider_config: args["provider-config"] ? path.resolve(args["provider-config"]) : null,
       codex_config: args["codex-config"] ? path.resolve(args["codex-config"]) : null,
+      native_imagegen: normalizeNativeImagegen(args["native-imagegen"]),
       provider_config_digest: fileDigest(args["provider-config"]),
       codex_config_digest: fileDigest(args["codex-config"]),
     },
@@ -145,6 +146,11 @@ function list(value) { return (Array.isArray(value) ? value : String(value || ""
 function unique(values) { return [...new Set(values)]; }
 function asBool(value) { return typeof value === "boolean" ? value : /^(1|true|yes|y)$/i.test(String(value || "")); }
 function positiveInteger(value, fallback) { const number = Number(value); return Number.isInteger(number) && number > 0 ? number : fallback; }
+function normalizeNativeImagegen(value) {
+  const normalized = String(value || "unknown").trim().toLowerCase();
+  const mapped = /^(1|true|yes)$/.test(normalized) ? "available" : /^(0|false|no)$/.test(normalized) ? "unavailable" : normalized;
+  return new Set(["available", "unavailable", "unknown"]).has(mapped) ? mapped : "unknown";
+}
 function safeRunId(value) { return String(value).trim().replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "run"; }
 function fileDigest(value) { if (!value) return null; try { return crypto.createHash("sha256").update(fs.readFileSync(path.resolve(value))).digest("hex"); } catch { return "missing"; } }
 function sourceImageFingerprint(value, index) {

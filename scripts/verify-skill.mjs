@@ -5,6 +5,7 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { execFileSync, spawnSync } from "node:child_process";
 import { skillRootFrom } from "./lib/skill-paths.mjs";
+import { skillContentSha256 } from "./lib/skill-release-integrity.mjs";
 
 const require = createRequire(import.meta.url);
 const skillRoot = skillRootFrom(import.meta.url);
@@ -418,6 +419,14 @@ record("automatic image provider contract", () => {
   if (resolution.selected_mode !== "third_party_proxy" || resolution.provider.base_url !== "https://images.example/v1" || resolution.provider.api_key_env !== "ACME_IMAGE_KEY") {
     throw new Error("provider resolver should use the explicitly configured Codex third-party endpoint and key environment.");
   }
+  const nativeAvailableResolution = JSON.parse(run(process.execPath, ["scripts/resolve-image-provider.mjs", "--config", path.join(configDir, "missing.json"), "--codex-config", codexConfig, "--native-imagegen", "available"]));
+  if (nativeAvailableResolution.selected_mode !== "native_codex" || nativeAvailableResolution.status !== "ready" || nativeAvailableResolution.native_imagegen_capability !== "available" || nativeAvailableResolution.credential_source !== "not_applicable") {
+    throw new Error("available built-in image_gen must take the native route without requiring a third-party Base URL or API key.");
+  }
+  const nativeAvailableSetup = JSON.parse(run(process.execPath, ["scripts/ensure-image-provider-configuration.mjs", "--config", path.join(configDir, "auto-missing.json"), "--codex-config", codexConfig, "--native-imagegen", "available", "--no-prompt"]));
+  if (nativeAvailableSetup.status !== "not_required" || nativeAvailableSetup.selected_mode !== "native_codex") {
+    throw new Error("provider setup must not request proxy configuration when built-in image_gen is available.");
+  }
   const autoConfiguration = JSON.parse(run(process.execPath, ["scripts/ensure-image-provider-configuration.mjs", "--config", path.join(configDir, "auto-missing.json"), "--codex-config", codexConfig, "--no-prompt"]));
   if (autoConfiguration.status !== "configuration_required" || autoConfiguration.prompted !== false || autoConfiguration.action !== "secure_local_input_pending") {
     throw new Error("automatic provider setup must detect a third-party configuration gap without prompting in headless mode.");
@@ -435,6 +444,14 @@ record("automatic image provider contract", () => {
   const profileResolution = JSON.parse(run(process.execPath, ["scripts/resolve-image-provider.mjs", "--config", profileConfig, "--codex-config", path.join(configDir, "no-config.toml")]));
   if (profileResolution.profile.id !== "thinkai-team" || profileResolution.profile.kind !== "external" || profileResolution.selected_mode !== "third_party_proxy") {
     throw new Error("saved external provider profiles must resolve only when selected.");
+  }
+  const nativeOverridesSavedExternal = JSON.parse(run(process.execPath, ["scripts/resolve-image-provider.mjs", "--config", profileConfig, "--codex-config", path.join(configDir, "no-config.toml"), "--native-imagegen", "available"]));
+  if (nativeOverridesSavedExternal.selected_mode !== "native_codex" || nativeOverridesSavedExternal.profile.id !== "codex-native") {
+    throw new Error("an available built-in image_gen capability must prevent a stale external active profile from forcing proxy credentials in auto mode.");
+  }
+  const explicitExternalResolution = JSON.parse(run(process.execPath, ["scripts/resolve-image-provider.mjs", "--config", profileConfig, "--codex-config", path.join(configDir, "no-config.toml"), "--provider", "third_party_proxy", "--native-imagegen", "available"]));
+  if (explicitExternalResolution.selected_mode !== "third_party_proxy" || explicitExternalResolution.profile.id !== "thinkai-team") {
+    throw new Error("an explicit third_party_proxy selection must remain authoritative even when native image_gen is available.");
   }
   const profilePicker = JSON.parse(run(process.execPath, ["scripts/select-image-provider-interactive.mjs", "--config", profileConfig, "--dry-run"]));
   if (!profilePicker.profiles.some((profile) => profile.id === "codex-native") || !profilePicker.profiles.some((profile) => profile.id === "nvidia-flux") || !profilePicker.profiles.some((profile) => profile.id === "thinkai-team")) {
@@ -1124,6 +1141,7 @@ record("skill update checker smoke", () => {
   fs.writeFileSync(releasePath, JSON.stringify({
     schema_version: "sellerpilot.skill_release.v1",
     local_commit: "1111111111111111111111111111111111111111",
+    content_sha256: skillContentSha256(dir),
     remote_url: "https://github.com/ninemouth/sellerpilot-product-image-industrial.git",
     remote_branch: "main",
     synced_at: "2026-07-06T00:00:00.000Z",
@@ -1136,8 +1154,8 @@ record("skill update checker smoke", () => {
     "--cache-ttl-hours", "0",
   ]);
   const report = JSON.parse(out);
-  if (report.status !== "update_available" || !report.needs_update) {
-    throw new Error("update checker should report update_available when local and remote commits differ.");
+  if (report.status !== "revision_mismatch" || !report.needs_update) {
+    throw new Error("update checker should fail closed as revision_mismatch when local and remote commits differ without a provable ancestry relation.");
   }
   if (out.includes(dir) || out.includes(cachePath) || out.includes("skill_root") || out.includes("remote_url")) {
     throw new Error("update checker default output must not expose local paths or diagnostics.");
@@ -1178,6 +1196,7 @@ record("skill sync release metadata branch smoke", () => {
     "--dest", dest,
     "--skill-name", "sellerpilot-product-image-industrial",
     "--remote-branch", "codex/test-branch",
+    "--allow-dirty",
     "--skip-verify",
     "--no-backup",
     "--skip-runtime-prepare",

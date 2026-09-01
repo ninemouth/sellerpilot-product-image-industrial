@@ -22,7 +22,7 @@ const efficiencyPlan = readJson(path.join(runDir, "planning", "production-effici
 const providerTimeoutSeconds = positiveInteger(args["request-timeout-seconds"] || efficiencyPlan?.progress_update_policy?.provider_request_timeout_seconds) || 900;
 const progressFile = path.join(runDir, "generated-assets", `progress-${role.toLowerCase()}.json`);
 const pinnedResolutionPath = path.join(runDir, "runtime", "image-provider-resolution.json");
-const routeOverrides = ["provider", "profile", "provider-config", "codex-config"].filter((key) => args[key]);
+const routeOverrides = ["provider", "profile", "provider-config", "codex-config", "native-imagegen"].filter((key) => args[key]);
 if (fs.existsSync(pinnedResolutionPath) && routeOverrides.length) fail(`This run already has a pinned provider route; per-role route overrides are forbidden (${routeOverrides.join(", ")}). Compile a new run for a different route.`);
 let resolution = fs.existsSync(pinnedResolutionPath) ? readJson(pinnedResolutionPath) : null;
 if (!resolution) {
@@ -33,8 +33,9 @@ if (!resolution) {
     profile: args.profile || normalizedProvider.profile_id,
     "provider-config": args["provider-config"] || normalizedProvider.provider_config,
     "codex-config": args["codex-config"] || normalizedProvider.codex_config,
+    "native-imagegen": args["native-imagegen"] || normalizedProvider.native_imagegen,
   };
-  for (const [flag, key] of [["--provider", "provider"], ["--profile", "profile"], ["--config", "provider-config"], ["--codex-config", "codex-config"]]) if (routeArgs[key] && !(key === "provider" && routeArgs[key] === "auto")) resolverArgs.push(flag, routeArgs[key]);
+  for (const [flag, key] of [["--provider", "provider"], ["--profile", "profile"], ["--config", "provider-config"], ["--codex-config", "codex-config"], ["--native-imagegen", "native-imagegen"]]) if (routeArgs[key] && !(key === "provider" && routeArgs[key] === "auto")) resolverArgs.push(flag, routeArgs[key]);
   const resolved = spawnSync(process.execPath, resolverArgs, { cwd: runDir, encoding: "utf8" });
   resolution = parseJson(resolved.stdout);
 }
@@ -111,4 +112,4 @@ function validateReferenceImages(files, providerResolution) {
 }
 function positiveInteger(value) { const parsed = Number(value); return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : null; }
 function fail(message) { console.error(message); process.exit(2); }
-function usage() { console.error("Usage: node scripts/create-image-generation-dispatch.mjs --run-dir /abs/run --role IMG-01 --prompt '<final prompt>' [--image /abs/source.png] [--generation-spec /abs/run/generation-spec/generation-spec.json] [--size WxH] [--provider auto|native_codex|third_party_proxy] [--profile PROFILE_ID] [--provider-config /abs/image-provider.json] [--codex-config /abs/config.toml] [--output-path /abs/run/generated-assets/IMG-01/image.png]"); process.exit(2); }
+function usage() { console.error("Usage: node scripts/create-image-generation-dispatch.mjs --run-dir /abs/run --role IMG-01 --prompt '<final prompt>' [--image /abs/source.png] [--generation-spec /abs/run/generation-spec/generation-spec.json] [--size WxH] [--provider auto|native_codex|third_party_proxy] [--native-imagegen available|unavailable|unknown] [--profile PROFILE_ID] [--provider-config /abs/image-provider.json] [--codex-config /abs/config.toml] [--output-path /abs/run/generated-assets/IMG-01/image.png]"); process.exit(2); }
