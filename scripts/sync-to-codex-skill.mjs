@@ -25,7 +25,7 @@ function parseArgs(argv) {
 
 function usage() {
   console.error(`Usage:
-node scripts/sync-to-codex-skill.mjs [--source /abs/skill] [--dest /abs/codex/skill] [--remote-branch branch] [--package-manager npm|pnpm] [--skip-verify] [--full-verify] [--no-backup] [--no-provider-config-prompt] [--allow-dirty] [--include-diagnostics]
+node scripts/sync-to-codex-skill.mjs [--source /abs/skill] [--dest /abs/codex/skill] [--remote-branch branch] [--package-manager npm|pnpm] [--skip-verify] [--full-verify] [--no-backup] [--no-provider-config-prompt] [--native-imagegen available|unavailable|unknown] [--allow-dirty] [--include-diagnostics]
 
 Runs verification by default, backs up the installed skill, copies this project
 to the Codex skill directory, and verifies source/destination content matches.
@@ -132,7 +132,7 @@ const providerConfigurationScript = path.join(dest, "scripts", "ensure-image-pro
 let providerConfigurationReport = { status: "not_applicable" };
 if (fs.existsSync(providerConfigurationScript)) {
   console.log("Checking local image-provider configuration...");
-  const configured = run(process.execPath, [providerConfigurationScript, ...(args["no-provider-config-prompt"] ? ["--no-prompt"] : [])], { cwd: dest });
+  const configured = run(process.execPath, [providerConfigurationScript, ...(args["no-provider-config-prompt"] ? ["--no-prompt"] : []), ...(args["native-imagegen"] ? ["--native-imagegen", String(args["native-imagegen"])] : [])], { cwd: dest });
   providerConfigurationReport = parseLastJson(configured) || { status: "unknown" };
 }
 
