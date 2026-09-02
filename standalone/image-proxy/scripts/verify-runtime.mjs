@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const skillRoot = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "image-proxy-verify-"));
@@ -122,6 +122,35 @@ try {
   assert(!managedResolution.includes(managedKey), "managed provider resolution must not print the delivered API key");
   assert(JSON.parse(managedResolution).marqel.delivery_digest === managedDigest, "managed provider resolution must expose only non-secret delivery metadata");
 
+  const siblingSkillsRoot = path.join(tempRoot, ".agents", "skills");
+  const siblingImageRoot = path.join(siblingSkillsRoot, "image-proxy");
+  const siblingAuthScripts = path.join(siblingSkillsRoot, "marqel-control-center-auth", "scripts");
+  const siblingConfigPath = path.join(managedCodexHome, "image-proxy", "sibling-provider.json");
+  await fs.promises.mkdir(siblingImageRoot, { recursive: true });
+  await fs.promises.mkdir(siblingAuthScripts, { recursive: true });
+  await fs.promises.writeFile(path.join(siblingAuthScripts, "control-center-client.mjs"), `export async function requestControlCenter(pathname) {\n  if (pathname.startsWith("/api/client-config?")) return ${JSON.stringify(managedPayload)};\n  if (pathname === "/api/client-config/ack") return { accepted:true };\n  throw new Error("unexpected fixture request");\n}\n`);
+  const syncModule = await import(`${pathToFileURL(syncProvider).href}?verify=${Date.now()}`);
+  const siblingSync = await syncModule.syncManagedMarqelProviderIfRequired({ skillRoot: siblingImageRoot, force: true, configPath: siblingConfigPath });
+  assert(siblingSync.status === "applied", "managed sync must discover Auth from the same current Skill root");
+  assert(readJson(siblingConfigPath).third_party.api_key === managedKey, "same-root Auth discovery must apply the delivered key securely");
+
+  let authorizationCompleted = false;
+  let automaticRequestCount = 0;
+  const automaticConfigPath = path.join(managedCodexHome, "image-proxy", "automatic-provider.json");
+  const automaticSync = await syncModule.syncMarqelProvider({
+    skillRoot: siblingImageRoot,
+    configPath: automaticConfigPath,
+    requestControlCenter: async (pathname) => {
+      if (pathname === "/api/client-config/ack") return { accepted: true };
+      automaticRequestCount += 1;
+      if (!authorizationCompleted) throw Object.assign(new Error("session missing"), { code: "auth_required" });
+      return managedPayload;
+    },
+    authorizeDevice: async () => { authorizationCompleted = true; return { status: "authorized" }; },
+  });
+  assert(automaticRequestCount === 2 && automaticSync.status === "applied", "missing authorization must start Web approval and automatically retry the same config pull");
+  assert(readJson(automaticConfigPath).third_party.api_key === managedKey, "automatic authorization retry must finish local provider configuration without copy/paste");
+
   const unavailableConfigPath = path.join(managedCodexHome, "image-proxy", "unavailable-provider.json");
   const unavailableSync = spawnSync(process.execPath, [syncProvider, "--force", "--config", unavailableConfigPath, "--control-center-client", mockClientPath], {
     cwd: skillRoot,
@@ -132,7 +161,7 @@ try {
   const unavailableConfig = readJson(unavailableConfigPath);
   assert(unavailableConfig.third_party.enabled === false && !unavailableConfig.third_party.api_key, "an unavailable Web configuration must not retain a provider key");
 
-  console.log(JSON.stringify({ status: "pass", checks: 38, network_calls: 0, fixture: crypto.createHash("sha256").update(tempRoot).digest("hex").slice(0, 12) }, null, 2));
+  console.log(JSON.stringify({ status: "pass", checks: 44, network_calls: 0, fixture: crypto.createHash("sha256").update(tempRoot).digest("hex").slice(0, 12) }, null, 2));
 } finally {
   fs.rmSync(tempRoot, { recursive: true, force: true });
 }

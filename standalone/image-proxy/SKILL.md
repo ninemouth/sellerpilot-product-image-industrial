@@ -13,16 +13,16 @@ Users operate this Skill from Codex chat. Do not require them to open Terminal o
 
 ```text
 $image-proxy status
-$image-proxy sync
 $image-proxy dry-run --prompt "<final prompt>" --size 2k --quality hd
 $image-proxy generate --prompt "<final prompt>" --size 2k --quality hd
 $image-proxy edit --prompt "<final prompt>" --image <attached-or-local-image> --mask <optional-png-mask>
+$image-proxy sync
 ```
 
 - `status` resolves only non-secret local provider state.
-- `sync` explicitly retrieves the current user's `sellerpilot-image` configuration through the shared Marqel V2 device session and applies it locally.
 - `dry-run`, `generate`, and `edit` are Codex intents. Codex runs the deterministic scripts internally and returns the output/evidence; the user should not be sent to a shell.
-- A Web-managed installation automatically retries configuration synchronization before every real third-party request. Dry-runs stay network-free and never trigger configuration delivery.
+- A Web-managed installation automatically pulls and applies the current user's `sellerpilot-image` configuration before every real third-party request. If the shared device session is missing, the tool opens the Marqel Web approval flow, waits for the current user to approve it, and resumes the same configuration pull automatically. Dry-runs stay network-free and never trigger configuration delivery.
+- `sync` is a troubleshooting/recovery intent only. Do not make the user copy or paste this command as part of initial setup or normal use.
 
 ## Scope and boundaries
 
@@ -37,7 +37,7 @@ $image-proxy edit --prompt "<final prompt>" --image <attached-or-local-image> --
 ## Execution workflow
 
 1. Treat the user’s prompt as the provider request. If the prompt contains unsupported product facts, safety claims, or exact text that must be reliable, stop and resolve those facts before calling the provider.
-2. If the user asks for `sync`, run `scripts/sync-marqel-provider.mjs --force` internally. For a managed package, every non-dry-run request invokes the same synchronization automatically before provider transport. Missing/revoked device authorization, inactive membership, incomplete Web configuration, or a failed refresh must stop before contacting the Provider; never use a stale Web-managed key after sync failure.
+2. For a managed package, every non-dry-run request invokes `scripts/sync-marqel-provider.mjs` automatically before provider transport. The script discovers `marqel-control-center-auth` beside this Skill in the same user-level Skill root, starts Web device approval automatically when no reusable session exists, and retries the pull after approval. The user must only review and approve the device in Web; never ask them to copy a Base URL, API Key, Token, config JSON, device code, or `sync` command. Use `scripts/sync-marqel-provider.mjs --force` only when the user explicitly asks for troubleshooting or recovery. Missing/revoked authorization, inactive membership, incomplete Web configuration, or a failed refresh must stop before contacting the Provider; never use a stale Web-managed key after sync failure.
 3. Resolve the local provider status without exposing secrets:
 
    ```bash
@@ -97,8 +97,9 @@ node scripts/codex-path-info.mjs
 
 The default configuration location is:
 
-- macOS/Linux: `$CODEX_HOME/skills/image-proxy` for the installed skill and `$CODEX_HOME/image-proxy/image-provider.json` for the shared local provider config; when `CODEX_HOME` is unset, Codex uses `~/.codex`.
-- Windows: `%CODEX_HOME%\skills\image-proxy` and `%CODEX_HOME%\image-proxy\image-provider.json`; when unset, Codex uses `%USERPROFILE%\.codex`.
+- The installed Skill uses the single user-level Skill root selected by the host/managed installer (current default `.agents/skills`; an existing legacy managed root remains supported). Auth is always discovered as a sibling in that same root; never install or synchronize into two roots.
+- macOS/Linux provider config: `$CODEX_HOME/image-proxy/image-provider.json`; when `CODEX_HOME` is unset, Codex uses `~/.codex`.
+- Windows provider config: `%CODEX_HOME%\image-proxy\image-provider.json`; when unset, Codex uses `%USERPROFILE%\.codex`.
 
 The runtime also accepts `--config /abs/config.json`. A config may be either the standalone shape written by the configurator:
 
@@ -117,7 +118,7 @@ The runtime also accepts `--config /abs/config.json`. A config may be either the
 
 or a flat object with `base_url`, `model`, `api_key_env`, and optional `api_key`. Keep `api_key` out of version control; an environment variable is preferred.
 
-For a Web-managed package, `scripts/sync-marqel-provider.mjs` maps only the authenticated user's effective `sellerpilot-image` delivery into this same file. It records non-secret `_marqel` delivery revision/digest metadata, acknowledges `applied` only after an atomic secure write, and replaces a removed/incomplete managed delivery with a disabled keyless record. The upstream API Key never enters the Skill package, Web metadata response, chat, logs, or installation report.
+For a Web-managed package, `scripts/sync-marqel-provider.mjs` maps only the authenticated user's effective `sellerpilot-image` delivery into this same file. It records non-secret `_marqel` delivery revision/digest metadata, acknowledges `applied` only after an atomic secure write, and replaces a removed/incomplete managed delivery with a disabled keyless record. The upstream API Key never enters the Skill package, Web page/DOM, chat, logs, or installation report.
 
 ## Resources
 

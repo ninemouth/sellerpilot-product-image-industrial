@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -33,8 +33,8 @@ function defaultConfigPath() {
   return path.join(codexHome(), "image-proxy", "image-provider.json");
 }
 
-function defaultControlCenterClientPath() {
-  return path.join(codexHome(), "skills", "marqel-control-center-auth", "scripts", "control-center-client.mjs");
+function defaultControlCenterClientPath(skillRoot) {
+  return path.join(path.dirname(path.resolve(skillRoot)), "marqel-control-center-auth", "scripts", "control-center-client.mjs");
 }
 
 async function managedRelease(skillRoot) {
@@ -194,16 +194,59 @@ async function writeSecureJson(filePath, value) {
   }
 }
 
-async function controlCenterRequester(clientPath = "") {
-  const resolved = path.resolve(clientPath || defaultControlCenterClientPath());
+async function controlCenterRequester(skillRoot, clientPath = "") {
+  const resolved = path.resolve(clientPath || defaultControlCenterClientPath(skillRoot));
   try {
     const module = await import(pathToFileURL(resolved).href);
     if (typeof module.requestControlCenter !== "function") throw new Error("missing requestControlCenter export");
-    return module.requestControlCenter;
+    return { request: module.requestControlCenter, manageSessionPath: path.join(path.dirname(resolved), "manage-session.mjs") };
   } catch (error) {
     if (error?.code === "auth_required") throw error;
     throw new MarqelProviderSyncError("auth_required", "Marqel Control Center Auth is unavailable; reconnect this Codex installation in Web and Codex.");
   }
+}
+
+export async function authorizeDeviceInWeb({ manageSessionPath } = {}) {
+  const resolved = path.resolve(String(manageSessionPath || ""));
+  if (!manageSessionPath) throw new MarqelProviderSyncError("auth_required", "Marqel device authorization is unavailable for this installation.");
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [resolved, "device-start"], { stdio: ["ignore", "pipe", "pipe"] });
+    let stdoutBuffer = "";
+    let settled = false;
+    let timer;
+    const finish = (callback) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      callback();
+    };
+    const relay = (line) => {
+      let event;
+      try { event = JSON.parse(line); } catch { return; }
+      if (event?.status === "approval_required") {
+        process.stderr.write(`${JSON.stringify({ type: "marqel_device_authorization", status: "approval_required", verification_uri: String(event.verificationUri || ""), expires_in_seconds: Number(event.expiresInSeconds || 0) })}\n`);
+      } else if (event?.status === "authorized") {
+        process.stderr.write(`${JSON.stringify({ type: "marqel_device_authorization", status: "authorized", client_id: String(event.clientId || ""), device_id: String(event.deviceId || "") })}\n`);
+      }
+    };
+    child.stdout.on("data", (chunk) => {
+      stdoutBuffer += chunk.toString("utf8");
+      const lines = stdoutBuffer.split(/\r?\n/);
+      stdoutBuffer = lines.pop() || "";
+      lines.filter(Boolean).forEach(relay);
+    });
+    child.stderr.resume();
+    child.on("error", () => finish(() => reject(new MarqelProviderSyncError("auth_required", "Marqel device authorization could not be started."))));
+    child.on("close", (code) => finish(() => {
+      if (stdoutBuffer.trim()) relay(stdoutBuffer.trim());
+      if (code === 0) resolve({ status: "authorized" });
+      else reject(new MarqelProviderSyncError("auth_required", "Marqel device authorization was not completed in Web."));
+    }));
+    timer = setTimeout(() => {
+      child.kill("SIGTERM");
+      finish(() => reject(new MarqelProviderSyncError("auth_required", "Marqel device authorization timed out before Web approval.")));
+    }, 11 * 60 * 1000);
+  });
 }
 
 async function acknowledge(request, status, identity, activeProfileId = "") {
@@ -220,16 +263,29 @@ async function acknowledge(request, status, identity, activeProfileId = "") {
   });
 }
 
-export async function syncMarqelProvider({ configPath = defaultConfigPath(), controlCenterClientPath = "", requestControlCenter = null } = {}) {
-  const request = requestControlCenter || await controlCenterRequester(controlCenterClientPath);
+export async function syncMarqelProvider({ skillRoot, configPath = defaultConfigPath(), controlCenterClientPath = "", requestControlCenter = null, autoAuthorize = true, authorizeDevice = authorizeDeviceInWeb } = {}) {
+  const resolvedSkillRoot = path.resolve(skillRoot || fileURLToPath(new URL("..", import.meta.url)));
+  const auth = requestControlCenter
+    ? { request: requestControlCenter, manageSessionPath: "" }
+    : await controlCenterRequester(resolvedSkillRoot, controlCenterClientPath);
+  const request = auth.request;
   let payload;
   try {
     payload = await request(`/api/client-config?targetId=${encodeURIComponent(TARGET_ID)}`);
   } catch (error) {
-    const code = ["auth_required", "forbidden", "membership_expired", "control_center_timeout"].includes(String(error?.code || ""))
-      ? String(error.code)
-      : "provider_config_sync_failed";
-    throw new MarqelProviderSyncError(code, "The Web-managed image Provider configuration could not be synchronized.");
+    if (String(error?.code || "") === "auth_required" && autoAuthorize) {
+      try {
+        await authorizeDevice({ manageSessionPath: auth.manageSessionPath });
+        payload = await request(`/api/client-config?targetId=${encodeURIComponent(TARGET_ID)}`);
+      } catch (authorizationError) {
+        throw new MarqelProviderSyncError(String(authorizationError?.code || "auth_required"), "The current user must approve this Codex device in Marqel Web before image Provider configuration can be delivered.");
+      }
+    } else {
+      const code = ["auth_required", "forbidden", "membership_expired", "control_center_timeout"].includes(String(error?.code || ""))
+        ? String(error.code)
+        : "provider_config_sync_failed";
+      throw new MarqelProviderSyncError(code, "The Web-managed image Provider configuration could not be synchronized.");
+    }
   }
 
   if (payload?.status !== "configured" || !payload?.config) {
@@ -255,10 +311,10 @@ export async function syncMarqelProvider({ configPath = defaultConfigPath(), con
   }
 }
 
-export async function syncManagedMarqelProviderIfRequired({ skillRoot, force = false, configPath, controlCenterClientPath, requestControlCenter } = {}) {
+export async function syncManagedMarqelProviderIfRequired({ skillRoot, force = false, configPath, controlCenterClientPath, requestControlCenter, autoAuthorize = true, authorizeDevice } = {}) {
   const resolvedSkillRoot = path.resolve(skillRoot || fileURLToPath(new URL("..", import.meta.url)));
   if (!force && !await managedRelease(resolvedSkillRoot)) return { status: "not_managed", target_id: TARGET_ID };
-  return syncMarqelProvider({ configPath, controlCenterClientPath, requestControlCenter });
+  return syncMarqelProvider({ skillRoot: resolvedSkillRoot, configPath, controlCenterClientPath, requestControlCenter, autoAuthorize, authorizeDevice });
 }
 
 async function invokedAsMainModule() {
@@ -278,6 +334,7 @@ if (await invokedAsMainModule()) {
     force: args.includes("--force"),
     configPath: argument(args, "--config") || undefined,
     controlCenterClientPath: argument(args, "--control-center-client"),
+    autoAuthorize: !args.includes("--no-auto-authorize"),
   }).then((result) => {
     process.stdout.write(`${JSON.stringify(result)}\n`);
   }).catch((error) => {
