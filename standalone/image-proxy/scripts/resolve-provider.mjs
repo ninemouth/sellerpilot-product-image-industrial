@@ -32,6 +32,15 @@ const report = {
   },
   key_configured: keyConfigured,
   config_source: fs.existsSync(configPath) ? "local_config" : "default_profile_or_environment",
+  marqel: config._marqel?.managed === true ? {
+    managed: true,
+    status: String(config._marqel.status || "unknown"),
+    target_id: String(config._marqel.target_id || ""),
+    delivery_revision: String(config._marqel.delivery_revision || ""),
+    delivery_digest: String(config._marqel.delivery_digest || ""),
+    active_profile_id: String(config._marqel.active_profile_id || ""),
+    synced_at: String(config._marqel.synced_at || ""),
+  } : { managed: false },
   next_action: keyConfigured
     ? "Run the provider runtime with the resolved endpoint and model."
     : `Configure an API key through the environment or the secure local configurator for ${apiKeyEnv}.`,

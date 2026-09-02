@@ -1,4 +1,4 @@
 interface:
   display_name: "Image Proxy"
   short_description: "Generate images through a third-party proxy"
-  default_prompt: "Use $image-proxy to generate an image through the configured third-party provider."
+  default_prompt: "Use $image-proxy inside Codex to sync the current user's Web-managed provider when applicable, dry-run the request, and generate or edit an image through the explicitly configured third-party endpoint without exposing credentials."

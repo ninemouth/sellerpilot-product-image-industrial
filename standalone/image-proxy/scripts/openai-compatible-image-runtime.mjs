@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { syncManagedMarqelProviderIfRequired } from "./sync-marqel-provider.mjs";
 
 const DEFAULT_BASE_URL = "https://www.thinkai.tv/v1";
 const DEFAULT_MODEL = "gpt-image-2";
@@ -92,14 +93,25 @@ if (!Number.isInteger(count) || count < 1) {
 }
 fs.mkdirSync(outputDir, { recursive: true });
 
-const config = loadRuntimeConfig(args.config);
-const baseUrl = String(args["base-url"] || config.base_url || DEFAULT_BASE_URL).replace(/\/+$/, "");
-const model = String(args.model || config.model || DEFAULT_MODEL);
-const providerName = String(config.provider_name || config.name || "ThinkAI");
-const apiKeyEnv = String(args["api-key-env"] || config.api_key_env || DEFAULT_API_KEY_ENV);
-const apiKey = String(process.env[apiKeyEnv] || process.env[DEFAULT_API_KEY_ENV] || process.env[LEGACY_API_KEY_ENV] || config.api_key || "").trim();
+let config = {};
+let baseUrl = DEFAULT_BASE_URL;
+let model = DEFAULT_MODEL;
+let providerName = "ThinkAI";
+let apiKeyEnv = DEFAULT_API_KEY_ENV;
+let apiKey = "";
 
 try {
+  const explicitProviderOverride = Boolean(args.config || args["base-url"] || args.model || args["api-key-env"]);
+  if (!args["dry-run"] && !explicitProviderOverride) {
+    await syncManagedMarqelProviderIfRequired({ skillRoot });
+  }
+  config = loadRuntimeConfig(args.config);
+  baseUrl = String(args["base-url"] || config.base_url || DEFAULT_BASE_URL).replace(/\/+$/, "");
+  model = String(args.model || config.model || DEFAULT_MODEL);
+  providerName = String(config.provider_name || config.name || "ThinkAI");
+  apiKeyEnv = String(args["api-key-env"] || config.api_key_env || DEFAULT_API_KEY_ENV);
+  apiKey = String(process.env[apiKeyEnv] || process.env[DEFAULT_API_KEY_ENV] || process.env[LEGACY_API_KEY_ENV] || config.api_key || "").trim();
+
   validateInputs(imagePaths, args.mask);
   const request = isEdit
     ? buildEditRequest({ model, prompt: args.prompt, imagePaths, maskPath: args.mask ? path.resolve(args.mask) : "", size, quality, count })
@@ -478,6 +490,14 @@ function publicFailure(error) {
   const code = error?.code || "generation_failed";
   const message = code === "configuration_required"
     ? "The configured third-party image provider requires an API key before generation can start."
+    : code === "auth_required"
+      ? "This managed image provider needs an approved Marqel Codex device session before generation can start."
+      : code === "membership_expired"
+        ? "The Marqel account membership for this managed image provider is inactive."
+        : code === "forbidden"
+          ? "This Codex device is not allowed to receive the managed image provider configuration."
+          : code === "control_center_timeout" || code === "provider_config_sync_failed"
+            ? "The managed image provider configuration could not be refreshed, so generation was stopped before contacting the provider."
     : code === "cancelled"
       ? "Generation was cancelled; completed assets remain available for recovery."
       : "Image generation could not complete. The run state was preserved so only affected assets need retrying.";

@@ -8,6 +8,7 @@
   "scripts": {
     "verify": "node scripts/verify-runtime.mjs",
     "resolve": "node scripts/resolve-provider.mjs",
+    "sync": "node scripts/sync-marqel-provider.mjs --force",
     "configure": "node scripts/configure-image-provider.mjs",
     "configure:interactive": "node scripts/configure-image-provider-interactive.mjs",
     "generate": "node scripts/openai-compatible-image-runtime.mjs",
