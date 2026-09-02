@@ -276,9 +276,16 @@ export async function syncMarqelProvider({ skillRoot, configPath = defaultConfig
     if (String(error?.code || "") === "auth_required" && autoAuthorize) {
       try {
         await authorizeDevice({ manageSessionPath: auth.manageSessionPath });
-        payload = await request(`/api/client-config?targetId=${encodeURIComponent(TARGET_ID)}`);
       } catch (authorizationError) {
-        throw new MarqelProviderSyncError(String(authorizationError?.code || "auth_required"), "The current user must approve this Codex device in Marqel Web before image Provider configuration can be delivered.");
+        throw new MarqelProviderSyncError("auth_required", "The current user must approve this Codex device in Marqel Web before image Provider configuration can be delivered.");
+      }
+      try {
+        payload = await request(`/api/client-config?targetId=${encodeURIComponent(TARGET_ID)}`);
+      } catch (retryError) {
+        const retryCode = ["auth_required", "forbidden", "membership_expired", "control_center_timeout"].includes(String(retryError?.code || ""))
+          ? String(retryError.code)
+          : "provider_config_sync_failed";
+        throw new MarqelProviderSyncError(retryCode, "The Web-managed image Provider configuration could not be synchronized after device approval.");
       }
     } else {
       const code = ["auth_required", "forbidden", "membership_expired", "control_center_timeout"].includes(String(error?.code || ""))
