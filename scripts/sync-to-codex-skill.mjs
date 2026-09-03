@@ -4,8 +4,9 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { skillRootFrom } from "./lib/skill-paths.mjs";
-import { resolvePackageManager, scriptArgs } from "./lib/package-manager.mjs";
+import { resolvePackageManager, scriptArgs, sourceVerificationInstallArgs } from "./lib/package-manager.mjs";
 import { SKILL_SYNC_EXCLUDES, skillContentSha256 } from "./lib/skill-release-integrity.mjs";
+import { probeSourceVerificationDependencies } from "./lib/source-verification-dependencies.mjs";
 
 function parseArgs(argv) {
   const args = {};
@@ -82,6 +83,15 @@ const packageManager = resolvePackageManager({ cwd: source, requested: args["pac
 if (packageManager.status !== "ready") throw new Error(packageManager.message);
 
 if (!args["skip-verify"]) {
+  let sourceDependencies = probeSourceVerificationDependencies({ source });
+  if (sourceDependencies.status !== "ready") {
+    console.log("Preparing locked source dependencies for release verification...");
+    run(packageManager.command, sourceVerificationInstallArgs(packageManager.command), { cwd: source });
+    sourceDependencies = probeSourceVerificationDependencies({ source });
+    if (sourceDependencies.status !== "ready") {
+      throw new Error("Source verification dependencies are still unavailable after the locked install; the installed Skill was not changed.");
+    }
+  }
   console.log("Running release baseline verification...");
   run(packageManager.command, scriptArgs(packageManager.command, "verify"), { cwd: source });
   run(packageManager.command, scriptArgs(packageManager.command, "verify:skill-package"), { cwd: source });

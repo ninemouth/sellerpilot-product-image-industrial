@@ -19,7 +19,7 @@
 - 身份几何一致性：服装、包鞋等比例敏感商品必须锁定长度、下摆、袖长、领口、轮廓等几何约束；例如正常球衣不能漂移成 crop top。
 - 画布自动启动：多图成品在生图导出和总览图完成后运行 post-generation launcher，创建 tldraw workspace、启动/复用共享服务并返回 ready URL；自测或纯归档才传 `--no-auto-start`。
 - 模式路由：单图草稿走 `fast_generation`；高质量套图和最终成品默认走 `quality_production`；批注修订走 `revision_repair`；完整审计/迁移证据才走 `industrial_audit`。
-- 更新感知：安装版会写入 release metadata，可用 `check-skill-update.mjs` 轻量判断是否落后于 GitHub；只提示可更新，不在未授权时自动覆盖。
+- 更新感知与自修复：安装版会写入 release metadata，可用 `check-skill-update.mjs` 轻量判断是否落后于 GitHub；只提示可更新，不在未授权时自动覆盖。用户批准后由打包的 GitHub updater 自动恢复锁定依赖、完整验证、备份同步和安装回读，失败则保持或恢复旧版，不要求小白用户操作 npm 或跳过验证。
 
 ## 用法
 
@@ -33,6 +33,7 @@
 先在开发目录运行验证：
 
 ```bash
+npm ci --include=optional --no-audit --no-fund
 npm run verify
 ```
 

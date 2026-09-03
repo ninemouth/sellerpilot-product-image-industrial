@@ -315,6 +315,8 @@ python3 ${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/insta
 
 如果看到 `Destination already exists`，说明本机已经安装过同名 skill。安装器会避免覆盖已有 skill，这是正常保护。
 
+通用 `skill-installer` 只负责复制 GitHub 包。首次安装完成后，Codex 应在用户原始安装授权范围内调用包内 `update:codex -- --confirm-update`，自动补齐验证依赖并写入可审计的 release metadata；普通用户不需要执行这条命令。旧安装缺少 release metadata 时，updater 会把它作为可修复 bootstrap，而不是让用户手动安装 `sharp`。
+
 ### 方式 3：clone 仓库后同步安装
 
 适合开发者、本地修改者，或者需要从 GitHub 拉取后先验证再安装的用户。
@@ -324,6 +326,7 @@ python3 ${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/insta
 ```bash
 git clone https://github.com/ninemouth/sellerpilot-product-image-industrial.git
 cd sellerpilot-product-image-industrial
+npm ci --include=optional --no-audit --no-fund
 ```
 
 验证开发目录（默认快速 static + unit，不启动 canvas 长链）：
@@ -992,15 +995,24 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
 - 用户可能正在使用本地开发版或临时改动版。
 - 自动更新可能改变当前任务行为，尤其是长任务或正在修订的图片生产流程，所以发现新版时先询问用户。
 
-用户确认更新后，推荐更新流程是：
+用户确认更新后，普通用户不需要运行命令。Codex 应调用安装包内的 GitHub updater；它会在临时源码中自动恢复 lockfile 依赖、完整验证、备份、同步并回读已安装版本：
+
+```bash
+npm run update:codex -- --confirm-update
+```
+
+如果更新失败，依赖安装阶段不会触碰已安装版；同步或回读阶段失败会自动恢复更新前副本。不得建议普通用户改用 `--skip-verify`。
+
+开发者使用现有 clone 手动更新时，推荐流程是：
 
 ```bash
 git pull
+npm ci --include=optional --no-audit --no-fund
 npm run verify
 npm run sync -- --source "$PWD"
 ```
 
-`npm run sync` 会备份旧安装版、同步当前源码、验证开发目录和安装目录一致，并写入 `.sellerpilot-skill-release.json`。后续 `check:update` 会用这个 release metadata 判断本地安装版是否落后于 GitHub。同步脚本默认记录当前 git upstream 分支；如果你需要明确指定分支，可以使用：
+`npm run sync` 会在必要时自动恢复缺失的锁定验证依赖，备份旧安装版、同步当前源码、验证开发目录和安装目录一致，并写入 `.sellerpilot-skill-release.json`。后续 `check:update` 会用这个 release metadata 判断本地安装版是否落后于 GitHub。同步脚本默认记录当前 git upstream 分支；如果你需要明确指定分支，可以使用：
 
 ```bash
 npm run sync -- --source "$PWD" --remote-branch main

@@ -50,9 +50,9 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
 ```
 
 - `current`: continue silently.
-- `update_available`: ask whether to update. Do not enter production planning, source analysis, image generation, QA, or canvas launch until the user chooses. Never overwrite the installed skill without authorization.
+- `update_available`: ask whether to update. Do not enter production planning, source analysis, image generation, QA, or canvas launch until the user chooses. After approval, run bundled `scripts/update-from-github.mjs --confirm-update`; it handles dependencies, verification, backup, sync, and readback. Never ask the user to run npm or skip verification.
 - `local_ahead_of_remote`: the installed bytes match a clean local commit, so local work may continue, but do not claim the configured remote distribution is current until that commit is reviewed and pushed.
-- `installed_content_mismatch`, `unknown_local_integrity`, or `dirty_source_install`: stop production and repair the installed Skill from a clean reviewed release. These are local provenance failures, not ordinary network uncertainty.
+- `installed_content_mismatch`, `unknown_local_integrity`, or `dirty_source_install`: stop production. With approval, the updater may repair missing legacy metadata or a dirty-source install from clean GitHub source; content mismatch and divergent history require review.
 - `divergent_revision`: stop and reconcile the local and remote histories. `revision_mismatch` requires review because ancestry could not be proven; do not guess which side is newer.
 - `unknown_remote_revision` or timeout: continue, state that remote freshness was not confirmed, and do not claim the install is current.
 

@@ -130,12 +130,22 @@ This independent skill is unrelated to the SellerPilot product-image skill. It d
 ```bash
 git clone https://github.com/ninemouth/sellerpilot-product-image-industrial.git
 cd sellerpilot-product-image-industrial
-npm install
+npm ci --include=optional --no-audit --no-fund
 npm run verify
 npm run sync:codex
 ```
 
-`sync:codex` runs the release baseline (static contracts, Loop Engineering unit tests, and skill-package validation), backs up the previous installation, copies the single main skill, verifies source/destination parity, prepares the tldraw runtime with the lockfile-compatible package manager, and then performs the automatic provider configuration check. The expensive legacy verifier is not a default installation tax.
+`sync:codex` automatically restores missing locked verification dependencies, runs the release baseline (static contracts, Loop Engineering unit tests, and skill-package validation), backs up the previous installation, copies the single main skill, verifies source/destination parity, prepares the tldraw runtime with the lockfile-compatible package manager, and then performs the automatic provider configuration check. The expensive legacy verifier is not a default installation tax.
+
+After the update check reports `update_available` and the user approves, Codex should run the bundled novice-safe updater instead of asking the user to use a terminal:
+
+```bash
+npm run update:codex -- --confirm-update
+```
+
+It clones a clean GitHub source into a temporary directory, restores locked dependencies, verifies before replacement, and requires installed revision/integrity readback. A failed sync/readback restores the previous installed copy; it never uses `--skip-verify`.
+
+The generic Codex `skill-installer` only copies GitHub files. After a first installation, Codex should invoke the bundled updater under the user's original install approval so it can restore verification dependencies and write release metadata. A legacy install with missing release metadata is treated as a repairable bootstrap; content mismatch or divergent history remains fail-closed for review.
 
 For headless release automation, defer only the local dialog:
 

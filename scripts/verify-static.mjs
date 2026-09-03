@@ -150,10 +150,14 @@ check("third-party setup-time execution boundary", () => {
 });
 check("automatic cross-platform provider setup boundary", () => {
   const installer = read("scripts/sync-to-codex-skill.mjs");
+  const updater = read("scripts/update-from-github.mjs");
   const ensure = read("scripts/ensure-image-provider-configuration.mjs");
   const dialog = read("scripts/configure-image-provider-interactive.mjs");
   for (const token of ["ensure-image-provider-configuration.mjs", "no-provider-config-prompt"]) if (!installer.includes(token)) throw new Error(`sync installer missing ${token}`);
   for (const token of ["release baseline verification", "verify:skill-package", "full-verify"]) if (!installer.includes(token)) throw new Error(`sync verification policy missing ${token}`);
+  for (const token of ["probeSourceVerificationDependencies", "sourceVerificationInstallArgs", "Preparing locked source dependencies"]) if (!installer.includes(token)) throw new Error(`sync dependency repair missing ${token}`);
+  for (const token of ["confirm-update", "git", "clone", "sync-to-codex-skill.mjs", "installed_readback", "rollback_status"]) if (!updater.includes(token)) throw new Error(`GitHub updater missing ${token}`);
+  if (updater.includes('"--skip-verify"')) throw new Error("GitHub updater must not bypass source verification");
   for (const token of ["third_party_proxy", "configuration_required", "--no-prompt", "secure_local_input_pending"]) if (!ensure.includes(token)) throw new Error(`automatic provider setup missing ${token}`);
   for (const token of ["darwin", "win32", "UseSystemPasswordChar", "zenity", "key_output: \"never_printed\""]) if (!dialog.includes(token)) throw new Error(`interactive provider dialog missing ${token}`);
 });

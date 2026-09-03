@@ -85,7 +85,7 @@ const report = {
   },
   user_message: userMessage(status),
   install_hint: status === "update_available"
-    ? "Ask whether to update the SellerPilot product image skill before starting production."
+    ? "Ask whether to update before production. After approval, run the bundled verified GitHub updater; source dependency repair is automatic."
     : status === "revision_mismatch" ? "Review local and remote revisions before changing or using the installation for production."
     : requiresPublish ? "Push and review the clean local release commit before claiming the remote distribution is current."
     : requiresRepair ? "Repair the installed Skill from a clean reviewed source commit before production." : "",

@@ -45,6 +45,12 @@ export function cleanInstallArgs(manager) {
     : ["ci", "--no-audit", "--no-fund"];
 }
 
+export function sourceVerificationInstallArgs(manager) {
+  return manager === "pnpm"
+    ? ["install", "--frozen-lockfile"]
+    : ["ci", "--include=optional", "--no-audit", "--no-fund"];
+}
+
 function commandAvailable(command) {
   const result = spawnSync(command, ["--version"], { encoding: "utf8", windowsHide: true });
   return result.status === 0;
