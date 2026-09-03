@@ -45,6 +45,7 @@ $image-proxy sync
    ```
 
    `status: ready` means a key is available to this local process. `configuration_required` means configuration is needed; it is not permission to switch providers.
+   The managed installer checks this status independently from the SellerPilot main Skill; one ready consumer is not evidence that the other received the same delivery.
 
 4. For a standalone, non-Marqel installation only, configure the provider once when needed. Keep the user inside Codex: interpret `$image-proxy configure` by opening the masked OS dialog through the interactive configurator. Environment variables remain an internal CI option, not a user-facing setup requirement:
 

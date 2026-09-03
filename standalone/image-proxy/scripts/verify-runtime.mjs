@@ -64,6 +64,12 @@ try {
   const resolution = JSON.parse(resolved);
   assert(resolution.status === "ready" && resolution.provider.base_url === "https://images.example/v1", "resolver must expose the configured third-party endpoint without the key");
   assert(!resolved.includes("verify-key"), "resolver must not print the API key");
+  const reportOnly = spawnSync(process.execPath, [resolver, "--config", path.join(tempRoot, "missing-provider.json"), "--report-only"], {
+    cwd:skillRoot,
+    env:{ ...process.env, THINKAI_IMAGE_API_KEY:"", THINKAI_API_KEY:"" },
+    encoding:"utf8",
+  });
+  assert(reportOnly.status === 0 && JSON.parse(reportOnly.stdout).status === "configuration_required", "report-only provider inspection must return a parseable non-secret state without treating missing configuration as a process failure");
   const customDir = path.join(tempRoot, "custom");
   run(runtime, ["--config", configPath, "--prompt", "custom provider dry run", "--output-dir", customDir, "--dry-run"]);
   const customSummary = readJson(path.join(customDir, "summary.json"));

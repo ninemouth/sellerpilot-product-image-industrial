@@ -1,3 +1,5 @@
+import crypto from "node:crypto";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -82,10 +84,50 @@ export function findProfile(registry, id) {
 
 export function writeProviderRegistry(file, registry) {
   const normalized = normalizeRegistry(registry);
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, `${JSON.stringify(normalized, null, 2)}\n`, { mode: 0o600 });
-  try { fs.chmodSync(file, 0o600); } catch {}
+  const directory = path.dirname(file);
+  const suffix = `${process.pid}-${crypto.randomUUID()}`;
+  const candidate = `${file}.candidate-${suffix}`;
+  const previous = `${file}.previous-${suffix}`;
+  fs.mkdirSync(directory, { recursive: true, mode:0o700 });
+  try { fs.chmodSync(directory, 0o700); } catch {}
+  const body = `${JSON.stringify(normalized, null, 2)}\n`;
+  let previousMoved = false;
+  let finalPlaced = false;
+  try {
+    if (fs.existsSync(file) && fs.lstatSync(file).isSymbolicLink()) throw new Error("Provider registry path must not be a symbolic link.");
+    fs.writeFileSync(candidate, body, { mode:0o600, flag:"wx" });
+    try { fs.chmodSync(candidate, 0o600); } catch {}
+    applyWindowsUserAcl(candidate);
+    const handle = fs.openSync(candidate, "r+");
+    try { fs.fsyncSync(handle); } finally { fs.closeSync(handle); }
+    if (fs.existsSync(file)) { fs.renameSync(file, previous); previousMoved = true; }
+    try { fs.renameSync(candidate, file); finalPlaced = true; }
+    catch (error) {
+      if (previousMoved) fs.renameSync(previous, file);
+      throw error;
+    }
+    try { fs.chmodSync(file, 0o600); } catch {}
+    applyWindowsUserAcl(file);
+    if (fs.readFileSync(file, "utf8") !== body) throw new Error("Provider registry verification failed after secure replacement.");
+    if (previousMoved) fs.rmSync(previous, { force:true });
+  } catch (error) {
+    fs.rmSync(candidate, { force:true });
+    if (finalPlaced) fs.rmSync(file, { force:true });
+    if (previousMoved && fs.existsSync(previous)) fs.renameSync(previous, file);
+    throw error;
+  }
   return normalized;
+}
+
+function applyWindowsUserAcl(file) {
+  if (process.platform !== "win32") return;
+  const username = String(process.env.USERNAME || "").trim();
+  const domain = String(process.env.USERDOMAIN || "").trim();
+  if (!username) throw new Error("Windows user identity is unavailable for the SellerPilot Provider configuration ACL.");
+  const account = domain ? `${domain}\\${username}` : username;
+  execFileSync("icacls.exe", [file, "/inheritance:r", "/grant:r", `${account}:F`], { stdio:"ignore", windowsHide:true });
+  const permissions = execFileSync("icacls.exe", [file], { encoding:"utf8", windowsHide:true });
+  if (permissions.includes("(I)") || /\bEveryone\b|\bAuthenticated Users\b|BUILTIN\\Users/i.test(permissions) || !/:\(F\)|:F/.test(permissions)) throw new Error("SellerPilot Provider configuration does not have a verified user-only Windows ACL.");
 }
 
 export function isThirdPartyProfile(profile) {
@@ -98,6 +140,17 @@ export function normalizeExternalProfile(value) {
   const label = String(value?.label || value?.name || "Third-party image provider").trim();
   const id = String(value?.id || `external-${slug(label)}`).trim();
   const apiKeyEnv = String(value?.api_key_env || defaultKeyEnv(label)).trim();
+  const managed = value?._marqel && typeof value._marqel === "object" && value._marqel.managed === true
+    ? {
+      managed: true,
+      status: String(value._marqel.status || "unknown").trim().slice(0, 80),
+      target_id: String(value._marqel.target_id || "").trim().slice(0, 120),
+      delivery_revision: String(value._marqel.delivery_revision || "").trim().slice(0, 240),
+      delivery_digest: String(value._marqel.delivery_digest || "").trim().toLowerCase(),
+      active_profile_id: String(value._marqel.active_profile_id || "").trim().slice(0, 120),
+      synced_at: String(value._marqel.synced_at || "").trim().slice(0, 80),
+    }
+    : null;
   return {
     id,
     label,
@@ -109,6 +162,7 @@ export function normalizeExternalProfile(value) {
     api_key_env: apiKeyEnv,
     ...(String(value?.api_key || "").trim() ? { api_key: String(value.api_key).trim() } : {}),
     ...(value?.capabilities ? { capabilities: value.capabilities } : {}),
+    ...(managed ? { _marqel: managed } : {}),
   };
 }
 

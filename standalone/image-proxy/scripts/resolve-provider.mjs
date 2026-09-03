@@ -47,7 +47,7 @@ const report = {
 };
 
 console.log(JSON.stringify(report, null, 2));
-if (status !== "ready") process.exitCode = 1;
+if (status !== "ready" && !args["report-only"]) process.exitCode = 1;
 
 function parseArgs(argv) {
   const result = {};
