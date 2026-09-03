@@ -25,6 +25,11 @@ jobs:
           cache: npm
       - run: node --version && npm --version
       - run: npm ci
+      - name: Prepare Codex bundled dependency compatibility path
+        shell: bash
+        run: |
+          mkdir -p "$HOME/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules"
+          ln -sfn "$GITHUB_WORKSPACE/node_modules/sharp" "$HOME/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/sharp"
       - run: npm audit --omit=dev --audit-level=high --registry=https://registry.npmjs.org
       - run: npm run verify:all
       - run: npm run verify:skill-package
