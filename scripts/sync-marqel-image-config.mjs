@@ -8,6 +8,7 @@ import { findProfile, normalizeExternalProfile, readProviderRegistry, writeProvi
 
 const DEFAULT_TARGET_ID = "sellerpilot-image";
 const DEFAULT_PROFILE_ID = "marqel-sellerpilot-image";
+const MANAGED_RELEASE_CONTRACT = "marqel-installed-skill-release.v1";
 
 function parseArgs(argv = process.argv) {
   const args = {};
@@ -27,6 +28,20 @@ export function defaultClientConfigPath(env = process.env, platform = process.pl
   const pathApi = platform === "win32" ? path.win32 : path;
   if (platform === "win32") return pathApi.join(env.LOCALAPPDATA || pathApi.join(homeDirectory, "AppData", "Local"), "Marqel", "codex-client-config.json");
   return path.join(homeDirectory, ".etsy-ops", "codex-client-config.json");
+}
+
+export function managedReleaseStatus(skillRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")) {
+  const releasePath = path.join(path.resolve(skillRoot), ".marqel-skill-release.json");
+  try {
+    const release = JSON.parse(fs.readFileSync(releasePath, "utf8"));
+    const managed = release?.contractVersion === MANAGED_RELEASE_CONTRACT
+      && release?.id === "sellerpilot-product-image-industrial"
+      && Boolean(String(release?.version || "").trim())
+      && /^[a-f0-9]{64}$/.test(String(release?.contentSha256 || ""));
+    return { managed, releasePath, version: managed ? String(release.version) : "" };
+  } catch {
+    return { managed: false, releasePath, version: "" };
+  }
 }
 
 export function buildMarqelImageProfile(config, { targetId = DEFAULT_TARGET_ID, profileId = DEFAULT_PROFILE_ID } = {}) {
@@ -121,9 +136,21 @@ export function syncMarqelImageConfig({ configPath, providerConfigPath, targetId
 
 function main() {
   const args = parseArgs();
+  const skillRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
   const codexHome = path.resolve(process.env.CODEX_HOME || path.join(os.homedir(), ".codex"));
   const configPath = path.resolve(args.config || defaultClientConfigPath());
   const providerConfigPath = path.resolve(args["provider-config"] || path.join(codexHome, "sellerpilot-product-image-industrial", "image-provider.json"));
+  if (args["managed-only"] && !managedReleaseStatus(skillRoot).managed) {
+    process.stdout.write(`${JSON.stringify({
+      clientId: "sellerpilot-product-image-industrial",
+      targetId: String(args["target-id"] || DEFAULT_TARGET_ID),
+      status: "not_managed",
+      providerReady: false,
+      keyConfigured: false,
+      managed: false,
+    })}\n`);
+    return;
+  }
   if (args.status) {
     process.stdout.write(`${JSON.stringify(marqelImageProviderStatus({ providerConfigPath, targetId: String(args["target-id"] || DEFAULT_TARGET_ID) }))}\n`);
     return;

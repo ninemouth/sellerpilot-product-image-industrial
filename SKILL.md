@@ -21,8 +21,10 @@ $sellerpilot-product-image-industrial sync --set-active
 ```
 
 - `status` and `provider-status` are aliases. Run `scripts/sync-marqel-image-config.mjs --status` and return only the non-secret Provider state.
-- `sync` is an explicit configuration refresh. First run the sibling `marqel-control-center-auth` helper with `sync-config --target-id sellerpilot-image`; if no reusable session exists, run `device-start --sync-target sellerpilot-image` and wait for Web approval. Then run `scripts/sync-marqel-image-config.mjs`, followed by `--status`. Do not run the `image-proxy` synchronization hook and do not generate an image.
-- `sync --set-active` performs the same refresh and passes `--set-active` only to `scripts/sync-marqel-image-config.mjs`. Never interpret plain `sync` as authority to replace an explicitly selected external profile.
+- `sync` is only for a Marqel-managed installation created by the Etsy/Marqel one-click installer. Before contacting Auth or the Web control plane, run `scripts/sync-marqel-image-config.mjs --managed-only --status`. If it returns `not_managed`, stop without contacting the Web service and without writing Provider configuration; tell the user to keep using the independent-install configuration workflow described below.
+- When the managed-install preflight succeeds, run the sibling `marqel-control-center-auth` helper with `sync-config --target-id sellerpilot-image`; if no reusable session exists, run `device-start --sync-target sellerpilot-image` and wait for Web approval. Then run `scripts/sync-marqel-image-config.mjs --managed-only`, followed by `--status`. Do not run the `image-proxy` synchronization hook and do not generate an image.
+- `sync --set-active` performs the same managed-only refresh and passes `--set-active` only to `scripts/sync-marqel-image-config.mjs`. Never interpret plain `sync` as authority to replace an explicitly selected external profile.
+- For an independent or source installation, keep the existing Provider setup unchanged: use `configure:image-provider-interactive`, `providers:upsert`, `providers:select`, or the documented environment variables. Never implicitly pull Web-managed configuration into those installations.
 - Never print a Base URL, API Key, Token, shared configuration contents, or raw helper stderr. Report only the allowlisted status fields emitted by the SellerPilot status command.
 
 The canonical control plane is:

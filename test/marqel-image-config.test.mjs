@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import path from "node:path";
 import test from "node:test";
 import fs from "node:fs";
 import os from "node:os";
-import { buildMarqelImageProfile, defaultClientConfigPath, marqelImageProviderStatus, mergeMarqelImageProfile, removeMarqelImageProfile, syncMarqelImageConfig } from "../scripts/sync-marqel-image-config.mjs";
+import { fileURLToPath } from "node:url";
+import { buildMarqelImageProfile, defaultClientConfigPath, managedReleaseStatus, marqelImageProviderStatus, mergeMarqelImageProfile, removeMarqelImageProfile, syncMarqelImageConfig } from "../scripts/sync-marqel-image-config.mjs";
 
 test("documents symmetric non-secret SellerPilot provider chat commands", () => {
   const skill = fs.readFileSync(new URL("../SKILL.md", import.meta.url), "utf8");
@@ -14,6 +16,30 @@ test("documents symmetric non-secret SellerPilot provider chat commands", () => 
   assert.match(skill, /device-start --sync-target sellerpilot-image/);
   assert.match(skill, /Do not run the `image-proxy` synchronization hook and do not generate an image/);
   assert.match(skill, /sync --set-active/);
+  assert.match(skill, /--managed-only --status/);
+  assert.match(skill, /independent-install configuration workflow/);
+});
+
+test("managed-only sync is inert for an independent installation", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "sellerpilot-independent-sync-"));
+  const providerConfig = path.join(root, "provider.json");
+  const original = `${JSON.stringify({ active_profile_id: "independent", profiles: [{ id: "independent", kind: "external", runtime: "openai_images" }] })}\n`;
+  try {
+    assert.equal(managedReleaseStatus(root).managed, false);
+    fs.writeFileSync(path.join(root, ".marqel-skill-release.json"), JSON.stringify({ contractVersion: "marqel-installed-skill-release.v1", id: "sellerpilot-product-image-industrial", version: "2026.09.03.3", contentSha256: "invalid" }));
+    assert.equal(managedReleaseStatus(root).managed, false);
+    fs.writeFileSync(path.join(root, ".marqel-skill-release.json"), JSON.stringify({ contractVersion: "marqel-installed-skill-release.v1", id: "sellerpilot-product-image-industrial", version: "2026.09.03.3", contentSha256: "c".repeat(64) }));
+    assert.deepEqual(managedReleaseStatus(root), { managed: true, releasePath: path.join(root, ".marqel-skill-release.json"), version: "2026.09.03.3" });
+
+    fs.writeFileSync(providerConfig, original);
+    const script = fileURLToPath(new URL("../scripts/sync-marqel-image-config.mjs", import.meta.url));
+    const result = spawnSync(process.execPath, [script, "--managed-only", "--provider-config", providerConfig], { encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(JSON.parse(result.stdout).status, "not_managed");
+    assert.equal(fs.readFileSync(providerConfig, "utf8"), original);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("maps the Web-managed sellerpilot image target without printing or changing local provider semantics", () => {
