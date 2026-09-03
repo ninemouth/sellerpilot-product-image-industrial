@@ -5,6 +5,17 @@ import fs from "node:fs";
 import os from "node:os";
 import { buildMarqelImageProfile, defaultClientConfigPath, marqelImageProviderStatus, mergeMarqelImageProfile, removeMarqelImageProfile, syncMarqelImageConfig } from "../scripts/sync-marqel-image-config.mjs";
 
+test("documents symmetric non-secret SellerPilot provider chat commands", () => {
+  const skill = fs.readFileSync(new URL("../SKILL.md", import.meta.url), "utf8");
+  assert.match(skill, /\$sellerpilot-product-image-industrial status/);
+  assert.match(skill, /\$sellerpilot-product-image-industrial provider-status/);
+  assert.match(skill, /\$sellerpilot-product-image-industrial sync/);
+  assert.match(skill, /sync-config --target-id sellerpilot-image/);
+  assert.match(skill, /device-start --sync-target sellerpilot-image/);
+  assert.match(skill, /Do not run the `image-proxy` synchronization hook and do not generate an image/);
+  assert.match(skill, /sync --set-active/);
+});
+
 test("maps the Web-managed sellerpilot image target without printing or changing local provider semantics", () => {
   const profile = buildMarqelImageProfile({ targets: { "sellerpilot-image": { displayName: "团队生图", image: { provider: "third_party_proxy", baseUrl: "https://images.example/v1", model: "image-model", apiKey: "secret-value" } } } });
   assert.equal(profile.id, "marqel-sellerpilot-image");
