@@ -277,10 +277,10 @@ Codex 应该会使用内置的 `skill-installer`。安装成功后，重启 Code
 
 先让 Codex 检查当前会话是否能直接调用内置 `image_gen`：如果可用，SellerPilot 走 `native_codex`，不需要、也不应领取第三方生图 Base URL 或 API Key；本地残留的第三方 Profile 不应覆盖这个自动判断。只有内置 `image_gen` 不可用、并且你明确选择第三方代理时，才需要下面的 Marqel Web 同步流程。
 
-如果生图 Provider 确实由 Marqel Web 模型中心作为第三方代理管理，再把下面这段话发给 Codex。它会复用已有设备授权；只有会话缺失或长期授权到期时才重新打开批准页面：
+如果生图 Provider 确实由 Marqel Web 模型中心作为第三方代理管理，必须先使用 Marqel Web 一键安装 / 更新把完整生图栈安装成受管版本；上面的 GitHub 独立安装不会被同步命令隐式迁移。对受管版本，再把下面这段话发给 Codex。它会复用已有设备授权；只有会话缺失或长期授权到期时才重新打开批准页面：
 
 ```text
-请先检查当前 Codex 是否能调用内置 image_gen。若可用，使用 native_codex，不同步 sellerpilot-image，也不要求第三方 Base URL/API Key。只有内置 image_gen 不可用且我明确选择第三方代理时，才用 marqel-control-center-auth 检查并验证现有设备会话；如果会话有效，显式同步 sellerpilot-image；如果缺少或已过期，发起 device-start --sync-target sellerpilot-image，等我在 Web 核对并批准。随后运行 SellerPilot 的 providers:sync-marqel，并以 --provider third_party_proxy --native-imagegen unavailable 验证代理配置。只告诉我授权状态、目标 ID、Profile 名称、Base URL 是否已配置、API Key 是否已配置和验证结果；不要显示 Base URL、API Key、Token 或本地凭据文件内容。
+请先检查当前 Codex 是否能调用内置 image_gen。若可用，使用 native_codex，不同步 sellerpilot-image，也不要求第三方 Base URL/API Key。只有内置 image_gen 不可用且我明确选择 Marqel 管理的第三方代理时，才运行 `$marqel-business-skill-manager sync-image-config`：由 Manager 校验完整受管生图栈，复用设备会话或在需要时自动发起 Web 设备批准，同时导入 SellerPilot 与 image-proxy 并核对 delivery digest。随后以 --provider third_party_proxy --native-imagegen unavailable 验证代理配置。不要直接拼接 Auth 或单个消费者的同步脚本；只告诉我授权状态、目标 ID、Profile 名称、Base URL 是否已配置、API Key 是否已配置和验证结果，不要显示 Base URL、API Key、Token 或本地凭据文件内容。
 ```
 
 这个流程只领取 `sellerpilot-image` 的生图配置，不会把该 API Key 下发给普通 Codex Skills、Etsy Growth Agent 或 1688 / 淘宝供应商插件。

@@ -7,17 +7,16 @@ import os from "node:os";
 import { fileURLToPath } from "node:url";
 import { buildMarqelImageProfile, defaultClientConfigPath, managedReleaseStatus, marqelImageProviderStatus, mergeMarqelImageProfile, removeMarqelImageProfile, syncMarqelImageConfig } from "../scripts/sync-marqel-image-config.mjs";
 
-test("documents symmetric non-secret SellerPilot provider chat commands", () => {
+test("documents Manager-owned Web sync and only non-secret SellerPilot status commands", () => {
   const skill = fs.readFileSync(new URL("../SKILL.md", import.meta.url), "utf8");
   assert.match(skill, /\$sellerpilot-product-image-industrial status/);
   assert.match(skill, /\$sellerpilot-product-image-industrial provider-status/);
-  assert.match(skill, /\$sellerpilot-product-image-industrial sync/);
-  assert.match(skill, /sync-config --target-id sellerpilot-image/);
-  assert.match(skill, /device-start --sync-target sellerpilot-image/);
-  assert.match(skill, /Do not run the `image-proxy` synchronization hook and do not generate an image/);
-  assert.match(skill, /sync --set-active/);
-  assert.match(skill, /--managed-only --status/);
-  assert.match(skill, /independent-install configuration workflow/);
+  assert.match(skill, /\$marqel-business-skill-manager sync-image-config/);
+  assert.match(skill, /internal import\/status hook/);
+  assert.match(skill, /independent or source installation/);
+  assert.doesNotMatch(skill, /\$sellerpilot-product-image-industrial sync(?:\s|`)/);
+  assert.doesNotMatch(skill, /sync --set-active/);
+  assert.doesNotMatch(skill, /manage-session\.mjs sync-config/);
 });
 
 test("managed-only sync is inert for an independent installation", () => {

@@ -16,15 +16,13 @@ Use these commands in Codex chat; they are Skill request conventions, not shell 
 ```text
 $sellerpilot-product-image-industrial status
 $sellerpilot-product-image-industrial provider-status
-$sellerpilot-product-image-industrial sync
-$sellerpilot-product-image-industrial sync --set-active
 ```
 
 - `status` and `provider-status` are aliases. Run `scripts/sync-marqel-image-config.mjs --status` and return only the non-secret Provider state.
-- `sync` is only for a Marqel-managed installation created by the Etsy/Marqel one-click installer. Before contacting Auth or the Web control plane, run `scripts/sync-marqel-image-config.mjs --managed-only --status`. If it returns `not_managed`, stop without contacting the Web service and without writing Provider configuration; tell the user to keep using the independent-install configuration workflow described below.
-- When the managed-install preflight succeeds, run the sibling `marqel-control-center-auth` helper with `sync-config --target-id sellerpilot-image`; if no reusable session exists, run `device-start --sync-target sellerpilot-image` and wait for Web approval. Then run `scripts/sync-marqel-image-config.mjs --managed-only`, followed by `--status`. Do not run the `image-proxy` synchronization hook and do not generate an image.
-- `sync --set-active` performs the same managed-only refresh and passes `--set-active` only to `scripts/sync-marqel-image-config.mjs`. Never interpret plain `sync` as authority to replace an explicitly selected external profile.
+- Web-managed configuration is owned by the unified Manager. When the user explicitly asks to refresh it, use `$marqel-business-skill-manager sync-image-config`; do not expose or reconstruct direct Auth, SellerPilot, or image-proxy synchronization sequences. The Manager requires the complete managed image stack to be current, obtains device approval when needed, imports both consumers, verifies one delivery digest, and reports non-secret state.
+- `scripts/sync-marqel-image-config.mjs` remains an internal import/status hook for the Manager and one-click installation lifecycle. Do not present it as a standalone Web configuration command and do not use it to generate an image.
 - For an independent or source installation, keep the existing Provider setup unchanged: use `configure:image-provider-interactive`, `providers:upsert`, `providers:select`, or the documented environment variables. Never implicitly pull Web-managed configuration into those installations.
+- Configuration refresh never authorizes switching an explicitly selected external Provider. Provider selection remains a separate, explicit local action.
 - Never print a Base URL, API Key, Token, shared configuration contents, or raw helper stderr. Report only the allowlisted status fields emitted by the SellerPilot status command.
 
 The canonical control plane is:
@@ -77,20 +75,13 @@ First inspect the current Codex runtime capability. This check is authoritative 
 - Only when built-in `image_gen` is unavailable and the runtime is intentionally using a third-party proxy, resolve with `--provider third_party_proxy --native-imagegen unavailable`. Then, and only then, synchronize the Web-managed `sellerpilot-image` target when that target is the selected proxy source.
 - An explicit `third_party_proxy` selection remains authoritative. `unknown` preserves the existing explicit profile selection and must not be presented as proof that native generation is available.
 
-When the selected route is the Marqel Web-managed third-party proxy, refresh the shared target before resolving the provider route:
+When the selected route is the Marqel Web-managed third-party proxy, refresh the shared target before resolving the provider route through the single managed entrypoint:
 
-For a first-time authorization, the explicit target can be synchronized immediately after the human approval:
-
-```bash
-node ${CODEX_HOME:-$HOME/.codex}/skills/marqel-control-center-auth/scripts/manage-session.mjs device-start --sync-target sellerpilot-image
+```text
+$marqel-business-skill-manager sync-image-config
 ```
 
-For an existing valid device session, use the refresh-and-import sequence:
-
-```bash
-node ${CODEX_HOME:-$HOME/.codex}/skills/marqel-control-center-auth/scripts/manage-session.mjs sync-config --target-id sellerpilot-image
-node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scripts/sync-marqel-image-config.mjs
-```
+This is a Codex Skill command, not a shell command. It verifies that Auth, Manager, image-proxy, and SellerPilot are exact current managed packages; reuses the shared session or starts Web device approval when required; imports both consumers; and requires their delivery digests to match. If the image stack is independent, missing, outdated, or content-drifted, use the Web one-click install/update workflow instead of bypassing the Manager gate.
 
 The managed one-click installer performs this import for both `image-proxy` and this SellerPilot Skill, verifies that both consumers hold the same delivery digest, and reports their states separately. Check this Skill's non-secret local provider state with:
 
@@ -100,7 +91,7 @@ node ${CODEX_HOME:-$HOME/.codex}/skills/sellerpilot-product-image-industrial/scr
 
 An `applied` result means the managed third-party profile and key are available to SellerPilot; `profileActive: false` is valid when `codex-native` remains intentionally active. Never infer SellerPilot readiness solely from `image-proxy` status.
 
-The sync adds or updates a named `marqel-sellerpilot-image` provider profile without deleting existing local profiles. It auto-activates only when the local active profile is still `codex-native`; an explicitly selected local external profile remains authoritative. Use `--set-active` only when the operator intentionally wants the Web-managed profile to become active. The API Key is never printed, placed in a run artifact, or sent to a browser page. If the shared target is missing, local Codex provider configuration remains the fallback and the Skill must report the configuration state honestly. Never run this Web sync merely because the target exists: native `image_gen` needs neither its Base URL nor its API Key.
+The managed import adds or updates a named `marqel-sellerpilot-image` provider profile without deleting existing local profiles. It auto-activates only when the local active profile is still `codex-native`; an explicitly selected local external profile remains authoritative. Selecting a different active Provider is a separate explicit local action, not part of configuration refresh. The API Key is never printed, placed in a run artifact, or sent to a browser page. If the shared target is missing, local Codex provider configuration remains the fallback and the Skill must report the configuration state honestly. Never run this Web sync merely because the target exists: native `image_gen` needs neither its Base URL nor its API Key.
 
 Resolve one provider route per run. Treat its `selected_mode` as the sole execution authority. The resolver pins a digest into `runtime/image-provider-resolution.json` and `run-state.json`; every role reuses it. A per-role config change or silent fallback is forbidden.
 
